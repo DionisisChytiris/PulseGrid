@@ -14,14 +14,32 @@ import { Subdivision, type SubdivisionKind } from '../../domain/valueObjects/Sub
 import { BeatClock } from '../../domain/timing/BeatClock';
 import { RuntimeScheduler } from '../../domain/timing/RuntimeScheduler';
 import { createTempoState } from '../../domain/timing/TempoMap';
+import type { Tick } from '../../domain/timing/Tick';
+import type { IAudioEngine } from '../../infrastructure/audio/IAudioEngine';
 import type { AppDispatch, RootState } from '../../store';
-import type { INativeAudioBridge } from '../../infrastructure/audio/INativeAudioBridge';
-import { nativeAudioBridge } from '../../infrastructure/audio/NativeAudioBridge';
 
 function formatTimeSignature({ numerator, denominator }: TimeSignature): string {
   return `${numerator}/${denominator}`;
 }
 
+/** One-shot delay before ticks begin — compensates for Android audio warm-up latency. */
+const PLAYBACK_START_DELAY_MS = 150;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+/**
+ * Coordinates metronome playback.
+ *
+ * Tick flow:
+ * RuntimeScheduler → Tick → PlaybackService → IAudioEngine → sound
+ *
+ * Scheduling lives in RuntimeScheduler only. This service reacts to ticks and
+ * decides which click (if any) to play via IAudioEngine.
+ */
 export class PlaybackService {
   private readonly runtimeScheduler: RuntimeScheduler;
   private readonly tapTempoCalculator: TapTempoCalculator;
@@ -29,7 +47,7 @@ export class PlaybackService {
   constructor(
     private readonly dispatch: AppDispatch,
     private readonly getState: () => RootState,
-    private readonly audioBridge: INativeAudioBridge = nativeAudioBridge,
+    private readonly audioEngine: IAudioEngine,
   ) {
     const { bpm, timeSignature, accentPattern, subdivision } = this.getState().metronome;
 
@@ -40,8 +58,22 @@ export class PlaybackService {
       timeSignature,
       accentPattern: AccentPattern.create(accentPattern, timeSignature.numerator),
       subdivision: Subdivision.fromKind(subdivision),
-      onTick: (tick) => this.dispatch(setTick(tick)),
+      onTick: (tick) => this.handleTick(tick),
     });
+  }
+
+  private handleTick(tick: Tick): void {
+    this.dispatch(setTick(tick));
+    this.playClickForTick(tick);
+  }
+
+  private playClickForTick(tick: Tick): void {
+    if (tick.isAccent) {
+      this.audioEngine.playAccentClick();
+      return;
+    }
+
+    this.audioEngine.playNormalClick();
   }
 
   private applyAccentPattern(accents: boolean[]): void {
@@ -64,22 +96,35 @@ export class PlaybackService {
 
     this.dispatch(playbackStarted());
     console.log('Playback started');
+
+    void this.startPlayback();
+  }
+
+  private async warmUpAudio(): Promise<void> {
+    this.audioEngine.initialize();
+    await this.audioEngine.whenReady();
+    await this.audioEngine.warmUp();
+  }
+
+  private async startPlayback(): Promise<void> {
+    await this.warmUpAudio();
+    this.audioEngine.start();
+    await delay(PLAYBACK_START_DELAY_MS);
     this.runtimeScheduler.start();
-    this.audioBridge.start();
   }
 
   stop(): void {
     this.runtimeScheduler.stop();
     this.dispatch(playbackStopped());
     console.log('Playback stopped');
-    this.audioBridge.stop();
+    this.audioEngine.stop();
   }
 
   setBpm(bpm: number): void {
     this.dispatch(bpmChanged(bpm));
     this.runtimeScheduler.setTempo(createTempoState(bpm));
     console.log(`Tempo changed to ${bpm} BPM`);
-    this.audioBridge.setTempo(bpm);
+    this.audioEngine.setTempo(bpm);
   }
 
   setTimeSignature(timeSignature: TimeSignature): void {
@@ -90,7 +135,6 @@ export class PlaybackService {
       AccentPattern.create(accentPattern, timeSignature.numerator),
     );
     console.log(`Time signature changed to ${formatTimeSignature(timeSignature)}`);
-    this.audioBridge.setTimeSignature(timeSignature.numerator, timeSignature.denominator);
   }
 
   setAccentPattern(accents: boolean[]): void {

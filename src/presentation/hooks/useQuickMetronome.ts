@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 
 import { PlaybackService } from '../../application/services/PlaybackService';
-import { nativeAudioBridge } from '../../infrastructure/audio/NativeAudioBridge';
+import { defaultAudioEngine } from '../../infrastructure/audio/defaultAudioEngine';
 import { store } from '../../store';
 import {
   selectAccentPattern,
@@ -36,7 +36,7 @@ export function useQuickMetronome() {
   const [tapTempoHintVisible, setTapTempoHintVisible] = useState(false);
 
   const playbackService = useMemo(
-    () => new PlaybackService(dispatch, () => store.getState(), nativeAudioBridge),
+    () => new PlaybackService(dispatch, () => store.getState(), defaultAudioEngine),
     [dispatch],
   );
 

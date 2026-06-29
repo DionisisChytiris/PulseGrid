@@ -1,11 +1,17 @@
+import { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { Provider } from 'react-redux';
 
+import { defaultAudioEngine } from './src/infrastructure/audio/defaultAudioEngine';
 import RootNavigator from './src/presentation/navigation/RootNavigator';
 import { store } from './src/store';
 
 export default function App() {
+  useEffect(() => {
+    defaultAudioEngine.initialize();
+  }, []);
+
   return (
     <Provider store={store}>
       <NavigationContainer>

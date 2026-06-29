@@ -1,20 +1,24 @@
+import type { IAudioEngine } from './IAudioEngine';
+import { ExpoAudioEngine, expoAudioEngine } from './ExpoAudioEngine';
 import type { INativeAudioBridge } from './INativeAudioBridge';
 
 export class NativeAudioBridge implements INativeAudioBridge {
+  constructor(private readonly audioEngine: IAudioEngine = expoAudioEngine) {}
+
   initialize(): void {
-    console.log('NativeAudioBridge.initialize()');
+    this.audioEngine.initialize();
   }
 
   start(): void {
-    console.log('NativeAudioBridge.start()');
+    this.audioEngine.start();
   }
 
   stop(): void {
-    console.log('NativeAudioBridge.stop()');
+    this.audioEngine.stop();
   }
 
   setTempo(bpm: number): void {
-    console.log(`NativeAudioBridge.setTempo(${bpm})`);
+    this.audioEngine.setTempo(bpm);
   }
 
   setTimeSignature(numerator: number, denominator: number): void {
@@ -22,7 +26,9 @@ export class NativeAudioBridge implements INativeAudioBridge {
   }
 
   dispose(): void {
-    console.log('NativeAudioBridge.dispose()');
+    if (this.audioEngine instanceof ExpoAudioEngine) {
+      void this.audioEngine.dispose();
+    }
   }
 }
 
