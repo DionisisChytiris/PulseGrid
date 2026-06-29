@@ -1,0 +1,14 @@
+You are working on PulseGrid.
+
+Always follow docs/02-system-architecture.md.
+
+Requirements:
+
+- Use TypeScript.
+- Use Redux Toolkit.
+- Never access SQLite directly from UI.
+- Never use setInterval for audio timing.
+- Use feature-based architecture.
+- Explain architectural decisions.
+- Prefer maintainable code over clever code.
+- When implementing features, suggest tests.
