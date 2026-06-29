@@ -85,11 +85,10 @@ function PlayingBeatDot({
   useEffect(() => {
     const targetScale = isPrimaryTick ? 1.5 : isSubdivisionTick ? 1.2 : 1;
 
-    Animated.spring(scale, {
+    Animated.timing(scale, {
       toValue: targetScale,
+      duration: isPrimaryTick || isSubdivisionTick ? 60 : 100,
       useNativeDriver: true,
-      friction: 6,
-      tension: 120,
     }).start();
   }, [isPrimaryTick, isSubdivisionTick, scale]);
 

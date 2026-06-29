@@ -15,7 +15,7 @@ export type RuntimeSchedulerConfig = {
 
 /**
  * Simulation runtime that emits ticks on a beat interval derived from BeatClock.
- * Uses setInterval for simulation only — not for audio scheduling.
+ * Uses wall-clock aligned timeouts for simulation — not for audio scheduling.
  */
 export class RuntimeScheduler {
   private readonly onTick: (tick: Tick) => void;
@@ -23,9 +23,11 @@ export class RuntimeScheduler {
   private timeSignature: TimeSignature;
   private accentPattern: AccentPattern;
   private subdivision: Subdivision;
-  private intervalId: ReturnType<typeof setInterval> | null = null;
+  private timeoutId: ReturnType<typeof setTimeout> | null = null;
   private tickIndex = 0;
   private logicalTimestampMs = 0;
+  /** Wall time (ms) when tick 0 was emitted; re-anchored on tempo/subdivision changes. */
+  private startWallMs = 0;
   private running = false;
 
   constructor(config: RuntimeSchedulerConfig) {
@@ -93,29 +95,72 @@ export class RuntimeScheduler {
     this.running = true;
     this.tickIndex = 0;
     this.logicalTimestampMs = 0;
+    this.startWallMs = Date.now();
 
     this.emitCurrentTick();
-    this.restartInterval();
+    this.scheduleNextTick();
   }
 
   stop(): void {
-    this.clearInterval();
+    this.clearTimer();
     this.running = false;
   }
 
-  private restartInterval(): void {
-    this.clearInterval();
-
+  private getIntervalMs(): number {
     const beatMs = this.clock.beatsToMs(1);
-    const intervalMs = beatMs * this.subdivision.getBeatFraction();
-    this.intervalId = setInterval(() => this.advanceTick(), intervalMs);
+    return beatMs * this.subdivision.getBeatFraction();
+  }
+
+  /** Re-anchor wall clock and reschedule without resetting beat position. */
+  private restartInterval(): void {
+    if (!this.running) {
+      return;
+    }
+
+    const intervalMs = this.getIntervalMs();
+    this.startWallMs = Date.now() - this.tickIndex * intervalMs;
+    this.scheduleNextTick();
+  }
+
+  private scheduleNextTick(): void {
+    this.clearTimer();
+
+    if (!this.running) {
+      return;
+    }
+
+    const intervalMs = this.getIntervalMs();
+    const nextTickWallMs = this.startWallMs + (this.tickIndex + 1) * intervalMs;
+    const delay = Math.max(0, nextTickWallMs - Date.now());
+
+    this.timeoutId = setTimeout(() => {
+      if (!this.running) {
+        return;
+      }
+
+      this.catchUpTicks();
+      this.scheduleNextTick();
+    }, delay);
+  }
+
+  /** Emit any ticks whose scheduled wall time has already passed. */
+  private catchUpTicks(): void {
+    const intervalMs = this.getIntervalMs();
+
+    while (this.running) {
+      const nextTickWallMs = this.startWallMs + (this.tickIndex + 1) * intervalMs;
+      if (Date.now() < nextTickWallMs) {
+        break;
+      }
+
+      this.advanceTick();
+    }
   }
 
   private advanceTick(): void {
-    const beatMs = this.clock.beatsToMs(1);
-    const intervalMs = beatMs * this.subdivision.getBeatFraction();
+    const intervalMs = this.getIntervalMs();
     this.tickIndex += 1;
-    this.logicalTimestampMs += intervalMs;
+    this.logicalTimestampMs = this.tickIndex * intervalMs;
     this.emitCurrentTick();
   }
 
@@ -143,10 +188,10 @@ export class RuntimeScheduler {
     this.onTick(tick);
   }
 
-  private clearInterval(): void {
-    if (this.intervalId !== null) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
+  private clearTimer(): void {
+    if (this.timeoutId !== null) {
+      clearTimeout(this.timeoutId);
+      this.timeoutId = null;
     }
   }
 }
