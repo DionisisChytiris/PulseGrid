@@ -1,0 +1,31 @@
+{
+  "buildFiles": [
+    "D:\\Coding\\PersonalProjects\\More_projects_unfinished\\PulseGrid\\modules\\native-audio\\android\\.cxx\\Debug\\154h5s4p\\prefab\\x86_64\\prefab\\lib\\x86_64-linux-android\\cmake\\oboe\\oboeConfig.cmake",
+    "D:\\Coding\\PersonalProjects\\More_projects_unfinished\\PulseGrid\\modules\\native-audio\\android\\.cxx\\Debug\\154h5s4p\\prefab\\x86_64\\prefab\\lib\\x86_64-linux-android\\cmake\\oboe\\oboeConfigVersion.cmake",
+    "D:\\Coding\\PersonalProjects\\More_projects_unfinished\\PulseGrid\\modules\\native-audio\\android\\CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "C:\\Users\\dhiti\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+      "-C",
+      "D:\\Coding\\PersonalProjects\\More_projects_unfinished\\PulseGrid\\modules\\native-audio\\android\\.cxx\\Debug\\154h5s4p\\x86_64",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "C:\\Users\\dhiti\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+    "-C",
+    "D:\\Coding\\PersonalProjects\\More_projects_unfinished\\PulseGrid\\modules\\native-audio\\android\\.cxx\\Debug\\154h5s4p\\x86_64",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "nativeaudio_oboe_stub::@6890427a1f51a3e7e1df": {
+      "artifactName": "nativeaudio_oboe_stub",
+      "abi": "x86_64",
+      "output": "D:\\Coding\\PersonalProjects\\More_projects_unfinished\\PulseGrid\\modules\\native-audio\\android\\build\\intermediates\\cxx\\Debug\\154h5s4p\\obj\\x86_64\\libnativeaudio_oboe_stub.so",
+      "runtimeFiles": [
+        "C:\\Users\\dhiti\\.gradle\\caches\\8.14.3\\transforms\\0cb0b508e366a3d8ff1a36493f9d0d20\\transformed\\oboe-1.10.0\\prefab\\modules\\oboe\\libs\\android.x86_64\\liboboe.so"
+      ]
+    }
+  }
+}

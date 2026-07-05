@@ -1,0 +1,37 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.nativeaudio'
+version = '0.1.0'
+
+android {
+  ndkVersion rootProject.ext.ndkVersion
+  namespace "expo.modules.nativeaudio"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+    externalNativeBuild {
+      cmake {
+        cppFlags "-std=c++17"
+        arguments "-DANDROID_STL=c++_shared"
+      }
+    }
+  }
+  externalNativeBuild {
+    cmake {
+      path "CMakeLists.txt"
+    }
+  }
+  buildFeatures {
+    prefab true
+  }
+  lintOptions {
+    abortOnError false
+  }
+}
+
+dependencies {
+  implementation 'com.google.oboe:oboe:1.10.0'
+}

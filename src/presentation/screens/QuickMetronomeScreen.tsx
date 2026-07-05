@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { requireNativeModule } from 'expo-modules-core';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useQuickMetronome } from '../hooks/useQuickMetronome';
@@ -106,7 +107,6 @@ export default function QuickMetronomeScreen() {
               <SubdivisionCycleButton
                 subdivision={subdivision}
                 onSubdivisionChange={onSubdivisionChange}
-                disabled={isPlaying}
               />
             </View>
           </View>
@@ -140,6 +140,22 @@ export default function QuickMetronomeScreen() {
         message={tapTempoHintMessage}
         onDismiss={onDismissTapTempoHint}
       />
+
+      {__DEV__ && (
+        <Pressable
+          style={styles.oboeSelfTestButton}
+          onPress={() => {
+            try {
+              const mod = requireNativeModule('NativeAudioModule');
+              mod.runOboeSelfTest?.();
+            } catch (e) {
+              console.warn('Oboe self-test failed:', e);
+            }
+          }}
+        >
+          <Text style={styles.oboeSelfTestText}>Run Oboe Self Test</Text>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -206,5 +222,20 @@ const styles = StyleSheet.create({
   },
   footerTablet: {
     alignSelf: 'center',
+  },
+  oboeSelfTestButton: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    backgroundColor: '#6B7280',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    opacity: 0.7,
+  },
+  oboeSelfTestText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '500',
   },
 });

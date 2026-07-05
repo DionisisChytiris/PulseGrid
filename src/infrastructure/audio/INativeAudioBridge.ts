@@ -4,5 +4,7 @@ export interface INativeAudioBridge {
   stop(): void;
   setTempo(bpm: number): void;
   setTimeSignature(numerator: number, denominator: number): void;
+  playAccent(): void;
+  playNormal(): void;
   dispose(): void;
 }

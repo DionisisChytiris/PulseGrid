@@ -3,137 +3,134 @@ import {
   bpmChanged,
   playbackStarted,
   playbackStopped,
-  setTick,
   subdivisionChanged,
   timeSignatureChanged,
 } from '../../features/metronome/metronomeSlice';
 import type { TimeSignature } from '../../domain/entities/Metronome';
 import { DEFAULT_TAP_TEMPO_CONFIG, TapTempoCalculator, type TapTempoResult } from '../../domain/services/TapTempoCalculator';
 import { AccentPattern } from '../../domain/valueObjects/AccentPattern';
-import { Subdivision, type SubdivisionKind } from '../../domain/valueObjects/Subdivision';
-import { BeatClock } from '../../domain/timing/BeatClock';
-import { RuntimeScheduler } from '../../domain/timing/RuntimeScheduler';
-import { createTempoState } from '../../domain/timing/TempoMap';
-import type { Tick } from '../../domain/timing/Tick';
-import type { IAudioEngine } from '../../infrastructure/audio/IAudioEngine';
+import type { SubdivisionKind } from '../../domain/valueObjects/Subdivision';
+import type { IAudioEngine, MetronomeStartConfig } from '../../infrastructure/audio/IAudioEngine';
+import type { ITimingSource } from '../../infrastructure/audio/ITimingSource';
+import { VisualTickScheduler } from '../../infrastructure/audio/VisualTickScheduler';
 import type { AppDispatch, RootState } from '../../store';
+
+import type { MetronomeTickConsumer } from './MetronomeTickConsumer';
 
 function formatTimeSignature({ numerator, denominator }: TimeSignature): string {
   return `${numerator}/${denominator}`;
 }
 
-/** One-shot delay before ticks begin — compensates for Android audio warm-up latency. */
-const PLAYBACK_START_DELAY_MS = 150;
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
 /**
  * Coordinates metronome playback.
  *
- * Tick flow:
- * RuntimeScheduler → Tick → PlaybackService → IAudioEngine → sound
+ * UI → Redux → PlaybackService
+ *              ├─ NativeAudioEngine (native timing loop + click playback)
+ *              ├─ ITimingSource → TimingTick (UI sync only)
+ *              └─ MetronomeTickConsumer → Redux UI
  *
- * Scheduling lives in RuntimeScheduler only. This service reacts to ticks and
- * decides which click (if any) to play via IAudioEngine.
+ * Native engine is the sole timing and audio authority on device.
  */
 export class PlaybackService {
-  private readonly runtimeScheduler: RuntimeScheduler;
   private readonly tapTempoCalculator: TapTempoCalculator;
+  private playbackGeneration = 0;
 
   constructor(
     private readonly dispatch: AppDispatch,
     private readonly getState: () => RootState,
     private readonly audioEngine: IAudioEngine,
+    private readonly timingSource: ITimingSource,
+    private readonly tickConsumer: MetronomeTickConsumer,
   ) {
+    this.tapTempoCalculator = new TapTempoCalculator(DEFAULT_TAP_TEMPO_CONFIG);
+    this.timingSource.setTickListener((tick) => this.tickConsumer.handleTick(tick));
+  }
+
+  private getStartConfig(): MetronomeStartConfig {
     const { bpm, timeSignature, accentPattern, subdivision } = this.getState().metronome;
 
-    this.tapTempoCalculator = new TapTempoCalculator(DEFAULT_TAP_TEMPO_CONFIG);
-
-    this.runtimeScheduler = new RuntimeScheduler({
-      clock: new BeatClock(createTempoState(bpm)),
-      timeSignature,
-      accentPattern: AccentPattern.create(accentPattern, timeSignature.numerator),
-      subdivision: Subdivision.fromKind(subdivision),
-      onTick: (tick) => this.handleTick(tick),
-    });
-  }
-
-  private handleTick(tick: Tick): void {
-    this.dispatch(setTick(tick));
-    this.playClickForTick(tick);
-  }
-
-  private playClickForTick(tick: Tick): void {
-    if (tick.isAccent) {
-      this.audioEngine.playAccentClick();
-      return;
-    }
-
-    this.audioEngine.playNormalClick();
+    return {
+      bpm,
+      beatsPerMeasure: timeSignature.numerator,
+      accentPattern: [...accentPattern],
+      subdivision,
+    };
   }
 
   private applyAccentPattern(accents: boolean[]): void {
     const { timeSignature } = this.getState().metronome;
-    const accentPattern = AccentPattern.create(accents, timeSignature.numerator);
+    AccentPattern.create(accents, timeSignature.numerator);
 
     this.dispatch(accentPatternChanged(accents));
-    this.runtimeScheduler.setAccentPattern(accentPattern);
+    this.audioEngine.setAccentPattern(accents);
+
+    if (this.timingSource instanceof VisualTickScheduler && this.getState().metronome.isPlaying) {
+      this.timingSource.setAccentPattern(accents);
+    }
   }
 
-  start(): void {
-    const { bpm, timeSignature, accentPattern, subdivision } = this.getState().metronome;
-
-    this.runtimeScheduler.setTempo(createTempoState(bpm));
-    this.runtimeScheduler.setTimeSignature(timeSignature);
-    this.runtimeScheduler.setAccentPattern(
-      AccentPattern.create(accentPattern, timeSignature.numerator),
-    );
-    this.runtimeScheduler.setSubdivision(Subdivision.fromKind(subdivision));
-
-    this.dispatch(playbackStarted());
-    console.log('Playback started');
-
+  private restartPlayback(): void {
+    this.audioEngine.stop();
+    this.timingSource.stopTiming();
     void this.startPlayback();
   }
 
-  private async warmUpAudio(): Promise<void> {
-    this.audioEngine.initialize();
-    await this.audioEngine.whenReady();
-    await this.audioEngine.warmUp();
+  start(): void {
+    if (this.getState().metronome.isPlaying) {
+      console.log('PlaybackService.start() ignored — already playing');
+      return;
+    }
+
+    this.dispatch(playbackStarted());
+    console.log('Playback started');
+    void this.startPlayback();
   }
 
   private async startPlayback(): Promise<void> {
-    await this.warmUpAudio();
-    this.audioEngine.start();
-    await delay(PLAYBACK_START_DELAY_MS);
-    this.runtimeScheduler.start();
+    const generation = ++this.playbackGeneration;
+    const config = this.getStartConfig();
+
+    this.audioEngine.stop();
+    this.timingSource.stopTiming();
+
+    await this.audioEngine.whenReady();
+
+    if (generation !== this.playbackGeneration) {
+      console.log('PlaybackService.startPlayback() cancelled — superseded');
+      return;
+    }
+
+    if (!this.getState().metronome.isPlaying) {
+      console.log('PlaybackService.startPlayback() cancelled — no longer playing');
+      return;
+    }
+
+    this.timingSource.startTiming(config);
+    this.audioEngine.start(config);
   }
 
   stop(): void {
-    this.runtimeScheduler.stop();
+    this.playbackGeneration++;
+    this.audioEngine.stop();
+    this.timingSource.stopTiming();
     this.dispatch(playbackStopped());
     console.log('Playback stopped');
-    this.audioEngine.stop();
   }
 
   setBpm(bpm: number): void {
     this.dispatch(bpmChanged(bpm));
-    this.runtimeScheduler.setTempo(createTempoState(bpm));
-    console.log(`Tempo changed to ${bpm} BPM`);
     this.audioEngine.setTempo(bpm);
+    this.timingSource.setTimingTempo(bpm);
+    console.log(`Tempo changed to ${bpm} BPM`);
   }
 
   setTimeSignature(timeSignature: TimeSignature): void {
     this.dispatch(timeSignatureChanged(timeSignature));
-    this.runtimeScheduler.setTimeSignature(timeSignature);
-    const { accentPattern } = this.getState().metronome;
-    this.runtimeScheduler.setAccentPattern(
-      AccentPattern.create(accentPattern, timeSignature.numerator),
-    );
+
+    if (this.getState().metronome.isPlaying) {
+      this.restartPlayback();
+    }
+
     console.log(`Time signature changed to ${formatTimeSignature(timeSignature)}`);
   }
 
@@ -143,7 +140,12 @@ export class PlaybackService {
 
   setSubdivision(subdivision: SubdivisionKind): void {
     this.dispatch(subdivisionChanged(subdivision));
-    this.runtimeScheduler.setSubdivision(Subdivision.fromKind(subdivision));
+    this.audioEngine.setSubdivision(subdivision);
+
+    if (this.timingSource instanceof VisualTickScheduler) {
+      this.timingSource.setSubdivision(subdivision);
+    }
+
     console.log(`Subdivision changed to ${subdivision}`);
   }
 

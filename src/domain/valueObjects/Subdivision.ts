@@ -1,5 +1,19 @@
 export type SubdivisionKind = 'quarter' | 'eighth' | 'triplet' | 'sixteenth';
 
+/** Subdivisions supported by the native timing engine. */
+export type NativeSubdivisionKind = SubdivisionKind;
+
+export const NATIVE_SUBDIVISION_ORDER: readonly NativeSubdivisionKind[] = [
+  'quarter',
+  'eighth',
+  'triplet',
+  'sixteenth',
+];
+
+export function toNativeSubdivision(kind: SubdivisionKind): NativeSubdivisionKind {
+  return kind;
+}
+
 const TICKS_PER_BEAT: Record<SubdivisionKind, number> = {
   quarter: 1,
   eighth: 2,

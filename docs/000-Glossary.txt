@@ -1,0 +1,10 @@
+ADR - stands for Architecture Decision Record.
+    An ADR is a short document that answers one question:
+    "Why did we make this architectural decision?"
+    Notice it's not primarily about how something works. It's about why you chose one approach over the alternatives.
+
+PCM  - (Pulse Code Modulation)
+    PCM is simply raw audio data.
+    Instead of saying:
+        "Play click.wav"
+    your app loads the click into memory once

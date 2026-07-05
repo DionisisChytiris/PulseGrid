@@ -1,7 +1,5 @@
 import { Audio, type AVPlaybackSource } from 'expo-av';
 
-import type { IAudioEngine } from './IAudioEngine';
-
 const ACCENT_CLICK = require('../../../assets/audio/click_accent.wav') as AVPlaybackSource;
 const NORMAL_CLICK = require('../../../assets/audio/click_normal.wav') as AVPlaybackSource;
 
@@ -10,10 +8,8 @@ const POOL_SIZE = 2;
 
 type LoadedSound = Audio.Sound;
 
-/**
- * Temporary Expo-backed audio engine. Plays one preloaded click per call — no scheduling.
- */
-export class ExpoAudioEngine implements IAudioEngine {
+/** Expo AV click player — used internally by the JS fallback metronome only. */
+export class ExpoAudioEngine {
   private accentPool: LoadedSound[] = [];
   private normalPool: LoadedSound[] = [];
   private accentPoolIndex = 0;

@@ -1,34 +1,56 @@
-import type { IAudioEngine } from './IAudioEngine';
-import { ExpoAudioEngine, expoAudioEngine } from './ExpoAudioEngine';
+import NativeAudioModule from './NativeAudioModuleClient';
+import { audioDebugLog } from './audioDebugLog';
 import type { INativeAudioBridge } from './INativeAudioBridge';
 
+/**
+ * JS bridge to the native NativeAudioModule.
+ * Forwards lifecycle calls; native engine owns scheduling.
+ */
 export class NativeAudioBridge implements INativeAudioBridge {
-  constructor(private readonly audioEngine: IAudioEngine = expoAudioEngine) {}
-
   initialize(): void {
-    this.audioEngine.initialize();
+    audioDebugLog('NativeAudioBridge', 'initialize', '-> forwarding to native');
+    NativeAudioModule.initialize?.();
   }
 
   start(): void {
-    this.audioEngine.start();
+    audioDebugLog('NativeAudioBridge', 'start', '-> forwarding to native (default 120 BPM)');
+    NativeAudioModule.start({
+      bpm: 120,
+      beatsPerMeasure: 4,
+      accentPattern: [true, false, false, false],
+      subdivision: 'quarter',
+    });
   }
 
   stop(): void {
-    this.audioEngine.stop();
+    audioDebugLog('NativeAudioBridge', 'stop', '-> forwarding to native');
+    NativeAudioModule.stop();
   }
 
   setTempo(bpm: number): void {
-    this.audioEngine.setTempo(bpm);
+    audioDebugLog('NativeAudioBridge', 'setTempo', `bpm=${bpm} -> forwarding to native`);
+    NativeAudioModule.setTempo(bpm);
   }
 
   setTimeSignature(numerator: number, denominator: number): void {
-    console.log(`NativeAudioBridge.setTimeSignature(${numerator}, ${denominator})`);
+    audioDebugLog(
+      'NativeAudioBridge',
+      'setTimeSignature',
+      `${numerator}/${denominator} (JS-only, not forwarded)`,
+    );
+  }
+
+  playAccent(): void {
+    audioDebugLog('NativeAudioBridge', 'playAccent', 'no-op — audio runs in native MetronomeEngine');
+  }
+
+  playNormal(): void {
+    audioDebugLog('NativeAudioBridge', 'playNormal', 'no-op — audio runs in native MetronomeEngine');
   }
 
   dispose(): void {
-    if (this.audioEngine instanceof ExpoAudioEngine) {
-      void this.audioEngine.dispose();
-    }
+    audioDebugLog('NativeAudioBridge', 'dispose', '-> calling stop()');
+    this.stop();
   }
 }
 

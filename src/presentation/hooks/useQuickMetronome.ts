@@ -1,8 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 
-import { PlaybackService } from '../../application/services/PlaybackService';
-import { defaultAudioEngine } from '../../infrastructure/audio/defaultAudioEngine';
-import { store } from '../../store';
+import { playbackService } from '../../application/services/playbackServiceInstance';
 import {
   selectAccentPattern,
   selectBpm,
@@ -15,7 +13,7 @@ import {
 } from '../../features/metronome/metronomeSelectors';
 import type { TimeSignature } from '../../domain/entities/Metronome';
 import type { SubdivisionKind } from '../../domain/valueObjects/Subdivision';
-import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { useAppSelector } from '../../store/hooks';
 
 export const MIN_BPM = 30;
 export const MAX_BPM = 600;
@@ -24,7 +22,6 @@ const TAP_TEMPO_INTRO =
   'Tap TAP at least 3 times in a steady beat to set the tempo. BPM updates from the 3rd tap. Pause longer than 2 seconds to start over. Hold TAP for help.';
 
 export function useQuickMetronome() {
-  const dispatch = useAppDispatch();
   const bpm = useAppSelector(selectBpm);
   const isPlaying = useAppSelector(selectIsPlaying);
   const timeSignature = useAppSelector(selectTimeSignature);
@@ -34,11 +31,6 @@ export function useQuickMetronome() {
   const currentSubdivisionIndex = useAppSelector(selectCurrentSubdivisionIndex);
   const isAccent = useAppSelector(selectIsAccent);
   const [tapTempoHintVisible, setTapTempoHintVisible] = useState(false);
-
-  const playbackService = useMemo(
-    () => new PlaybackService(dispatch, () => store.getState(), defaultAudioEngine),
-    [dispatch],
-  );
 
   const onTapTempo = () => {
     playbackService.tapTempo();
