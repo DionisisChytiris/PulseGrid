@@ -5,6 +5,7 @@ import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
 class NativeAudioModule : Module() {
+
   private val metronomeEngine: MetronomeEngine by lazy { createMetronomeEngine() }
 
   private val clickSoundPlayer: ClickSoundPlayer? by lazy {
@@ -31,7 +32,12 @@ class NativeAudioModule : Module() {
         if (audioInitialized) {
           Log.d(TAG, "Already initialized, skipping")
         } else {
+
+          // ✅ SINGLE SOURCE OF TRUTH FOR OBOE ENABLE
+          clickSoundPlayer?.useOboeEngine = true
+
           clickSoundPlayer?.initialize()
+
           audioInitialized = true
         }
       }
@@ -84,15 +90,14 @@ class NativeAudioModule : Module() {
   private fun createMetronomeEngine(): MetronomeEngine {
     return MetronomeEngine(
       clickSoundPlayer,
-      onTick = {
-          sequence,
-          beatIndex,
-          beatNumber,
-          beatsPerMeasure,
-          subdivisionIndex,
-          isAccent,
-          timestampMs,
-        ->
+      onTick = { sequence,
+                 beatIndex,
+                 beatNumber,
+                 beatsPerMeasure,
+                 subdivisionIndex,
+                 isAccent,
+                 timestampMs ->
+
         sendEvent(
           "onTick",
           mapOf(
@@ -153,14 +158,13 @@ class NativeAudioModule : Module() {
     if (pattern.isEmpty()) {
       return booleanArrayOf(true)
     }
-
     return pattern.toBooleanArray()
   }
 
   private fun readAccentPattern(value: Any?, beatsPerMeasure: Int): BooleanArray {
-    val pattern = (value as? List<*>)?.map { item ->
-      when (item) {
-        is Boolean -> item
+    val pattern = (value as? List<*>)?.map {
+      when (it) {
+        is Boolean -> it
         else -> false
       }
     }

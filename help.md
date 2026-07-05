@@ -1,5 +1,7 @@
 How to run on physical device - project sdk 56 -> expo go 54   incompatible
 
+px expo start --dev-client
+
 create dev build 
 eas build --profile development --platform android
 eas build --profile development --platform ios
