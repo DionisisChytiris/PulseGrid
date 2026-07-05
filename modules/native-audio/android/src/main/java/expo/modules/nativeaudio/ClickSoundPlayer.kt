@@ -2,13 +2,10 @@ package expo.modules.nativeaudio
 
 import android.content.Context
 
+/** Forwards scheduled click events to the Oboe native engine. No timing logic here. */
 internal class ClickSoundPlayer(private val context: Context) {
-  private val soundPoolPlayer = SoundPoolClickPlayer()
   private val oboePlayer = OboeClickPlayer()
   private val initLock = Any()
-
-  @Volatile
-  var useOboeEngine: Boolean = false
 
   @Volatile
   private var initialized = false
@@ -23,7 +20,6 @@ internal class ClickSoundPlayer(private val context: Context) {
         return
       }
 
-      soundPoolPlayer.initialize(context)
       oboePlayer.initialize(context)
       initialized = true
     }
@@ -39,40 +35,22 @@ internal class ClickSoundPlayer(private val context: Context) {
         return
       }
 
-      soundPoolPlayer.release()
       oboePlayer.release()
       initialized = false
     }
   }
 
-  fun playAccent() {
-    if (useOboeEngine) {
-      oboePlayer.playAccent()
-    } else {
-      soundPoolPlayer.playAccent()
-    }
+  fun areReady(): Boolean = oboePlayer.areReady()
+
+  fun playAccent(scheduledDeadlineNs: Long) {
+    oboePlayer.playAccent(scheduledDeadlineNs)
   }
 
-  fun playNormal() {
-    if (useOboeEngine) {
-      oboePlayer.playNormal()
-    } else {
-      soundPoolPlayer.playNormal()
-    }
+  fun playNormal(scheduledDeadlineNs: Long) {
+    oboePlayer.playNormal(scheduledDeadlineNs)
   }
 
-  fun playSubdivision() {
-    if (useOboeEngine) {
-      oboePlayer.playSubdivision()
-    } else {
-      soundPoolPlayer.playSubdivision()
-    }
+  fun playSubdivision(scheduledDeadlineNs: Long) {
+    oboePlayer.playSubdivision(scheduledDeadlineNs)
   }
-
-  fun areReady(): Boolean {
-    return soundPoolPlayer.areReady()
-  }
-
-  val failedPlayCount: Int
-    get() = soundPoolPlayer.failedPlayCount
 }

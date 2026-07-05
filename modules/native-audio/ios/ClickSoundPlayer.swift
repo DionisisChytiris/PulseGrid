@@ -38,15 +38,15 @@ final class ClickSoundPlayer {
     }
   }
 
-  func playAccent() {
+  func playAccent(scheduledDeadlineNs: UInt64) {
     playFromPool(&accentPlayers, index: &accentIndex, label: "accent")
   }
 
-  func playNormal() {
+  func playNormal(scheduledDeadlineNs: UInt64) {
     playFromPool(&normalPlayers, index: &normalIndex, label: "normal")
   }
 
-  func playSubdivision() {
+  func playSubdivision(scheduledDeadlineNs: UInt64) {
     playFromPool(&subdivisionPlayers, index: &subdivisionIndex, label: "subdivision")
   }
 

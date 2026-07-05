@@ -11,19 +11,8 @@ final class MetronomeEngine {
     _ timestampMs: Double
   ) -> Void
 
-  typealias DebugTimingHandler = (
-    _ sequence: UInt64,
-    _ bpm: Double,
-    _ subdivision: String,
-    _ latenessUs: Double,
-    _ avgLatenessUs: Double,
-    _ maxLatenessUs: Double,
-    _ playbackFailures: Int
-  ) -> Void
-
   private let clickSoundPlayer: ClickSoundPlayer?
   private let onTick: TickHandler
-  private let onDebugTiming: DebugTimingHandler?
 
   private var generation: UInt64 = 0
   private var bpm: Double = 120
@@ -32,19 +21,16 @@ final class MetronomeEngine {
   private var accentPattern: [Bool] = [true, false, false, false]
   private var totalTickCount: UInt64 = 0
   private var anchorTimeNs: UInt64 = 0
-  private let subdivisionTiming = SubdivisionTimingInstrument()
   private let stateLock = NSLock()
 
   private(set) var isRunning: Bool = false
 
   init(
     clickSoundPlayer: ClickSoundPlayer?,
-    onTick: @escaping TickHandler,
-    onDebugTiming: DebugTimingHandler? = nil
+    onTick: @escaping TickHandler
   ) {
     self.clickSoundPlayer = clickSoundPlayer
     self.onTick = onTick
-    self.onDebugTiming = onDebugTiming
   }
 
   func start(bpm: Double, beatsPerMeasure: Int, accentPattern: [Bool], ticksPerBeat: Int) {
@@ -128,7 +114,6 @@ final class MetronomeEngine {
     isRunning = false
     totalTickCount = 0
     anchorTimeNs = 0
-    subdivisionTiming.reset()
   }
 
   private func runLoop(activeGeneration: UInt64) {
@@ -173,22 +158,10 @@ final class MetronomeEngine {
       totalTickCount &+= 1
       stateLock.unlock()
 
-      subdivisionTiming.recordTick(
-        sequence: sequence,
-        timestampMs: timestampMs,
-        bpm: currentBpm,
-        subdivisionMultiplier: currentTicksPerBeat
-      )
-
-      playClickForTick(isAccent: isAccent, subdivisionIndex: subdivisionIndex)
-      onDebugTiming?(
-        sequence,
-        currentBpm,
-        subdivisionLabel(currentTicksPerBeat),
-        0,
-        0,
-        0,
-        0
+      playClickForTick(
+        isAccent: isAccent,
+        subdivisionIndex: subdivisionIndex,
+        scheduledDeadlineNs: deadlineNs
       )
       onTick(
         sequence,
@@ -219,19 +192,19 @@ final class MetronomeEngine {
     }
   }
 
-  private func playClickForTick(isAccent: Bool, subdivisionIndex: Int) {
+  private func playClickForTick(isAccent: Bool, subdivisionIndex: Int, scheduledDeadlineNs: UInt64) {
     if subdivisionIndex == 0 {
-      playClickForBeat(isAccent: isAccent)
+      playClickForBeat(isAccent: isAccent, scheduledDeadlineNs: scheduledDeadlineNs)
     } else {
-      clickSoundPlayer?.playSubdivision()
+      clickSoundPlayer?.playSubdivision(scheduledDeadlineNs: scheduledDeadlineNs)
     }
   }
 
-  private func playClickForBeat(isAccent: Bool) {
+  private func playClickForBeat(isAccent: Bool, scheduledDeadlineNs: UInt64) {
     if isAccent {
-      clickSoundPlayer?.playAccent()
+      clickSoundPlayer?.playAccent(scheduledDeadlineNs: scheduledDeadlineNs)
     } else {
-      clickSoundPlayer?.playNormal()
+      clickSoundPlayer?.playNormal(scheduledDeadlineNs: scheduledDeadlineNs)
     }
   }
 
@@ -261,19 +234,6 @@ final class MetronomeEngine {
       return value
     default:
       return 1
-    }
-  }
-
-  private func subdivisionLabel(_ ticksPerBeat: Int) -> String {
-    switch ticksPerBeat {
-    case 2:
-      return "eighth"
-    case 3:
-      return "triplet"
-    case 4:
-      return "sixteenth"
-    default:
-      return "quarter"
     }
   }
 }

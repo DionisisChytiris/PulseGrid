@@ -18,19 +18,8 @@ export type NativeTickEvent = {
   timestamp: number;
 };
 
-export type NativeDebugTimingEvent = {
-  sequence: number;
-  bpm: number;
-  subdivision: string;
-  latenessUs: number;
-  avgLatenessUs: number;
-  maxLatenessUs: number;
-  playbackFailures: number;
-};
-
 declare class NativeAudioModule extends NativeModule<{
   onTick: (event: NativeTickEvent) => void;
-  onDebugTiming: (event: NativeDebugTimingEvent) => void;
 }> {
   initialize(): void;
   areSoundsReady(): boolean;

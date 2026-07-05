@@ -2,8 +2,6 @@ import { Platform } from 'react-native';
 
 import type { NativeAudioStartOptions } from 'native-audio';
 
-import { audioDebugLog } from './audioDebugLog';
-
 export type MetronomeStartOptions = NativeAudioStartOptions;
 
 export type NativeTickEvent = {
@@ -14,16 +12,6 @@ export type NativeTickEvent = {
   subdivisionIndex: number;
   isAccent: boolean;
   timestamp: number;
-};
-
-export type NativeDebugTimingEvent = {
-  sequence: number;
-  bpm: number;
-  subdivision: string;
-  latenessUs: number;
-  avgLatenessUs: number;
-  maxLatenessUs: number;
-  playbackFailures: number;
 };
 
 export type NativeAudioModuleSpec = {
@@ -39,10 +27,6 @@ export type NativeAudioModuleSpec = {
     eventName: 'onTick',
     listener: (event: NativeTickEvent) => void,
   ): { remove: () => void };
-  addListener?(
-    eventName: 'onDebugTiming',
-    listener: (event: NativeDebugTimingEvent) => void,
-  ): { remove: () => void };
 };
 
 let cachedModule: NativeAudioModuleSpec | null | undefined;
@@ -50,9 +34,6 @@ let cachedModule: NativeAudioModuleSpec | null | undefined;
 /** Exactly one native onTick subscription; fan-out to JS listeners. */
 let nativeTickSubscription: { remove: () => void } | null = null;
 const tickListeners = new Set<(event: NativeTickEvent) => void>();
-
-let nativeDebugTimingSubscription: { remove: () => void } | null = null;
-const debugTimingListeners = new Set<(event: NativeDebugTimingEvent) => void>();
 
 const noopModule: NativeAudioModuleSpec = {
   start() {},
@@ -104,7 +85,6 @@ function ensureNativeTickSubscription(): void {
     return;
   }
 
-  audioDebugLog('NativeAudioModule', 'addListener', 'registering single native onTick subscription');
   nativeTickSubscription = module.addListener('onTick', (event) => {
     for (const listener of tickListeners) {
       listener(event);
@@ -117,35 +97,8 @@ function releaseNativeTickSubscriptionIfIdle(): void {
     return;
   }
 
-  audioDebugLog('NativeAudioModule', 'addListener', 'removing native onTick subscription');
   nativeTickSubscription.remove();
   nativeTickSubscription = null;
-}
-
-function ensureNativeDebugTimingSubscription(): void {
-  if (nativeDebugTimingSubscription) {
-    return;
-  }
-
-  const module = getModule();
-  if (!module.addListener) {
-    return;
-  }
-
-  nativeDebugTimingSubscription = module.addListener('onDebugTiming', (event) => {
-    for (const listener of debugTimingListeners) {
-      listener(event);
-    }
-  });
-}
-
-function releaseNativeDebugTimingSubscriptionIfIdle(): void {
-  if (debugTimingListeners.size > 0 || !nativeDebugTimingSubscription) {
-    return;
-  }
-
-  nativeDebugTimingSubscription.remove();
-  nativeDebugTimingSubscription = null;
 }
 
 const SOUND_READY_TIMEOUT_MS = 3000;
@@ -166,7 +119,6 @@ async function waitForSoundsReady(): Promise<void> {
 
   while (Date.now() < deadline) {
     if (module.areSoundsReady()) {
-      audioDebugLog('NativeAudioModule', 'whenReady', 'click samples ready');
       return;
     }
 
@@ -175,40 +127,29 @@ async function waitForSoundsReady(): Promise<void> {
     });
   }
 
-  console.warn('[PulseGrid:Audio][NativeAudioModule] whenReady() timed out waiting for click samples');
+  console.warn('[PulseGrid-Audio] whenReady() timed out waiting for click samples');
 }
 
 const NativeAudioModuleClient: NativeAudioModuleSpec = {
   initialize: () => {
-    audioDebugLog('NativeAudioModule', 'initialize', '-> native module');
     getModule().initialize?.();
   },
   whenReady: async () => {
-    audioDebugLog('NativeAudioModule', 'whenReady', '-> waiting for click samples');
     await waitForSoundsReady();
   },
   start: (options) => {
-    audioDebugLog('NativeAudioModule', 'start', `bpm=${options.bpm} -> native module`);
     getModule().start(options);
   },
   stop: () => {
-    audioDebugLog('NativeAudioModule', 'stop', '-> native module');
     getModule().stop();
   },
   setTempo: (bpm) => {
-    audioDebugLog('NativeAudioModule', 'setTempo', `bpm=${bpm} -> native module`);
     getModule().setTempo(bpm);
   },
   setAccentPattern: (accentPattern) => {
-    audioDebugLog(
-      'NativeAudioModule',
-      'setAccentPattern',
-      `length=${accentPattern.length} -> native module`,
-    );
     getModule().setAccentPattern(accentPattern);
   },
   setSubdivision: (subdivision) => {
-    audioDebugLog('NativeAudioModule', 'setSubdivision', `${subdivision} -> native module`);
     getModule().setSubdivision(subdivision);
   },
   addListener: (eventName, listener) => {
@@ -220,18 +161,6 @@ const NativeAudioModuleClient: NativeAudioModuleSpec = {
         remove: () => {
           tickListeners.delete(listener as (event: NativeTickEvent) => void);
           releaseNativeTickSubscriptionIfIdle();
-        },
-      };
-    }
-
-    if (eventName === 'onDebugTiming') {
-      ensureNativeDebugTimingSubscription();
-      debugTimingListeners.add(listener as (event: NativeDebugTimingEvent) => void);
-
-      return {
-        remove: () => {
-          debugTimingListeners.delete(listener as (event: NativeDebugTimingEvent) => void);
-          releaseNativeDebugTimingSubscriptionIfIdle();
         },
       };
     }

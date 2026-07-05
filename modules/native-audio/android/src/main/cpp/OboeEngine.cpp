@@ -1,43 +1,40 @@
 #include "OboeEngine.h"
 
-#include <chrono>
+#include <ctime>
 #include <android/log.h>
 
-#ifndef NDEBUG
-#include <ctime>
-#endif
-
 namespace {
-constexpr const char* kLogTag = "OboeEngine";
+constexpr const char* kLogTagOboe = "PulseGrid-Oboe";
+constexpr const char* kLogTagEngine = "OboeEngine";
+constexpr int64_t kNanosecondsPerSecond = 1000000000LL;
 
-int64_t nowNs() {
-  return std::chrono::duration_cast<std::chrono::nanoseconds>(
-             std::chrono::steady_clock::now().time_since_epoch())
-      .count();
-}
-
-#ifndef NDEBUG
-// Matches Android System.nanoTime() (CLOCK_MONOTONIC).
+// CLOCK_MONOTONIC origin for mapping buffer frames to scheduledDeadlineNs domain.
 int64_t monotonicNowNs() {
   timespec ts{};
   clock_gettime(CLOCK_MONOTONIC, &ts);
-  return static_cast<int64_t>(ts.tv_sec) * 1'000'000'000LL + static_cast<int64_t>(ts.tv_nsec);
+  return static_cast<int64_t>(ts.tv_sec) * kNanosecondsPerSecond + static_cast<int64_t>(ts.tv_nsec);
 }
-#endif
 
-void logStreamConfiguration(const oboe::AudioStream& stream) {
-  __android_log_print(ANDROID_LOG_INFO, kLogTag, "sample rate=%d", stream.getSampleRate());
-  __android_log_print(ANDROID_LOG_INFO, kLogTag, "channel count=%d", stream.getChannelCount());
-  __android_log_print(ANDROID_LOG_INFO, kLogTag, "frames per burst=%d", stream.getFramesPerBurst());
-  __android_log_print(
-      ANDROID_LOG_INFO, kLogTag, "performance mode=%s",
-      oboe::convertToText(stream.getPerformanceMode()));
-  __android_log_print(
-      ANDROID_LOG_INFO, kLogTag, "sharing mode=%s",
-      oboe::convertToText(stream.getSharingMode()));
-  __android_log_print(
-      ANDROID_LOG_INFO, kLogTag, "format=%s",
-      oboe::convertToText(stream.getFormat()));
+int32_t frameOffsetForDeadline(
+    int64_t scheduledDeadlineNs,
+    int64_t bufferStartTimeNs,
+    int32_t sampleRate,
+    int32_t numFrames) {
+  if (numFrames <= 0 || sampleRate <= 0) {
+    return -1;
+  }
+
+  const int64_t deltaNs = scheduledDeadlineNs - bufferStartTimeNs;
+  if (deltaNs < 0) {
+    return 0;
+  }
+
+  const int64_t frameOffset = (deltaNs * sampleRate) / kNanosecondsPerSecond;
+  if (frameOffset >= numFrames) {
+    return -1;
+  }
+
+  return static_cast<int32_t>(frameOffset);
 }
 }  // namespace
 
@@ -55,12 +52,12 @@ oboe::DataCallbackResult OboeStreamDataCallback::onAudioReady(
   }
 
   const int64_t nsPerBuffer =
-      static_cast<int64_t>(numFrames) * 1'000'000'000LL / sampleRate_;
+      static_cast<int64_t>(numFrames) * kNanosecondsPerSecond / sampleRate_;
   const int64_t bufferStartTimeNs =
-      streamStartTimeNs_ + (framesWritten_ * 1'000'000'000LL / sampleRate_);
+      streamStartTimeNs_ + (framesWritten_ * kNanosecondsPerSecond / sampleRate_);
   const int64_t bufferEndTimeNs = bufferStartTimeNs + nsPerBuffer;
 
-  drainQueue(bufferStartTimeNs, bufferEndTimeNs);
+  drainQueue(bufferStartTimeNs, bufferEndTimeNs, numFrames);
 
   renderer_->render(
       audioData,
@@ -78,10 +75,13 @@ oboe::DataCallbackResult OboeStreamDataCallback::onAudioReady(
   return oboe::DataCallbackResult::Continue;
 }
 
-void OboeStreamDataCallback::drainQueue(int64_t /*bufferStartTimeNs*/, int64_t bufferEndTimeNs) {
+void OboeStreamDataCallback::drainQueue(
+    int64_t bufferStartTimeNs,
+    int64_t bufferEndTimeNs,
+    int32_t numFrames) {
   ClickEvent event{};
   while (queue_->peek(event)) {
-    if (event.timestampNs > bufferEndTimeNs) {
+    if (event.scheduledDeadlineNs > bufferEndTimeNs) {
       break;
     }
 
@@ -89,30 +89,31 @@ void OboeStreamDataCallback::drainQueue(int64_t /*bufferStartTimeNs*/, int64_t b
       break;
     }
 
+    const int32_t frameOffset =
+        frameOffsetForDeadline(event.scheduledDeadlineNs, bufferStartTimeNs, sampleRate_, numFrames);
+    if (frameOffset < 0) {
+      continue;
+    }
+
     switch (event.type) {
       case ClickType::Accent:
-        renderer_->accentPlayer().start();
+        renderer_->accentPlayer().start(frameOffset);
         break;
       case ClickType::Normal:
-        renderer_->normalPlayer().start();
+        renderer_->normalPlayer().start(frameOffset);
         break;
       case ClickType::Subdivision:
-        renderer_->subdivisionPlayer().start();
+        renderer_->subdivisionPlayer().start(frameOffset);
         break;
     }
 
-#ifndef NDEBUG
-    const int64_t actualNs = monotonicNowNs();
-    const int64_t deltaUs = (actualNs - event.timestampNs) / 1000LL;
     __android_log_print(
         ANDROID_LOG_DEBUG,
-        "PulseGrid-Oboe",
-        "type=%d scheduled_ns=%lld actual_ns=%lld delta_us=%lld",
-        static_cast<int>(event.type),
-        static_cast<long long>(event.timestampNs),
-        static_cast<long long>(actualNs),
-        static_cast<long long>(deltaUs));
-#endif
+        kLogTagOboe,
+        "scheduled_ns=%lld buffer_start_ns=%lld frame_offset=%d",
+        static_cast<long long>(event.scheduledDeadlineNs),
+        static_cast<long long>(bufferStartTimeNs),
+        frameOffset);
   }
 }
 
@@ -142,7 +143,7 @@ bool OboeEngine::initialize() {
 
   if (result != oboe::Result::OK || stream_ == nullptr) {
     __android_log_print(
-        ANDROID_LOG_ERROR, kLogTag, "Failed to open output stream: %s",
+        ANDROID_LOG_ERROR, kLogTagEngine, "Failed to open output stream: %s",
         oboe::convertToText(result));
     stream_.reset();
     initialized_ = false;
@@ -150,7 +151,6 @@ bool OboeEngine::initialize() {
     return false;
   }
 
-  logStreamConfiguration(*stream_);
   streamCallback_.setSampleRate(stream_->getSampleRate());
   initialized_ = true;
   running_ = false;
@@ -164,7 +164,7 @@ void OboeEngine::shutdown() {
     const oboe::Result closeResult = stream_->close();
     if (closeResult != oboe::Result::OK) {
       __android_log_print(
-          ANDROID_LOG_WARN, kLogTag, "Stream close returned: %s",
+          ANDROID_LOG_WARN, kLogTagEngine, "Stream close returned: %s",
           oboe::convertToText(closeResult));
     }
     stream_.reset();
@@ -181,28 +181,25 @@ void OboeEngine::start() {
 
   if (running_) {
     __android_log_print(
-        ANDROID_LOG_ERROR,
-        "PulseGrid-Oboe",
-        "OboeEngine already running, skipping start()");
+        ANDROID_LOG_WARN,
+        kLogTagOboe,
+        "stream_start skipped — already running");
     return;
   }
 
   streamCallback_.setStopWhenIdle(false);
-  streamCallback_.setStreamStartTimeNs(nowNs());
+  streamCallback_.setStreamStartTimeNs(monotonicNowNs());
 
   const oboe::Result result = stream_->requestStart();
   if (result != oboe::Result::OK) {
     __android_log_print(
-        ANDROID_LOG_ERROR, kLogTag, "Failed to start stream: %s",
+        ANDROID_LOG_ERROR, kLogTagEngine, "Failed to start stream: %s",
         oboe::convertToText(result));
     return;
   }
 
   running_ = true;
-  __android_log_print(
-      ANDROID_LOG_ERROR,
-      "PulseGrid-Oboe",
-      "Oboe stream started");
+  __android_log_print(ANDROID_LOG_INFO, kLogTagOboe, "stream_started");
 }
 
 void OboeEngine::stop() {
@@ -213,17 +210,18 @@ void OboeEngine::stop() {
   const oboe::Result result = stream_->requestStop();
   if (result != oboe::Result::OK) {
     __android_log_print(
-        ANDROID_LOG_WARN, kLogTag, "Failed to stop stream: %s",
+        ANDROID_LOG_WARN, kLogTagEngine, "Failed to stop stream: %s",
         oboe::convertToText(result));
   }
 
   running_ = false;
+  __android_log_print(ANDROID_LOG_INFO, kLogTagOboe, "stream_stopped");
 }
 
-void OboeEngine::enqueueClick(ClickType type, int64_t timestampNs) {
-  ClickEvent event{type, timestampNs};
+void OboeEngine::enqueueClick(ClickType type, int64_t scheduledDeadlineNs) {
+  ClickEvent event{type, scheduledDeadlineNs};
   if (!eventQueue_.push(event)) {
-    __android_log_print(ANDROID_LOG_WARN, kLogTag, "Event queue full, click dropped");
+    __android_log_print(ANDROID_LOG_WARN, kLogTagEngine, "Event queue full, click dropped");
   }
 }
 

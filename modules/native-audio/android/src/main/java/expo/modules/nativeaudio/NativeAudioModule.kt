@@ -20,7 +20,7 @@ class NativeAudioModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("NativeAudioModule")
 
-    Events("onTick", "onDebugTiming")
+    Events("onTick")
 
     OnDestroy {
       clickSoundPlayer?.release()
@@ -30,16 +30,12 @@ class NativeAudioModule : Module() {
     Function("initialize") {
       synchronized(initLock) {
         if (audioInitialized) {
-          Log.d(TAG, "Already initialized, skipping")
-        } else {
-
-          // ✅ SINGLE SOURCE OF TRUTH FOR OBOE ENABLE
-          clickSoundPlayer?.useOboeEngine = true
-
-          clickSoundPlayer?.initialize()
-
-          audioInitialized = true
+          return@synchronized
         }
+
+        AudioObservability.logBackend()
+        clickSoundPlayer?.initialize()
+        audioInitialized = true
       }
     }
 
@@ -49,7 +45,7 @@ class NativeAudioModule : Module() {
 
     Function("start") { options: Map<String, Any?> ->
       if (metronomeEngine.running) {
-        Log.w(TAG, "NativeAudioModule.start() blocked duplicate — resetting running loop")
+        Log.w(TAG, "start() called while already running — stopping previous loop first")
       }
 
       val bpm = readDouble(options["bpm"]) ?: 120.0
@@ -75,16 +71,6 @@ class NativeAudioModule : Module() {
     Function("setSubdivision") { subdivision: String ->
       metronomeEngine.updateSubdivision(readTicksPerBeat(subdivision))
     }
-
-    Function("setUseOboeEngine") { enabled: Boolean ->
-      clickSoundPlayer?.useOboeEngine = enabled
-    }
-
-    if (BuildConfig.DEBUG) {
-      Function("runOboeSelfTest") {
-        OboeSelfTest.run()
-      }
-    }
   }
 
   private fun createMetronomeEngine(): MetronomeEngine {
@@ -108,20 +94,6 @@ class NativeAudioModule : Module() {
             "subdivisionIndex" to subdivisionIndex,
             "isAccent" to isAccent,
             "timestamp" to timestampMs.toDouble(),
-          ),
-        )
-      },
-      onDebugTiming = { snapshot ->
-        sendEvent(
-          "onDebugTiming",
-          mapOf(
-            "sequence" to snapshot.sequence,
-            "bpm" to snapshot.bpm,
-            "subdivision" to snapshot.subdivision,
-            "latenessUs" to snapshot.latenessUs.toDouble(),
-            "avgLatenessUs" to snapshot.avgLatenessUs.toDouble(),
-            "maxLatenessUs" to snapshot.maxLatenessUs.toDouble(),
-            "playbackFailures" to snapshot.playbackFailures,
           ),
         )
       },

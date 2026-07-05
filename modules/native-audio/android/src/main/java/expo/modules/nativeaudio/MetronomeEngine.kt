@@ -17,7 +17,6 @@ internal class MetronomeEngine(
     isAccent: Boolean,
     timestampMs: Long,
   ) -> Unit,
-  private val onDebugTiming: ((DebugTimingSnapshot) -> Unit)? = null,
 ) {
   private val lock = Any()
 
@@ -38,12 +37,6 @@ internal class MetronomeEngine(
   /** Monotonic subdivision-tick counter — never wraps; used for absolute deadline scheduling. */
   private var totalTickCount: Long = 0
   private var anchorTimeNs: Long = 0
-  private val subdivisionTiming = SubdivisionTimingInstrument()
-
-  private var lastLatenessUs = 0L
-  private var latenessSumUs = 0L
-  private var latenessCount = 0L
-  private var latenessMaxUs = 0L
 
   val running: Boolean
     get() = synchronized(lock) { isRunning }
@@ -164,15 +157,6 @@ internal class MetronomeEngine(
     handler?.removeCallbacksAndMessages(null)
     totalTickCount = 0
     anchorTimeNs = 0
-    subdivisionTiming.reset()
-    resetPlayLatencyStats()
-  }
-
-  private fun resetPlayLatencyStats() {
-    lastLatenessUs = 0L
-    latenessSumUs = 0L
-    latenessCount = 0L
-    latenessMaxUs = 0L
   }
 
   private fun ensureHandler(): Handler? {
@@ -227,10 +211,7 @@ internal class MetronomeEngine(
     val beatNumber = beatIndexInBar + 1
     val isAccent = isAccentForTick(beatIndexInBar, subdivisionIndex)
     val sequence = totalTickCount
-    // Debug lateness uses the same nanoTime domain + anchor as scheduleNextTickLocked deadlines.
     val scheduledDeadlineNs = anchorTimeNs + tickOffsetNs(sequence, bpm, ticksPerBeat)
-
-    subdivisionTiming.recordTick(sequence, timestampMs, bpm, ticksPerBeat)
 
     val snapshot = TickSnapshot(
       sequence = sequence,
@@ -249,7 +230,6 @@ internal class MetronomeEngine(
 
   private fun dispatchTick(snapshot: TickSnapshot) {
     playClickForTick(snapshot)
-    emitDebugTiming(snapshot)
     onTick(
       snapshot.sequence,
       snapshot.beatIndexInBar,
@@ -308,56 +288,18 @@ internal class MetronomeEngine(
   }
 
   private fun playClickForTick(snapshot: TickSnapshot) {
-    val actualPlayNs = System.nanoTime()
-    recordPlayCallLatency(snapshot, actualPlayNs)
-
     if (snapshot.subdivisionIndex == 0) {
-      playClickForBeat(snapshot.isAccent)
+      playClickForBeat(snapshot.isAccent, snapshot.scheduledDeadlineNs)
     } else {
-      clickSoundPlayer?.playSubdivision()
+      clickSoundPlayer?.playSubdivision(snapshot.scheduledDeadlineNs)
     }
   }
 
-  private fun recordPlayCallLatency(snapshot: TickSnapshot, actualPlayNs: Long) {
-    // Per-tick: actual play call time minus this tick's absolute scheduled deadline.
-    val latenessUs = (actualPlayNs - snapshot.scheduledDeadlineNs) / 1_000L
-    lastLatenessUs = latenessUs
-    latenessSumUs += latenessUs
-    latenessCount++
-    latenessMaxUs = max(latenessMaxUs, latenessUs)
-  }
-
-  private fun emitDebugTiming(snapshot: TickSnapshot) {
-    val callback = onDebugTiming ?: return
-    val avgLatenessUs = if (latenessCount > 0) latenessSumUs / latenessCount else 0L
-
-    callback(
-      DebugTimingSnapshot(
-        sequence = snapshot.sequence,
-        bpm = bpm,
-        subdivision = subdivisionLabel(ticksPerBeat),
-        latenessUs = lastLatenessUs,
-        avgLatenessUs = avgLatenessUs,
-        maxLatenessUs = latenessMaxUs,
-        playbackFailures = clickSoundPlayer?.failedPlayCount ?: 0,
-      ),
-    )
-  }
-
-  private fun subdivisionLabel(ticksPerBeat: Int): String {
-    return when (ticksPerBeat) {
-      2 -> "eighth"
-      3 -> "triplet"
-      4 -> "sixteenth"
-      else -> "quarter"
-    }
-  }
-
-  private fun playClickForBeat(isAccent: Boolean) {
+  private fun playClickForBeat(isAccent: Boolean, scheduledDeadlineNs: Long) {
     if (isAccent) {
-      clickSoundPlayer?.playAccent()
+      clickSoundPlayer?.playAccent(scheduledDeadlineNs)
     } else {
-      clickSoundPlayer?.playNormal()
+      clickSoundPlayer?.playNormal(scheduledDeadlineNs)
     }
   }
 

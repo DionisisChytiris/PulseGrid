@@ -7,7 +7,7 @@ public class NativeAudioModule: Module {
   public func definition() -> ModuleDefinition {
     Name("NativeAudioModule")
 
-    Events("onTick", "onDebugTiming")
+    Events("onTick")
 
     Function("initialize") {
       self.clickSoundPlayer.initialize()
@@ -65,20 +65,6 @@ public class NativeAudioModule: Module {
             "subdivisionIndex": subdivisionIndex,
             "isAccent": isAccent,
             "timestamp": timestampMs,
-          ]
-        )
-      },
-      onDebugTiming: { [weak self] sequence, bpm, subdivision, latenessUs, avgLatenessUs, maxLatenessUs, playbackFailures in
-        self?.sendEvent(
-          "onDebugTiming",
-          [
-            "sequence": Int(sequence),
-            "bpm": bpm,
-            "subdivision": subdivision,
-            "latenessUs": latenessUs,
-            "avgLatenessUs": avgLatenessUs,
-            "maxLatenessUs": maxLatenessUs,
-            "playbackFailures": playbackFailures,
           ]
         )
       }

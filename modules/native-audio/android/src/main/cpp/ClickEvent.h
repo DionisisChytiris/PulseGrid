@@ -10,5 +10,6 @@ enum class ClickType : uint8_t {
 
 struct ClickEvent {
   ClickType type;
-  int64_t timestampNs;
+  /** Absolute monotonic playback deadline from MetronomeEngine (System.nanoTime domain). */
+  int64_t scheduledDeadlineNs;
 };

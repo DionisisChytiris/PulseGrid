@@ -1,6 +1,5 @@
 import type { TimingTick } from '../../domain/timing/TimingTick';
 
-import { audioDebugLog } from './audioDebugLog';
 import type { ITimingSource, TimingTickListener } from './ITimingSource';
 import type { MetronomeStartConfig } from './IAudioEngine';
 import NativeAudioModule, { type NativeTickEvent } from './NativeAudioModuleClient';
@@ -33,7 +32,6 @@ export class NativeTimingSource implements ITimingSource {
 
     if (subscription) {
       this.tickUnsubscribe = () => subscription.remove();
-      audioDebugLog('NativeTimingSource', 'addListener', 'single onTick handler registered');
     }
   }
 
@@ -41,11 +39,6 @@ export class NativeTimingSource implements ITimingSource {
     const sequence = event.sequence ?? -1;
 
     if (sequence >= 0 && sequence <= this.lastSequence) {
-      audioDebugLog(
-        'NativeTimingSource',
-        'onTick',
-        `duplicate blocked seq=${sequence} last=${this.lastSequence}`,
-      );
       return;
     }
 
@@ -58,12 +51,6 @@ export class NativeTimingSource implements ITimingSource {
       isAccent: event.isAccent,
       timestamp: event.timestamp,
     };
-
-    audioDebugLog(
-      'NativeTimingSource',
-      'onTick',
-      `seq=${tick.sequence} beat=${tick.beatNumber} ts=${tick.timestamp}`,
-    );
 
     this.tickListener?.(tick);
   }

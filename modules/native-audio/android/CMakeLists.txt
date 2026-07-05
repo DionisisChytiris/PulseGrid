@@ -9,7 +9,6 @@ add_library(
     src/main/cpp/OboeEngine.cpp
     src/main/cpp/SamplePlayer.cpp
     src/main/cpp/oboe_click_player_jni.cpp
-    src/main/cpp/oboe_jni.cpp
 )
 
 find_package(oboe REQUIRED CONFIG)

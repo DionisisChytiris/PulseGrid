@@ -9,30 +9,28 @@ internal class OboeClickPlayer : ClickPlayer {
   @Volatile
   private var initialized = false
 
+  fun areReady(): Boolean = initialized
+
   override fun initialize(context: Context) {
     if (initialized) {
-      Log.d(TAG, "Already initialized, skipping")
       return
     }
 
     synchronized(initLock) {
       if (initialized) {
-        Log.d(TAG, "Already initialized, skipping")
         return
       }
 
       try {
         System.loadLibrary("nativeaudio_oboe_stub")
       } catch (e: UnsatisfiedLinkError) {
-        Log.e(TAG, "Failed to load native library", e)
+        Log.e(AudioObservability.TAG_AUDIO, "Failed to load Oboe native library", e)
         return
       }
 
       initialized = nativeInitialize()
-      if (initialized) {
-        Log.i(TAG, "OboeEngine initialized")
-      } else {
-        Log.e(TAG, "OboeEngine initialization failed")
+      if (!initialized) {
+        Log.e(AudioObservability.TAG_AUDIO, "Oboe engine initialization failed")
       }
     }
   }
@@ -49,28 +47,25 @@ internal class OboeClickPlayer : ClickPlayer {
 
       nativeRelease()
       initialized = false
-      Log.i(TAG, "OboeEngine released")
     }
   }
 
-  override fun playAccent() {
+  override fun playAccent(scheduledDeadlineNs: Long) {
     if (!initialized) return
-    nativeEnqueueClick(CLICK_TYPE_ACCENT, System.nanoTime())
+    nativeEnqueueClick(CLICK_TYPE_ACCENT, scheduledDeadlineNs)
   }
 
-  override fun playNormal() {
+  override fun playNormal(scheduledDeadlineNs: Long) {
     if (!initialized) return
-    nativeEnqueueClick(CLICK_TYPE_NORMAL, System.nanoTime())
+    nativeEnqueueClick(CLICK_TYPE_NORMAL, scheduledDeadlineNs)
   }
 
-  override fun playSubdivision() {
+  override fun playSubdivision(scheduledDeadlineNs: Long) {
     if (!initialized) return
-    nativeEnqueueClick(CLICK_TYPE_SUBDIVISION, System.nanoTime())
+    nativeEnqueueClick(CLICK_TYPE_SUBDIVISION, scheduledDeadlineNs)
   }
 
   companion object {
-    private const val TAG = "OboeClickPlayer"
-
     private const val CLICK_TYPE_ACCENT = 0
     private const val CLICK_TYPE_NORMAL = 1
     private const val CLICK_TYPE_SUBDIVISION = 2
@@ -82,6 +77,6 @@ internal class OboeClickPlayer : ClickPlayer {
     external fun nativeRelease()
 
     @JvmStatic
-    external fun nativeEnqueueClick(type: Int, timestampNs: Long)
+    external fun nativeEnqueueClick(type: Int, scheduledDeadlineNs: Long)
   }
 }

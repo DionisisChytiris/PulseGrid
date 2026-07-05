@@ -19,12 +19,18 @@ public:
       void* audioData,
       int32_t numFrames) override;
 
-  void setStreamStartTimeNs(int64_t ns) { streamStartTimeNs_ = ns; }
+  void setStreamStartTimeNs(int64_t ns) {
+    streamStartTimeNs_ = ns;
+    framesWritten_ = 0;
+  }
   void setSampleRate(int32_t rate) { sampleRate_ = rate; }
   void setStopWhenIdle(bool value) { stopWhenIdle_ = value; }
 
 private:
-  void drainQueue(int64_t bufferStartTimeNs, int64_t bufferEndTimeNs);
+  void drainQueue(
+      int64_t bufferStartTimeNs,
+      int64_t bufferEndTimeNs,
+      int32_t numFrames);
 
   AudioRenderer* renderer_;
   ClickEventQueue* queue_;
@@ -45,7 +51,7 @@ public:
   void stop();
   bool isInitialized() const;
 
-  void enqueueClick(ClickType type, int64_t timestampNs);
+  void enqueueClick(ClickType type, int64_t scheduledDeadlineNs);
 
 private:
   std::shared_ptr<oboe::AudioStream> stream_;

@@ -9,18 +9,20 @@ void SamplePlayer::load(const int16_t* samples, const std::size_t frameCount) {
   position_ = 0;
 }
 
-void SamplePlayer::start() {
+void SamplePlayer::start(const int32_t frameOffset) {
   if (samples_ == nullptr || frameCount_ == 0) {
     return;
   }
 
   position_ = 0;
+  startFrameOffset_ = frameOffset < 0 ? 0 : frameOffset;
   playing_ = true;
 }
 
 void SamplePlayer::stop() {
   playing_ = false;
   position_ = 0;
+  startFrameOffset_ = 0;
 }
 
 void SamplePlayer::render(
@@ -33,6 +35,14 @@ void SamplePlayer::render(
   }
 
   for (int32_t frame = 0; frame < numFrames; ++frame) {
+    if (!playing_) {
+      break;
+    }
+
+    if (frame < startFrameOffset_) {
+      continue;
+    }
+
     if (position_ >= frameCount_) {
       playing_ = false;
       break;
@@ -47,6 +57,9 @@ void SamplePlayer::render(
           static_cast<int16_t>(std::clamp(mixed, static_cast<int32_t>(-32768), static_cast<int32_t>(32767)));
     }
   }
+
+  // Continuation in the next callback buffer always begins at frame 0.
+  startFrameOffset_ = 0;
 }
 
 bool SamplePlayer::isPlaying() const {

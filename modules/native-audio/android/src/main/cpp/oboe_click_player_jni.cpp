@@ -1,5 +1,4 @@
 #include <jni.h>
-#include <chrono>
 #include <android/log.h>
 
 #include "OboeEngine.h"
@@ -48,9 +47,10 @@ Java_expo_modules_nativeaudio_OboeClickPlayer_nativeEnqueueClick(
     JNIEnv* /*env*/,
     jclass /*clazz*/,
     jint type,
-    jlong timestampNs) {
+    jlong scheduledDeadlineNs) {
   if (gEngine != nullptr) {
-    gEngine->enqueueClick(static_cast<ClickType>(type), static_cast<int64_t>(timestampNs));
+    gEngine->enqueueClick(
+        static_cast<ClickType>(type), static_cast<int64_t>(scheduledDeadlineNs));
   }
 }
 

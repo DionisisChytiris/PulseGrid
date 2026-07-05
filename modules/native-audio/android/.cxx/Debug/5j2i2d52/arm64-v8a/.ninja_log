@@ -1,0 +1,6 @@
+# ninja log v5
+1	2378	8049581894481794	CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/SamplePlayer.cpp.o	9e7222be4fd4f7f0
+49	3439	8049581905058953	CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/AudioRenderer.cpp.o	bf2901538a7250b2
+12	3749	8049581908043900	CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/oboe_click_player_jni.cpp.o	4d67d878aebee524
+22	2059	8049582978528219	CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/OboeEngine.cpp.o	ced0cc60702fa618
+2060	2224	8049582980140698	../../../../build/intermediates/cxx/Debug/5j2i2d52/obj/arm64-v8a/libnativeaudio_oboe_stub.so	a6892587f404abb8
