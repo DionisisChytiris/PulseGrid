@@ -1,0 +1,42 @@
+{
+  "buildFiles": [
+    "D:\\PulseGrid\\modules\\native-audio\\android\\.cxx\\Debug\\5j2i2d52\\prefab\\armeabi-v7a\\prefab\\lib\\arm-linux-androideabi\\cmake\\oboe\\oboeConfig.cmake",
+    "D:\\PulseGrid\\modules\\native-audio\\android\\.cxx\\Debug\\5j2i2d52\\prefab\\armeabi-v7a\\prefab\\lib\\arm-linux-androideabi\\cmake\\oboe\\oboeConfigVersion.cmake",
+    "D:\\PulseGrid\\modules\\native-audio\\android\\CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "C:\\Users\\dhiti\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+      "-C",
+      "D:\\PulseGrid\\modules\\native-audio\\android\\.cxx\\Debug\\5j2i2d52\\armeabi-v7a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "C:\\Users\\dhiti\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+    "-C",
+    "D:\\PulseGrid\\modules\\native-audio\\android\\.cxx\\Debug\\5j2i2d52\\armeabi-v7a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "nativeaudio_oboe_stub::@6890427a1f51a3e7e1df": {
+      "toolchain": "toolchain",
+      "abi": "armeabi-v7a",
+      "artifactName": "nativeaudio_oboe_stub",
+      "output": "D:\\PulseGrid\\modules\\native-audio\\android\\build\\intermediates\\cxx\\Debug\\5j2i2d52\\obj\\armeabi-v7a\\libnativeaudio_oboe_stub.so",
+      "runtimeFiles": [
+        "C:\\gcache\\caches\\8.14.3\\transforms\\0cb0b508e366a3d8ff1a36493f9d0d20\\transformed\\oboe-1.10.0\\prefab\\modules\\oboe\\libs\\android.armeabi-v7a\\liboboe.so"
+      ]
+    }
+  },
+  "toolchains": {
+    "toolchain": {
+      "cCompilerExecutable": "C:\\Users\\dhiti\\AppData\\Local\\Android\\Sdk\\ndk\\27.1.12297006\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\clang.exe",
+      "cppCompilerExecutable": "C:\\Users\\dhiti\\AppData\\Local\\Android\\Sdk\\ndk\\27.1.12297006\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\clang++.exe"
+    }
+  },
+  "cFileExtensions": [],
+  "cppFileExtensions": [
+    "cpp"
+  ]
+}

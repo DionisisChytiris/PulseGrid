@@ -1,0 +1,11 @@
+# ninja log v5
+31	1621	8050533250651163	CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/SamplePlayer.cpp.o	b11910fa6db6005
+43	2643	8050533260826283	CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/AudioRenderer.cpp.o	1f1db17d6f1cfd93
+2	2659	8050533260972303	CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/oboe_click_player_jni.cpp.o	e178e968d837c663
+18	2763	8050533262011785	CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/OboeEngine.cpp.o	1584627b2839c1fd
+2763	3062	8050533264966869	../../../../build/intermediates/cxx/Debug/5j2i2d52/obj/x86/libnativeaudio_oboe_stub.so	a333b12cc3c674ee
+30	1731	8050544101427987	CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/SamplePlayer.cpp.o	5fba49c08bd3ee49
+42	2727	8050544111429976	CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/AudioRenderer.cpp.o	80c2615e0acea8cd
+15	2765	8050544111762312	CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/oboe_click_player_jni.cpp.o	a15f8276c32d972f
+54	2862	8050544112696659	CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/OboeEngine.cpp.o	eda6dded51f7b772
+2862	3161	8050544115718798	../../../../build/intermediates/cxx/Debug/5j2i2d52/obj/x86/libnativeaudio_oboe_stub.so	bce20d214dfc008e

@@ -1,0 +1,21 @@
+@echo off
+"C:\\Users\\dhiti\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\cmake.exe" ^
+  "-HD:\\PulseGrid\\modules\\native-audio\\android" ^
+  "-DCMAKE_SYSTEM_NAME=Android" ^
+  "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON" ^
+  "-DCMAKE_SYSTEM_VERSION=24" ^
+  "-DANDROID_PLATFORM=android-24" ^
+  "-DANDROID_ABI=x86" ^
+  "-DCMAKE_ANDROID_ARCH_ABI=x86" ^
+  "-DANDROID_NDK=C:\\Users\\dhiti\\AppData\\Local\\Android\\Sdk\\ndk\\27.1.12297006" ^
+  "-DCMAKE_ANDROID_NDK=C:\\Users\\dhiti\\AppData\\Local\\Android\\Sdk\\ndk\\27.1.12297006" ^
+  "-DCMAKE_TOOLCHAIN_FILE=C:\\Users\\dhiti\\AppData\\Local\\Android\\Sdk\\ndk\\27.1.12297006\\build\\cmake\\android.toolchain.cmake" ^
+  "-DCMAKE_MAKE_PROGRAM=C:\\Users\\dhiti\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe" ^
+  "-DCMAKE_CXX_FLAGS=-std=c++17" ^
+  "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=D:\\PulseGrid\\modules\\native-audio\\android\\build\\intermediates\\cxx\\Debug\\5j2i2d52\\obj\\x86" ^
+  "-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=D:\\PulseGrid\\modules\\native-audio\\android\\build\\intermediates\\cxx\\Debug\\5j2i2d52\\obj\\x86" ^
+  "-DCMAKE_BUILD_TYPE=Debug" ^
+  "-DCMAKE_FIND_ROOT_PATH=D:\\PulseGrid\\modules\\native-audio\\android\\.cxx\\Debug\\5j2i2d52\\prefab\\x86\\prefab" ^
+  "-BD:\\PulseGrid\\modules\\native-audio\\android\\.cxx\\Debug\\5j2i2d52\\x86" ^
+  -GNinja ^
+  "-DANDROID_STL=c++_shared"

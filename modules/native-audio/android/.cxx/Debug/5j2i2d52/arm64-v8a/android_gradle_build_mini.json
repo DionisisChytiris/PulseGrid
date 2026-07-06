@@ -24,7 +24,7 @@
       "abi": "arm64-v8a",
       "output": "D:\\PulseGrid\\modules\\native-audio\\android\\build\\intermediates\\cxx\\Debug\\5j2i2d52\\obj\\arm64-v8a\\libnativeaudio_oboe_stub.so",
       "runtimeFiles": [
-        "C:\\Users\\dhiti\\AppData\\Local\\Temp\\cursor-sandbox-cache\\d951fa0d6000a7172c1d1e1f545c1b1c\\gradle\\caches\\8.14.3\\transforms\\0cb0b508e366a3d8ff1a36493f9d0d20\\transformed\\oboe-1.10.0\\prefab\\modules\\oboe\\libs\\android.arm64-v8a\\liboboe.so"
+        "C:\\gcache\\caches\\8.14.3\\transforms\\0cb0b508e366a3d8ff1a36493f9d0d20\\transformed\\oboe-1.10.0\\prefab\\modules\\oboe\\libs\\android.arm64-v8a\\liboboe.so"
       ]
     }
   }

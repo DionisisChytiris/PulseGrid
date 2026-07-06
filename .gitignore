@@ -39,3 +39,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Gradle (never commit or upload — local caches only)
+.gradle/
+**/.gradle/

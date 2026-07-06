@@ -6,6 +6,7 @@ import {
   subdivisionChanged,
   timeSignatureChanged,
 } from '../../features/metronome/metronomeSlice';
+import { quickMetronomeModeActive } from '../../features/songPlayback/songPlaybackSlice';
 import type { TimeSignature } from '../../domain/entities/Metronome';
 import { DEFAULT_TAP_TEMPO_CONFIG, TapTempoCalculator, type TapTempoResult } from '../../domain/services/TapTempoCalculator';
 import { AccentPattern } from '../../domain/valueObjects/AccentPattern';
@@ -82,6 +83,7 @@ export class PlaybackService {
     }
 
     this.dispatch(playbackStarted());
+    this.dispatch(quickMetronomeModeActive());
     console.log('Playback started');
     void this.startPlayback();
   }

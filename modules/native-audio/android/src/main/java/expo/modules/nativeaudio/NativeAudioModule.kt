@@ -52,8 +52,21 @@ class NativeAudioModule : Module() {
       val beatsPerMeasure = readInt(options["beatsPerMeasure"]) ?: 4
       val accentPattern = readAccentPattern(options["accentPattern"], beatsPerMeasure)
       val ticksPerBeat = readTicksPerBeat(options["subdivision"])
+      val playbackMode = readPlaybackMode(options["playbackMode"])
+      val timelineEvents = if (playbackMode == PlaybackMode.SONG_TIMELINE) {
+        readTimelineEvents(options["timelineEvents"])
+      } else {
+        emptyList()
+      }
 
-      metronomeEngine.start(bpm, beatsPerMeasure, accentPattern, ticksPerBeat)
+      metronomeEngine.start(
+        bpm,
+        beatsPerMeasure,
+        accentPattern,
+        ticksPerBeat,
+        playbackMode,
+        timelineEvents,
+      )
     }
 
     Function("stop") {
@@ -98,6 +111,41 @@ class NativeAudioModule : Module() {
         )
       },
     )
+  }
+
+  private fun readPlaybackMode(value: Any?): PlaybackMode {
+    return when (value as? String) {
+      "song_timeline" -> PlaybackMode.SONG_TIMELINE
+      else -> PlaybackMode.QUICK_METRONOME
+    }
+  }
+
+  private fun readTimelineEvents(value: Any?): List<TimelinePlaybackEvent> {
+    val rawEvents = value as? List<*> ?: return emptyList()
+
+    return rawEvents.mapNotNull { entry ->
+      val map = entry as? Map<*, *> ?: return@mapNotNull null
+
+      TimelinePlaybackEvent(
+        sequence = readLong(map["sequence"]) ?: 0L,
+        bpm = readDouble(map["bpm"])?.coerceAtLeast(1.0) ?: 120.0,
+        accent = map["accent"] as? Boolean ?: false,
+        subdivisionIndex = readInt(map["subdivisionIndex"]) ?: 0,
+        beatIndexInBar = readInt(map["beatIndexInBar"]) ?: 0,
+        beatsPerMeasure = readInt(map["beatsPerMeasure"])?.coerceAtLeast(1) ?: 4,
+        barId = map["barId"] as? String ?: "",
+        sectionId = map["sectionId"] as? String ?: "",
+      )
+    }
+  }
+
+  private fun readLong(value: Any?): Long? {
+    return when (value) {
+      is Int -> value.toLong()
+      is Double -> value.toLong()
+      is Long -> value
+      else -> null
+    }
   }
 
   private fun readDouble(value: Any?): Double? {

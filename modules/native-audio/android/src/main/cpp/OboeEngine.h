@@ -30,7 +30,8 @@ private:
   void drainQueue(
       int64_t bufferStartTimeNs,
       int64_t bufferEndTimeNs,
-      int32_t numFrames);
+      int32_t numFrames,
+      const char* timelineSource);
 
   AudioRenderer* renderer_;
   ClickEventQueue* queue_;

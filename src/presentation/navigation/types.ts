@@ -7,7 +7,7 @@ export type HomeStackParamList = {
 
 export type SongsStackParamList = {
   SongLibrary: undefined;
-  SongEditor: undefined;
+  SongEditor: { songId: string };
 };
 
 export type RootTabParamList = {

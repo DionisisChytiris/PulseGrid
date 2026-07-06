@@ -1,7 +1,7 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-import SongEditorScreen from '../screens/SongEditorScreen';
-import SongLibraryScreen from '../screens/SongLibraryScreen';
+import SongEditorScreen from '../screens/songs/editor/SongEditorScreen';
+import SongLibraryScreen from '../screens/songs/SongLibraryScreen';
 import type { SongsStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<SongsStackParamList>();

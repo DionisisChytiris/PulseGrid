@@ -1,0 +1,3 @@
+D:/PulseGrid/modules/native-audio/android/.cxx/Debug/5j2i2d52/x86/CMakeFiles/nativeaudio_oboe_stub.dir
+D:/PulseGrid/modules/native-audio/android/.cxx/Debug/5j2i2d52/x86/CMakeFiles/edit_cache.dir
+D:/PulseGrid/modules/native-audio/android/.cxx/Debug/5j2i2d52/x86/CMakeFiles/rebuild_cache.dir

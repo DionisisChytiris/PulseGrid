@@ -6,9 +6,11 @@
 namespace {
 constexpr const char* kLogTagOboe = "PulseGrid-Oboe";
 constexpr const char* kLogTagEngine = "OboeEngine";
+constexpr const char* kTimelineHw = "HW_TIMESTAMP";
+constexpr const char* kTimelineSoftware = "SOFTWARE_ESTIMATE";
 constexpr int64_t kNanosecondsPerSecond = 1000000000LL;
 
-// CLOCK_MONOTONIC origin for mapping buffer frames to scheduledDeadlineNs domain.
+// CLOCK_MONOTONIC origin for software timeline fallback (matches System.nanoTime domain).
 int64_t monotonicNowNs() {
   timespec ts{};
   clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -36,6 +38,58 @@ int32_t frameOffsetForDeadline(
 
   return static_cast<int32_t>(frameOffset);
 }
+
+int64_t softwareBufferStartTimeNs(
+    int64_t streamStartTimeNs,
+    int64_t framesWritten,
+    int32_t sampleRate) {
+  return streamStartTimeNs + (framesWritten * kNanosecondsPerSecond / sampleRate);
+}
+
+struct BufferTimeline {
+  int64_t bufferStartTimeNs = 0;
+  int64_t bufferEndTimeNs = 0;
+  const char* source = kTimelineSoftware;
+};
+
+BufferTimeline resolveBufferTimeline(
+    oboe::AudioStream* audioStream,
+    int32_t numFrames,
+    int64_t framesWritten,
+    int32_t sampleRate,
+    int64_t streamStartTimeNs) {
+  const int64_t nsPerBuffer =
+      static_cast<int64_t>(numFrames) * kNanosecondsPerSecond / sampleRate;
+
+  BufferTimeline timeline{};
+  timeline.source = kTimelineSoftware;
+  timeline.bufferStartTimeNs =
+      softwareBufferStartTimeNs(streamStartTimeNs, framesWritten, sampleRate);
+  timeline.bufferEndTimeNs = timeline.bufferStartTimeNs + nsPerBuffer;
+
+  if (audioStream == nullptr || sampleRate <= 0) {
+    return timeline;
+  }
+
+  const auto timestampResult = audioStream->getTimestamp(CLOCK_MONOTONIC);
+  const int64_t bufferStartFrame = audioStream->getFramesWritten();
+
+  if (!timestampResult) {
+    return timeline;
+  }
+
+  const int64_t referenceFrame = timestampResult.value().position;
+  const int64_t referenceTimeNs = timestampResult.value().timestamp;
+
+  const int64_t frameDelta = bufferStartFrame - referenceFrame;
+  const int64_t bufferStartTimeNs =
+      referenceTimeNs + (frameDelta * kNanosecondsPerSecond) / sampleRate;
+
+  timeline.source = kTimelineHw;
+  timeline.bufferStartTimeNs = bufferStartTimeNs;
+  timeline.bufferEndTimeNs = bufferStartTimeNs + nsPerBuffer;
+  return timeline;
+}
 }  // namespace
 
 // --- OboeStreamDataCallback ---
@@ -51,13 +105,18 @@ oboe::DataCallbackResult OboeStreamDataCallback::onAudioReady(
     return oboe::DataCallbackResult::Continue;
   }
 
-  const int64_t nsPerBuffer =
-      static_cast<int64_t>(numFrames) * kNanosecondsPerSecond / sampleRate_;
-  const int64_t bufferStartTimeNs =
-      streamStartTimeNs_ + (framesWritten_ * kNanosecondsPerSecond / sampleRate_);
-  const int64_t bufferEndTimeNs = bufferStartTimeNs + nsPerBuffer;
+  const BufferTimeline timeline = resolveBufferTimeline(
+      audioStream,
+      numFrames,
+      framesWritten_,
+      sampleRate_,
+      streamStartTimeNs_);
 
-  drainQueue(bufferStartTimeNs, bufferEndTimeNs, numFrames);
+  drainQueue(
+      timeline.bufferStartTimeNs,
+      timeline.bufferEndTimeNs,
+      numFrames,
+      timeline.source);
 
   renderer_->render(
       audioData,
@@ -78,7 +137,8 @@ oboe::DataCallbackResult OboeStreamDataCallback::onAudioReady(
 void OboeStreamDataCallback::drainQueue(
     int64_t bufferStartTimeNs,
     int64_t bufferEndTimeNs,
-    int32_t numFrames) {
+    int32_t numFrames,
+    const char* timelineSource) {
   ClickEvent event{};
   while (queue_->peek(event)) {
     if (event.scheduledDeadlineNs > bufferEndTimeNs) {
@@ -110,7 +170,8 @@ void OboeStreamDataCallback::drainQueue(
     __android_log_print(
         ANDROID_LOG_DEBUG,
         kLogTagOboe,
-        "scheduled_ns=%lld buffer_start_ns=%lld frame_offset=%d",
+        "timeline=%s scheduled_ns=%lld buffer_start_ns=%lld frame_offset=%d",
+        timelineSource,
         static_cast<long long>(event.scheduledDeadlineNs),
         static_cast<long long>(bufferStartTimeNs),
         frameOffset);

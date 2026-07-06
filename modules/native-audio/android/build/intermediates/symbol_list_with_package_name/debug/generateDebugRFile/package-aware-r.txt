@@ -1,4 +1,1 @@
 expo.modules.nativeaudio
-raw click_accent
-raw click_normal
-raw click_subdivision

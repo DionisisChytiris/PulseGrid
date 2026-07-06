@@ -1,0 +1,6 @@
+ninja: Entering directory `D:\PulseGrid\modules\native-audio\android\.cxx\Debug\5j2i2d52\x86_64'
+[1/5] Building CXX object CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/SamplePlayer.cpp.o
+[2/5] Building CXX object CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/AudioRenderer.cpp.o
+[3/5] Building CXX object CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/oboe_click_player_jni.cpp.o
+[4/5] Building CXX object CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/OboeEngine.cpp.o
+[5/5] Linking CXX shared library ..\..\..\..\build\intermediates\cxx\Debug\5j2i2d52\obj\x86_64\libnativeaudio_oboe_stub.so

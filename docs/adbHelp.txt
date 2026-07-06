@@ -12,6 +12,16 @@
  adb -s 7834401e logcat | findstr PulseGrid-Oboe
  adb -s 7834401e logcat -s PulseGrid-Oboe
 
+ adb logcat -s MetronomeEngine
+
+
+
+ adb -s 7834401e logcat -c                                          
+        this clears the existing logs
+ adb -s 7834401e logcat -d -s PulseGrid-Oboe PulseGrid-Audio    
+        -d dumps the current log buffer and exits.
+        You'll see everything your app logged during the run without having to watch a terminal for 30 minutes.    
+
 
 
 

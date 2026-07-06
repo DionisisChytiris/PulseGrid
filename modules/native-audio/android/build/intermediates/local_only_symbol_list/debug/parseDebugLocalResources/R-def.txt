@@ -1,5 +1,2 @@
 R_DEF: Internal format may change without notice
 local
-raw click_accent
-raw click_normal
-raw click_subdivision

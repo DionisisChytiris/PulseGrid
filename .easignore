@@ -1,0 +1,15 @@
+# Local Gradle caches
+.gradle/
+**/.gradle/
+
+# Only ignore the ROOT native folders
+/android/
+/ios/
+
+# Native build outputs
+**/.cxx/
+**/build/
+
+# Expo / Metro
+.expo/
+node_modules/
