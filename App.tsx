@@ -16,7 +16,7 @@ export default function App() {
     <Provider store={store}>
       <NavigationContainer>
         <RootNavigator />
-        <StatusBar style="auto" />
+        <StatusBar style="light" />
       </NavigationContainer>
     </Provider>
   );

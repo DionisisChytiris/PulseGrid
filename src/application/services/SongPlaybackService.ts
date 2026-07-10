@@ -174,6 +174,10 @@ export class SongPlaybackService {
           bpm: target.bpm,
           sequenceIndex: target.sequence,
           currentBarIndex: target.globalBarIndex,
+          beatIndexInBar: target.beatIndexInBar,
+          beatsPerMeasure: target.meter.numerator,
+          meterNumerator: target.meter.numerator,
+          meterDenominator: target.meter.denominator,
         }),
       );
     }
@@ -288,6 +292,10 @@ export class SongPlaybackService {
         bpm: playbackEvent.bpm,
         sequenceIndex: absoluteSequence,
         currentBarIndex: playbackEvent.globalBarIndex,
+        beatIndexInBar: playbackEvent.beatIndexInBar,
+        beatsPerMeasure: playbackEvent.meter.numerator,
+        meterNumerator: playbackEvent.meter.numerator,
+        meterDenominator: playbackEvent.meter.denominator,
       }),
     );
   }

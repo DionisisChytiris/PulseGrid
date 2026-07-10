@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 
 import { useResponsiveLayout } from '../../layout/useResponsiveLayout';
+import { studioColors } from '../../theme';
 import {
   angleToArcRatio,
   arcRatioFromBpm,
@@ -212,7 +213,7 @@ export function BpmCircularSlider({
                   borderRadius: dotSize / 2,
                   left: center + dotRadius * Math.cos(angle) - dotSize / 2,
                   top: center + dotRadius * Math.sin(angle) - dotSize / 2,
-                  backgroundColor: isActive ? '#C7C7CC' : 'transparent',
+                  backgroundColor: isActive ? studioColors.beatInactivePlaying : 'transparent',
                 },
               ]}
             />
@@ -261,7 +262,7 @@ const styles = StyleSheet.create({
   },
   trackRing: {
     position: 'absolute',
-    borderColor: '#E5E5EA',
+    borderColor: studioColors.border,
     backgroundColor: 'transparent',
   },
   progressDot: {
@@ -269,9 +270,9 @@ const styles = StyleSheet.create({
   },
   thumb: {
     position: 'absolute',
-    backgroundColor: '#AEAEB2',
+    backgroundColor: studioColors.textSecondary,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: studioColors.border,
   },
   centerContent: {
     position: 'absolute',

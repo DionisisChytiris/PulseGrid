@@ -3,7 +3,7 @@ import { createBar } from '../Bar';
 import { createMeter } from '../Meter';
 import { createSectionWithBars } from '../Section';
 import { createSong, type Song } from '../Song';
-import { createTempoEvent } from '../TempoEvent';
+import { createTempoDefinitionForMeter } from '../TempoDefinition';
 
 /** Demo score for Song Timeline UI — mixed meters and a tempo change. */
 export function createDemoTimelineSong(): Song {
@@ -28,7 +28,8 @@ export function createDemoTimelineSong(): Song {
           id: 'verse-bar-1',
           meter: createMeter(4, 4),
           accentPattern: createAccentPatternSteps([true, false, true, false]),
-          tempo: createTempoEvent(96),
+          tempoDefinition: createTempoDefinitionForMeter(96, createMeter(4, 4)),
+          tempoTransition: 'instant',
         },
         {
           id: 'verse-bar-2',

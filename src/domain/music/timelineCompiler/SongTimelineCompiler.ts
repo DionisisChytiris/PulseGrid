@@ -1,7 +1,13 @@
 import type { Bar } from '../Bar';
 import type { Song } from '../Song';
 import { locateBarsInSong } from '../SongUtils';
+import {
+  createTempoDefinitionForMeter,
+  type TempoDefinition,
+} from '../TempoDefinition';
 import type { SubdivisionKind } from '../../valueObjects/Subdivision';
+import { computePulseDurationNs } from '../tempo/beatDuration';
+import { createMeter, inferPulseBeatUnitFromMeter } from '../Meter';
 import {
   createTimelineCompiledPlaybackSequence,
   type TimelineCompiledPlaybackMetadata,
@@ -24,20 +30,36 @@ function assertPositiveBpm(bpm: number): void {
   }
 }
 
+function resolveTempoDefinitionForBar(
+  bar: Bar,
+  current: TempoDefinition,
+): TempoDefinition {
+  if (bar.tempoDefinition !== undefined) {
+    return bar.tempoDefinition;
+  }
+
+  return createTempoDefinitionForMeter(current.bpm, bar.meter);
+}
+
 function expandBarToTimelineEvents(
   bar: Bar,
   sectionId: string,
-  scheduledBpm: number,
+  tempoDefinition: TempoDefinition,
   startingSequenceIndex: number,
   subdivision: SubdivisionKind,
 ): TimelinePlaybackEvent[] {
   const beatsPerBar = bar.meter.numerator;
+  const beatDurationNs = computePulseDurationNs(
+    tempoDefinition,
+    inferPulseBeatUnitFromMeter(bar.meter),
+  );
   const events: TimelinePlaybackEvent[] = [];
 
   for (let beatIndexInBar = 0; beatIndexInBar < beatsPerBar; beatIndexInBar += 1) {
     events.push({
       sequenceIndex: startingSequenceIndex + beatIndexInBar,
-      scheduledBpm,
+      scheduledBpm: tempoDefinition.bpm,
+      beatDurationNs,
       beatsPerBar,
       subdivision,
       accentPattern: bar.accentPattern,
@@ -52,6 +74,7 @@ function expandBarToTimelineEvents(
 /**
  * Flattens a song document into a deterministic, immutable primary-beat event stream.
  * One event per beat; mixed meters expand via each bar's meter numerator (e.g. 7/8 → 7 events).
+ * Pulse durations are derived from TempoDefinition.beatUnit and the bar's pulse beat unit.
  */
 export function compileSong(
   song: Song,
@@ -63,19 +86,18 @@ export function compileSong(
 
   const locatedBars = locateBarsInSong(song);
   const events: TimelinePlaybackEvent[] = [];
-  let currentBpm = defaultBpm;
   let sequenceIndex = 0;
 
+  const firstMeter = locatedBars[0]?.bar.meter ?? createMeter(4, 4);
+  let currentTempoDefinition = createTempoDefinitionForMeter(defaultBpm, firstMeter);
+
   for (const located of locatedBars) {
-    const tempo = located.bar.tempo;
-    if (tempo !== undefined) {
-      currentBpm = tempo.bpm;
-    }
+    currentTempoDefinition = resolveTempoDefinitionForBar(located.bar, currentTempoDefinition);
 
     const barEvents = expandBarToTimelineEvents(
       located.bar,
       located.section.id,
-      currentBpm,
+      currentTempoDefinition,
       sequenceIndex,
       defaultSubdivision,
     );
@@ -109,7 +131,7 @@ export function logFirstCompiledEvents(
     const event = compiled.events[index];
     console.log(
       `${tag} [${index}] seq=${event.sequenceIndex} bpm=${event.scheduledBpm} ` +
-        `beats=${event.beatsPerBar} subdiv=${event.subdivision} ` +
+        `beatNs=${event.beatDurationNs} beats=${event.beatsPerBar} subdiv=${event.subdivision} ` +
         `bar=${event.barId} section=${event.sectionId}`,
     );
   }

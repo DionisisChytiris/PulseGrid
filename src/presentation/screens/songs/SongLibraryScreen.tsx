@@ -14,6 +14,7 @@ import type { Song } from '../../../domain/music/Song';
 import { useSongLibrary } from '../../hooks/useSongLibrary';
 import { useSongPlayback } from '../../hooks/useSongPlayback';
 import type { SongsStackParamList } from '../../navigation/types';
+import { studioColors } from '../../theme';
 
 type Props = NativeStackScreenProps<SongsStackParamList, 'SongLibrary'>;
 
@@ -43,7 +44,7 @@ export default function SongLibraryScreen({ navigation }: Props) {
       </Pressable>
 
       {loading ? (
-        <ActivityIndicator style={styles.loader} />
+        <ActivityIndicator style={styles.loader} color={studioColors.accent} />
       ) : (
         <FlatList
           data={songs}
@@ -143,20 +144,20 @@ function SongListItem({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 20, backgroundColor: '#fff' },
-  title: { fontSize: 28, fontWeight: '700', marginBottom: 12 },
+  container: { flex: 1, paddingHorizontal: 20, backgroundColor: studioColors.background },
+  title: { fontSize: 28, fontWeight: '700', marginBottom: 12, color: studioColors.textPrimary },
   modeBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: '#f0f4ff',
+    backgroundColor: studioColors.accentMutedBg,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
     marginBottom: 12,
   },
-  modeLabel: { fontSize: 12, color: '#5a6a8a', textTransform: 'uppercase' },
-  modeValue: { fontSize: 16, fontWeight: '700', color: '#1a2b4a' },
+  modeLabel: { fontSize: 12, color: studioColors.textSecondary, textTransform: 'uppercase' },
+  modeValue: { fontSize: 16, fontWeight: '700', color: studioColors.textPrimary },
   primaryButton: {
-    backgroundColor: '#1a73e8',
+    backgroundColor: studioColors.accent,
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: 'center',
@@ -167,58 +168,62 @@ const styles = StyleSheet.create({
   listContent: { gap: 12, paddingBottom: 16 },
   songCard: {
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: studioColors.border,
     borderRadius: 10,
     padding: 12,
-    backgroundColor: '#fafafa',
+    backgroundColor: studioColors.surface,
   },
-  songName: { fontSize: 17, fontWeight: '700', marginBottom: 4 },
-  songMeta: { fontSize: 13, color: '#666', marginBottom: 10 },
+  songName: { fontSize: 17, fontWeight: '700', marginBottom: 4, color: studioColors.textPrimary },
+  songMeta: { fontSize: 13, color: studioColors.textSecondary, marginBottom: 10 },
   songActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   actionButton: {
-    backgroundColor: '#eef2f7',
+    backgroundColor: studioColors.surfaceElevated,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
-  actionButtonText: { fontSize: 13, fontWeight: '600', color: '#1a2b4a' },
-  deleteAction: { backgroundColor: '#fee2e2' },
-  deleteActionText: { color: '#b91c1c', fontWeight: '600', fontSize: 13 },
-  empty: { textAlign: 'center', color: '#666', marginTop: 24 },
-  errorText: { color: '#b45309', marginTop: 8 },
-  fallback: { color: '#b45309', marginTop: 8, fontSize: 13 },
+  actionButtonText: { fontSize: 13, fontWeight: '600', color: studioColors.textPrimary },
+  deleteAction: { backgroundColor: 'rgba(255, 69, 58, 0.18)' },
+  deleteActionText: { color: studioColors.stop, fontWeight: '600', fontSize: 13 },
+  empty: { textAlign: 'center', color: studioColors.textSecondary, marginTop: 24 },
+  errorText: { color: studioColors.beatAccent, marginTop: 8 },
+  fallback: { color: studioColors.beatAccent, marginTop: 8, fontSize: 13 },
   transportPanel: {
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
+    borderTopColor: studioColors.border,
   },
-  nowPlaying: { fontSize: 14, marginBottom: 4 },
-  barPosition: { fontSize: 13, color: '#555', marginBottom: 8 },
+  nowPlaying: { fontSize: 14, marginBottom: 4, color: studioColors.textPrimary },
+  barPosition: { fontSize: 13, color: studioColors.textSecondary, marginBottom: 8 },
   transportRow: { flexDirection: 'row', gap: 12, marginBottom: 8 },
   secondaryButton: {
     flex: 1,
-    backgroundColor: '#eef2f7',
+    backgroundColor: studioColors.surfaceElevated,
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: 'center',
   },
-  secondaryButtonText: { fontSize: 15, fontWeight: '600', color: '#1a2b4a' },
+  secondaryButtonText: { fontSize: 15, fontWeight: '600', color: studioColors.textPrimary },
   seekRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
   seekButton: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: studioColors.surface,
     borderRadius: 8,
     paddingVertical: 10,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: studioColors.border,
   },
-  seekButtonText: { fontSize: 14, fontWeight: '600' },
+  seekButtonText: { fontSize: 14, fontWeight: '600', color: studioColors.textPrimary },
   debugOverlay: {
     marginTop: 12,
     padding: 12,
     borderRadius: 8,
-    backgroundColor: '#111827',
+    backgroundColor: studioColors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: studioColors.border,
   },
-  debugTitle: { color: '#93c5fd', fontWeight: '700', marginBottom: 8 },
-  debugLine: { color: '#e5e7eb', fontFamily: 'monospace', fontSize: 12, marginBottom: 4 },
+  debugTitle: { color: studioColors.accent, fontWeight: '700', marginBottom: 8 },
+  debugLine: { color: studioColors.textSecondary, fontFamily: 'monospace', fontSize: 12, marginBottom: 4 },
 });

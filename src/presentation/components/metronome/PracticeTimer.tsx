@@ -4,6 +4,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { usePracticeTimer } from '../../hooks/usePracticeTimer';
 import { useResponsiveLayout } from '../../layout/useResponsiveLayout';
+import { studioColors } from '../../theme';
 
 type PracticeTimerProps = {
   isPlaying: boolean;
@@ -38,7 +39,7 @@ export function PracticeTimer({ isPlaying }: PracticeTimerProps) {
           accessibilityRole="button"
           accessibilityLabel="Reset timer to zero"
         >
-          <Ionicons name="refresh" size={metrics.iconSize} color="#007AFF" />
+          <Ionicons name="refresh" size={metrics.iconSize} color={studioColors.accent} />
         </Pressable>
       ) : null}
 
@@ -75,7 +76,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   resetButton: {
-    backgroundColor: '#F2F2F7',
+    backgroundColor: studioColors.surfaceElevated,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -86,18 +87,18 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   timerArmed: {
-    backgroundColor: '#F2F2F7',
+    backgroundColor: studioColors.surfaceElevated,
   },
   timerRunning: {
-    backgroundColor: '#E8F4FF',
+    backgroundColor: studioColors.accentMutedBg,
   },
   timerInactive: {
     fontWeight: '600',
-    color: '#AEAEB2',
+    color: studioColors.textMuted,
   },
   timerValue: {
     fontWeight: '600',
-    color: '#000000',
+    color: studioColors.textPrimary,
     fontVariant: ['tabular-nums'],
   },
 });

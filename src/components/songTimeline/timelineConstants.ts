@@ -1,0 +1,3 @@
+export const TIMELINE_SEGMENT_WIDTH = 176;
+export const TIMELINE_SEGMENT_GAP = 12;
+export const AUTO_FOLLOW_SUSPEND_MS = 3000;

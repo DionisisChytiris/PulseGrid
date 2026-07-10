@@ -3,11 +3,12 @@ import type { SubdivisionKind } from '../../valueObjects/Subdivision';
 
 /**
  * One primary beat in a compiled song timeline.
- * Pure musical intent — no timestamps or scheduling fields.
+ * Pure musical intent — [beatDurationNs] is the precomputed pulse duration for this tick.
  */
 export interface TimelinePlaybackEvent {
   readonly sequenceIndex: number;
   readonly scheduledBpm: number;
+  readonly beatDurationNs: number;
   readonly beatsPerBar: number;
   readonly subdivision: SubdivisionKind;
   readonly accentPattern: SongAccentPattern;

@@ -6,14 +6,17 @@ import {
   selectBpm,
   selectCurrentBeat,
   selectCurrentSubdivisionIndex,
+  selectFinerSubdivision,
   selectIsAccent,
   selectIsPlaying,
-  selectSubdivision,
+  selectSubdivisionAvailability,
   selectTimeSignature,
 } from '../../features/metronome/metronomeSelectors';
 import type { TimeSignature } from '../../domain/entities/Metronome';
-import type { SubdivisionKind } from '../../domain/valueObjects/Subdivision';
-import { useAppSelector } from '../../store/hooks';
+import type { FinerSubdivisionSelection } from '../../domain/metronome/PulseGridSettings';
+import { resolveEngineSubdivision, toEngineBpm } from '../../domain/metronome/PulseGridSettings';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { finerSubdivisionChanged } from '../../features/metronome/metronomeSlice';
 
 export const MIN_BPM = 30;
 export const MAX_BPM = 600;
@@ -22,11 +25,13 @@ const TAP_TEMPO_INTRO =
   'Tap TAP at least 3 times in a steady beat to set the tempo. BPM updates from the 3rd tap. Pause longer than 2 seconds to start over. Hold TAP for help.';
 
 export function useQuickMetronome() {
+  const dispatch = useAppDispatch();
   const bpm = useAppSelector(selectBpm);
   const isPlaying = useAppSelector(selectIsPlaying);
   const timeSignature = useAppSelector(selectTimeSignature);
   const accentPattern = useAppSelector(selectAccentPattern);
-  const subdivision = useAppSelector(selectSubdivision);
+  const finerSubdivision = useAppSelector(selectFinerSubdivision);
+  const subdivisionAvailability = useAppSelector(selectSubdivisionAvailability);
   const currentBeat = useAppSelector(selectCurrentBeat);
   const currentSubdivisionIndex = useAppSelector(selectCurrentSubdivisionIndex);
   const isAccent = useAppSelector(selectIsAccent);
@@ -45,7 +50,8 @@ export function useQuickMetronome() {
     isPlaying,
     timeSignature,
     accentPattern,
-    subdivision,
+    finerSubdivision,
+    subdivisionAvailability,
     currentBeat,
     currentSubdivisionIndex,
     isAccent,
@@ -56,10 +62,16 @@ export function useQuickMetronome() {
     maxBpm: MAX_BPM,
     onStart: () => playbackService.start(),
     onStop: () => playbackService.stop(),
-    onBpmChange: (value: number) => playbackService.setBpm(value),
+    onBpmChange: (value: number) =>
+      playbackService.setBpm(toEngineBpm(value, timeSignature.denominator)),
     onTimeSignatureChange: (value: TimeSignature) => playbackService.setTimeSignature(value),
     onAccentPatternChange: (pattern: boolean[]) => playbackService.setAccentPattern(pattern),
-    onSubdivisionChange: (value: SubdivisionKind) => playbackService.setSubdivision(value),
+    onSubdivisionChange: (value: FinerSubdivisionSelection) => {
+      dispatch(finerSubdivisionChanged(value));
+      playbackService.setSubdivision(
+        resolveEngineSubdivision(timeSignature.denominator, value),
+      );
+    },
     onTapTempo,
     onTapTempoHelp,
   };

@@ -13,6 +13,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 
 import type { TimeSignature } from '../../../domain/entities/Metronome';
 import { useResponsiveLayout } from '../../layout/useResponsiveLayout';
+import { studioColors } from '../../theme';
 
 export const DEFAULT_TIME_SIGNATURES: TimeSignature[] = [
   { numerator: 2, denominator: 4 },
@@ -306,7 +307,7 @@ export function TimeSignaturePicker({
             <Ionicons
               name="remove"
               size={metrics.minusIconSize}
-              color={canDeleteSelected ? '#FFFFFF' : '#8E8E93'}
+              color={canDeleteSelected ? '#FFFFFF' : studioColors.textMuted}
             />
           </Pressable>
         </View>
@@ -327,7 +328,7 @@ export function TimeSignaturePicker({
             accessibilityRole="button"
             accessibilityLabel="Create custom time signature"
           >
-            <Ionicons name="add" size={metrics.plusIconSize} color="#007AFF" />
+            <Ionicons name="add" size={metrics.plusIconSize} color={studioColors.accent} />
           </Pressable>
         </View>
       </View>
@@ -404,7 +405,7 @@ const styles = StyleSheet.create({
   },
   label: {
     width: '100%',
-    color: '#8E8E93',
+    color: studioColors.textSecondary,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
     textAlign: 'center',
@@ -441,13 +442,13 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     borderRadius: 8,
-    backgroundColor: '#FF3B30',
+    backgroundColor: studioColors.danger,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
   deleteButtonDisabled: {
-    backgroundColor: '#E5E5EA',
+    backgroundColor: studioColors.surfaceElevated,
     opacity: 0.5,
   },
   scrollFill: {
@@ -459,23 +460,23 @@ const styles = StyleSheet.create({
   },
   option: {
     borderRadius: 8,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: studioColors.surfaceElevated,
     alignItems: 'center',
     justifyContent: 'center',
   },
   addButton: {
     borderRadius: 8,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: studioColors.surfaceElevated,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
   optionSelected: {
-    backgroundColor: '#007AFF',
+    backgroundColor: studioColors.accent,
   },
   optionText: {
     fontWeight: '500',
-    color: '#000000',
+    color: studioColors.textPrimary,
     textAlign: 'center',
   },
   optionTextAndroid: {
@@ -487,37 +488,42 @@ const styles = StyleSheet.create({
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    backgroundColor: studioColors.overlay,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
   },
   modalCard: {
     width: '100%',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: studioColors.surfaceElevated,
     borderRadius: 12,
     padding: 20,
     gap: 12,
+    borderWidth: 1,
+    borderColor: studioColors.border,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
     textAlign: 'center',
+    color: studioColors.textPrimary,
   },
   fieldLabel: {
     fontSize: 13,
-    color: '#8E8E93',
+    color: studioColors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: studioColors.border,
     borderRadius: 8,
     paddingVertical: 10,
     paddingHorizontal: 12,
     fontSize: 18,
     textAlign: 'center',
+    color: studioColors.textPrimary,
+    backgroundColor: studioColors.surface,
   },
   denominatorRow: {
     flexDirection: 'row',
@@ -528,7 +534,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 8,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: studioColors.surfaceElevated,
     minWidth: 44,
     alignItems: 'center',
   },
@@ -541,19 +547,19 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     borderRadius: 8,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: studioColors.surface,
     alignItems: 'center',
   },
   modalButtonSecondaryText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#000000',
+    color: studioColors.textPrimary,
   },
   modalButtonPrimary: {
     flex: 1,
     paddingVertical: 12,
     borderRadius: 8,
-    backgroundColor: '#007AFF',
+    backgroundColor: studioColors.accent,
     alignItems: 'center',
   },
   modalButtonPrimaryText: {

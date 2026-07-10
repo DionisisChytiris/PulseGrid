@@ -29,3 +29,18 @@ export const selectSongPlaybackModeLabel = (state: RootState): string => {
 
   return 'IDLE';
 };
+
+export const selectIsSongTimelineMode = (state: RootState): boolean =>
+  state.songPlayback.playbackMode === 'SONG_TIMELINE';
+
+export const selectIsSongTimelinePlaying = (state: RootState): boolean =>
+  state.songPlayback.playbackMode === 'SONG_TIMELINE' && state.songPlayback.isPlaying;
+
+/** True when this song is the active SONG_TIMELINE target (playing or paused). */
+export const selectSongTimelineActiveForSong = (
+  state: RootState,
+  songName: string,
+): boolean =>
+  state.songPlayback.playbackMode === 'SONG_TIMELINE' &&
+  state.songPlayback.songName === songName &&
+  (state.songPlayback.isPlaying || state.songPlayback.isPaused);

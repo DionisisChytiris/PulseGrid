@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 
 import { useResponsiveLayout } from '../../layout/useResponsiveLayout';
+import { studioColors } from '../../theme';
 
 type TapTempoHintModalProps = {
   visible: boolean;
@@ -52,34 +53,36 @@ export function TapTempoHintModal({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    backgroundColor: studioColors.overlay,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
   },
   card: {
     width: '100%',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: studioColors.surfaceElevated,
     borderRadius: 14,
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 16,
     gap: 14,
+    borderWidth: 1,
+    borderColor: studioColors.border,
   },
   title: {
     fontWeight: '600',
-    color: '#000000',
+    color: studioColors.textPrimary,
     textAlign: 'center',
   },
   message: {
-    color: '#3A3A3C',
+    color: studioColors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
   },
   button: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#007AFF',
+    backgroundColor: studioColors.accent,
     borderRadius: 10,
     marginTop: 4,
   },

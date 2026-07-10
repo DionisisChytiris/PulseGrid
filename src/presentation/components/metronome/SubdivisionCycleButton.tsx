@@ -1,21 +1,22 @@
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
-  NATIVE_SUBDIVISION_ORDER,
-  toNativeSubdivision,
-  type NativeSubdivisionKind,
-  type SubdivisionKind,
-} from '../../../domain/valueObjects/Subdivision';
+  cycleFinerSubdivision,
+  type FinerSubdivisionSelection,
+  type SubdivisionAvailability,
+} from '../../../domain/metronome/PulseGridSettings';
+import type { SubdivisionKind } from '../../../domain/valueObjects/Subdivision';
 import { useResponsiveLayout } from '../../layout/useResponsiveLayout';
+import { studioColors } from '../../theme';
 
-const SUBDIVISION_SYMBOL: Record<NativeSubdivisionKind, string> = {
+const SUBDIVISION_SYMBOL: Record<SubdivisionKind, string> = {
   quarter: '♩',
   eighth: '♪',
   triplet: '3',
   sixteenth: '♬',
 };
 
-const SUBDIVISION_LABEL: Record<NativeSubdivisionKind, string> = {
+const SUBDIVISION_LABEL: Record<SubdivisionKind, string> = {
   quarter: '1/4',
   eighth: '1/8',
   triplet: '3',
@@ -23,31 +24,46 @@ const SUBDIVISION_LABEL: Record<NativeSubdivisionKind, string> = {
 };
 
 type SubdivisionCycleButtonProps = {
-  subdivision: SubdivisionKind;
-  onSubdivisionChange: (subdivision: SubdivisionKind) => void;
+  denominator: number;
+  finerSubdivision: FinerSubdivisionSelection;
+  availability: SubdivisionAvailability;
+  onSubdivisionChange: (subdivision: FinerSubdivisionSelection) => void;
 };
 
 export function SubdivisionCycleButton({
-  subdivision,
+  denominator,
+  finerSubdivision,
+  availability,
   onSubdivisionChange,
 }: SubdivisionCycleButtonProps) {
   const layout = useResponsiveLayout();
   const buttonSize = layout.scale(32, 0.05, 0.05);
-  const currentSubdivision = toNativeSubdivision(subdivision);
+  const disabled = availability.finerSubdivisions.length === 0;
 
-  const cycleSubdivision = () => {
-    const currentIndex = NATIVE_SUBDIVISION_ORDER.indexOf(currentSubdivision);
-    const nextIndex = (currentIndex + 1) % NATIVE_SUBDIVISION_ORDER.length;
-    onSubdivisionChange(NATIVE_SUBDIVISION_ORDER[nextIndex]);
-  };
+  const label = finerSubdivision === null ? 'Base' : SUBDIVISION_LABEL[finerSubdivision];
+  const symbol = finerSubdivision === null ? '•' : SUBDIVISION_SYMBOL[finerSubdivision];
 
   return (
     <Pressable
-      onPress={cycleSubdivision}
+      onPress={() => {
+        if (disabled) {
+          return;
+        }
+
+        onSubdivisionChange(cycleFinerSubdivision(denominator, finerSubdivision));
+      }}
+      disabled={disabled}
       hitSlop={6}
       accessibilityRole="button"
-      accessibilityLabel={`${SUBDIVISION_LABEL[currentSubdivision]} subdivision`}
-      accessibilityHint="Tap to change subdivision"
+      accessibilityState={{ disabled }}
+      accessibilityLabel={
+        disabled
+          ? availability.disabledReason ?? 'Subdivision unavailable'
+          : `${label} subdivision`
+      }
+      accessibilityHint={
+        disabled ? availability.disabledReason ?? undefined : 'Tap to change subdivision'
+      }
       style={({ pressed }) => [
         styles.button,
         {
@@ -55,7 +71,8 @@ export function SubdivisionCycleButton({
           height: buttonSize,
           borderRadius: buttonSize / 2,
         },
-        pressed && styles.buttonPressed,
+        disabled && styles.buttonDisabled,
+        pressed && !disabled && styles.buttonPressed,
       ]}
     >
       <View style={styles.content}>
@@ -64,12 +81,13 @@ export function SubdivisionCycleButton({
             styles.symbol,
             { fontSize: layout.scale(15) },
             Platform.OS === 'android' && styles.symbolAndroid,
+            disabled && styles.textDisabled,
           ]}
         >
-          {SUBDIVISION_SYMBOL[currentSubdivision]}
+          {symbol}
         </Text>
-        <Text style={[styles.label, { fontSize: layout.scale(9) }]}>
-          {SUBDIVISION_LABEL[currentSubdivision]}
+        <Text style={[styles.label, { fontSize: layout.scale(9) }, disabled && styles.textDisabled]}>
+          {disabled ? 'Fine' : label}
         </Text>
       </View>
     </Pressable>
@@ -80,9 +98,12 @@ const styles = StyleSheet.create({
   button: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F2F2F7',
+    backgroundColor: studioColors.surfaceElevated,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: studioColors.border,
+  },
+  buttonDisabled: {
+    opacity: 0.55,
   },
   buttonPressed: {
     opacity: 0.75,
@@ -92,7 +113,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   symbol: {
-    color: '#1C1C1E',
+    color: studioColors.textPrimary,
     fontWeight: '600',
     lineHeight: undefined,
   },
@@ -101,8 +122,11 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
   },
   label: {
-    color: '#636366',
+    color: studioColors.textSecondary,
     fontWeight: '500',
     marginTop: 1,
+  },
+  textDisabled: {
+    color: studioColors.textSecondary,
   },
 });

@@ -1,30 +1,49 @@
+import type { Meter } from './Meter';
+import {
+  createTempoDefinition,
+  createTempoDefinitionForMeter,
+  cloneTempoDefinition,
+  type TempoDefinition,
+} from './TempoDefinition';
+import { BeatUnit } from './BeatUnit';
+
 /** How tempo changes at a bar boundary. Playback interprets curves later. */
 export type TempoTransitionType = 'instant' | 'linear';
 
 /**
- * Optional per-bar tempo override.
- * Metadata is opaque to the domain layer (e.g. curve label, editor hints).
+ * Optional per-bar tempo override with transition metadata.
+ * Prefer Bar.tempoDefinition + Bar.tempoTransition for new code.
  */
 export interface TempoEvent {
-  readonly bpm: number;
+  readonly tempoDefinition: TempoDefinition;
   readonly type: TempoTransitionType;
   readonly metadata?: Readonly<Record<string, string | number | boolean>>;
+}
+
+export function getTempoEventBpm(event: TempoEvent): number {
+  return event.tempoDefinition.bpm;
 }
 
 export function createTempoEvent(
   bpm: number,
   type: TempoTransitionType = 'instant',
   metadata?: Readonly<Record<string, string | number | boolean>>,
+  meter?: Meter,
 ): TempoEvent {
-  if (!Number.isFinite(bpm) || bpm <= 0) {
-    throw new RangeError('TempoEvent bpm must be a positive number');
-  }
+  const tempoDefinition =
+    meter === undefined
+      ? createTempoDefinition(bpm, BeatUnit.QUARTER)
+      : createTempoDefinitionForMeter(bpm, meter);
 
-  return metadata === undefined ? { bpm, type } : { bpm, type, metadata };
+  return metadata === undefined
+    ? { tempoDefinition, type }
+    : { tempoDefinition, type, metadata };
 }
 
 export function cloneTempoEvent(event: TempoEvent): TempoEvent {
+  const tempoDefinition = cloneTempoDefinition(event.tempoDefinition);
+
   return event.metadata === undefined
-    ? createTempoEvent(event.bpm, event.type)
-    : createTempoEvent(event.bpm, event.type, { ...event.metadata });
+    ? { tempoDefinition, type: event.type }
+    : { tempoDefinition, type: event.type, metadata: { ...event.metadata } };
 }

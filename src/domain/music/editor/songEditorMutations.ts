@@ -1,10 +1,10 @@
-import { downbeatAccentPattern } from '../AccentPattern';
+import { defaultAccentPatternFromMeter } from '../AccentPattern';
 import { createBar, type Bar } from '../Bar';
 import { createMeter, formatMeter, type Meter } from '../Meter';
 import { createSection, type Section } from '../Section';
 import type { Song } from '../Song';
 import { cloneSong } from '../SongUtils';
-import { createTempoEvent } from '../TempoEvent';
+import { createTempoDefinitionForMeter } from '../TempoDefinition';
 import { generateEntityId } from '../storage/generateEntityId';
 
 export const METER_PRESETS: readonly Meter[] = [
@@ -48,7 +48,7 @@ export function addBarToSong(song: Song, meter: Meter = createMeter(4, 4)): Song
   const newBar = createBar({
     id: generateEntityId('bar'),
     meter,
-    accentPattern: downbeatAccentPattern(meter.numerator),
+    accentPattern: defaultAccentPatternFromMeter(meter),
   });
 
   return withMainSection(song, {
@@ -91,7 +91,7 @@ export function updateBarMeter(song: Song, barId: string, meter: Meter): Song {
   return mapBar(song, barId, (bar) => ({
     ...bar,
     meter,
-    accentPattern: downbeatAccentPattern(meter.numerator),
+    accentPattern: defaultAccentPatternFromMeter(meter),
   }));
 }
 
@@ -102,7 +102,12 @@ export function updateBarBpm(song: Song, barId: string, bpm: number | null): Son
       meter: bar.meter,
       accentPattern: bar.accentPattern,
       repeatCount: bar.repeatCount,
-      ...(bpm !== null && Number.isFinite(bpm) && bpm > 0 ? { tempo: createTempoEvent(bpm) } : {}),
+      ...(bpm !== null && Number.isFinite(bpm) && bpm > 0
+        ? {
+            tempoDefinition: createTempoDefinitionForMeter(bpm, bar.meter),
+            tempoTransition: 'instant',
+          }
+        : {}),
     }),
   );
 }

@@ -5,6 +5,8 @@
  * in domain/valueObjects.
  */
 
+import type { Meter } from './Meter';
+
 /** Flat accent flags — one entry per beat in the bar. */
 export interface AccentPatternSteps {
   readonly kind: 'steps';
@@ -47,6 +49,48 @@ export function createAccentPatternGrouped(
   }
 
   return { kind: 'grouped', groups: [...groups], accentGroupStarts };
+}
+
+/** Flat accent flags from a song accent pattern. */
+export function resolveAccentFlags(
+  pattern: SongAccentPattern,
+  beatCount: number,
+): readonly boolean[] {
+  if (beatCount <= 0) {
+    throw new RangeError('Beat count must be positive');
+  }
+
+  if (pattern.kind === 'steps') {
+    return Array.from({ length: beatCount }, (_, beatIndex) => {
+      return pattern.steps[beatIndex % pattern.steps.length] ?? false;
+    });
+  }
+
+  const accentGroupStarts = pattern.accentGroupStarts ?? true;
+  const fromGroups: boolean[] = [];
+
+  for (const groupSize of pattern.groups) {
+    for (let pulse = 0; pulse < groupSize; pulse += 1) {
+      fromGroups.push(accentGroupStarts && pulse === 0);
+    }
+  }
+
+  if (fromGroups.length === beatCount) {
+    return fromGroups;
+  }
+
+  if (fromGroups.length > beatCount) {
+    return fromGroups.slice(0, beatCount);
+  }
+
+  return Array.from({ length: beatCount }, (_, beatIndex) => {
+    return fromGroups[beatIndex % fromGroups.length] ?? false;
+  });
+}
+
+/** Default grouped accents from [meter.grouping]; grouping never removes pulse cells. */
+export function defaultAccentPatternFromMeter(meter: Meter): AccentPatternGrouped {
+  return createAccentPatternGrouped(meter.grouping, true);
 }
 
 /** Default: accent on beat 1 only for the given beat count. */

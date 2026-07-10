@@ -1,31 +1,59 @@
 import type { SongAccentPattern } from '../AccentPattern';
 import type { Bar } from '../Bar';
 import { createBar } from '../Bar';
-import { createMeter, type Meter } from '../Meter';
+import { ClickAccent, type ClickPattern } from '../ClickPattern';
+import { BeatUnit } from '../BeatUnit';
+import {
+  createMeter,
+  defaultMeterGrouping,
+  inferTempoBeatUnitFromMeter,
+  type Meter,
+} from '../Meter';
 import { createSection, type Section } from '../Section';
 import { createSong, type Song } from '../Song';
-import { createTempoEvent, type TempoEvent } from '../TempoEvent';
+import { createTempoDefinition } from '../TempoDefinition';
+import type { TempoTransitionType } from '../TempoEvent';
 
 type StoredMeter = {
   numerator: number;
   denominator: number;
+  grouping?: number[];
 };
 
 type StoredAccentPattern =
   | { kind: 'steps'; steps: boolean[] }
   | { kind: 'grouped'; groups: number[]; accentGroupStarts?: boolean };
 
-type StoredTempoEvent = {
+type StoredTempoDefinition = {
   bpm: number;
-  type: 'instant' | 'linear';
+  beatUnit: BeatUnit;
+};
+
+/** Legacy persisted shape (BPM only — beat unit inferred on load). */
+type StoredLegacyTempoEvent = {
+  bpm: number;
+  type: TempoTransitionType;
   metadata?: Record<string, string | number | boolean>;
+};
+
+type StoredClickStep = {
+  enabled: boolean;
+  accent: ClickAccent;
+};
+
+type StoredClickPattern = {
+  steps: StoredClickStep[];
 };
 
 type StoredBar = {
   id: string;
   meter: StoredMeter;
   accentPattern: StoredAccentPattern;
-  tempo?: StoredTempoEvent;
+  clickPattern?: StoredClickPattern;
+  tempoDefinition?: StoredTempoDefinition;
+  tempoTransition?: TempoTransitionType;
+  /** @deprecated Legacy field — migrated to tempoDefinition on load. */
+  tempo?: StoredLegacyTempoEvent;
   repeatCount: number;
 };
 
@@ -45,7 +73,12 @@ export type StoredSong = {
 };
 
 function parseMeter(value: StoredMeter): Meter {
-  return createMeter(value.numerator, value.denominator);
+  const grouping =
+    value.grouping === undefined
+      ? defaultMeterGrouping(value.numerator, value.denominator)
+      : value.grouping;
+
+  return createMeter(value.numerator, value.denominator, grouping);
 }
 
 function parseAccentPattern(value: StoredAccentPattern): SongAccentPattern {
@@ -60,21 +93,60 @@ function parseAccentPattern(value: StoredAccentPattern): SongAccentPattern {
   };
 }
 
-function parseTempo(value: StoredTempoEvent | undefined): TempoEvent | undefined {
-  if (value === undefined) {
-    return undefined;
+function parseBeatUnit(value: string): BeatUnit {
+  if (Object.values(BeatUnit).includes(value as BeatUnit)) {
+    return value as BeatUnit;
   }
 
-  return createTempoEvent(value.bpm, value.type, value.metadata);
+  throw new Error(`Unknown beat unit: ${value}`);
+}
+
+function parseTempoDefinition(
+  value: StoredTempoDefinition | undefined,
+  legacy: StoredLegacyTempoEvent | undefined,
+  meter: Meter,
+): { tempoDefinition?: ReturnType<typeof createTempoDefinition>; tempoTransition?: TempoTransitionType } {
+  if (value !== undefined) {
+    return {
+      tempoDefinition: createTempoDefinition(value.bpm, parseBeatUnit(value.beatUnit)),
+    };
+  }
+
+  if (legacy === undefined) {
+    return {};
+  }
+
+  return {
+    tempoDefinition: createTempoDefinition(legacy.bpm, inferTempoBeatUnitFromMeter(meter)),
+    tempoTransition: legacy.type,
+  };
+}
+
+function parseClickPattern(value: StoredClickPattern): ClickPattern {
+  return {
+    steps: value.steps.map((step) => ({
+      enabled: step.enabled,
+      accent: step.accent,
+    })),
+  };
 }
 
 function parseBar(value: StoredBar): Bar {
+  const meter = parseMeter(value.meter);
+  const { tempoDefinition, tempoTransition } = parseTempoDefinition(
+    value.tempoDefinition,
+    value.tempo,
+    meter,
+  );
+
   return createBar({
     id: value.id,
-    meter: parseMeter(value.meter),
+    meter,
     accentPattern: parseAccentPattern(value.accentPattern),
     repeatCount: value.repeatCount,
-    tempo: parseTempo(value.tempo),
+    tempoDefinition,
+    tempoTransition: value.tempoTransition ?? tempoTransition,
+    ...(value.clickPattern === undefined ? {} : { clickPattern: parseClickPattern(value.clickPattern) }),
   });
 }
 
@@ -99,7 +171,11 @@ export function songToStored(song: Song): StoredSong {
       loop: section.loop,
       bars: section.bars.map((bar) => ({
         id: bar.id,
-        meter: { numerator: bar.meter.numerator, denominator: bar.meter.denominator },
+        meter: {
+          numerator: bar.meter.numerator,
+          denominator: bar.meter.denominator,
+          grouping: [...bar.meter.grouping],
+        },
         accentPattern:
           bar.accentPattern.kind === 'steps'
             ? { kind: 'steps', steps: [...bar.accentPattern.steps] }
@@ -109,14 +185,24 @@ export function songToStored(song: Song): StoredSong {
                 accentGroupStarts: bar.accentPattern.accentGroupStarts ?? true,
               },
         repeatCount: bar.repeatCount,
-        ...(bar.tempo === undefined
+        ...(bar.clickPattern === undefined
           ? {}
           : {
-              tempo: {
-                bpm: bar.tempo.bpm,
-                type: bar.tempo.type,
-                ...(bar.tempo.metadata === undefined ? {} : { metadata: { ...bar.tempo.metadata } }),
+              clickPattern: {
+                steps: bar.clickPattern.steps.map((step) => ({
+                  enabled: step.enabled,
+                  accent: step.accent,
+                })),
               },
+            }),
+        ...(bar.tempoDefinition === undefined
+          ? {}
+          : {
+              tempoDefinition: {
+                bpm: bar.tempoDefinition.bpm,
+                beatUnit: bar.tempoDefinition.beatUnit,
+              },
+              ...(bar.tempoTransition === undefined ? {} : { tempoTransition: bar.tempoTransition }),
             }),
       })),
     })),

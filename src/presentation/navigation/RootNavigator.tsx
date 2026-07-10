@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
+import { studioColors } from '../theme';
 import SettingsScreen from '../screens/SettingsScreen';
 import HomeStackNavigator from './HomeStackNavigator';
 import SongsStackNavigator from './SongsStackNavigator';
@@ -12,8 +13,12 @@ export default function RootNavigator() {
   return (
     <Tab.Navigator
       screenOptions={{
-        tabBarActiveTintColor: '#007AFF',
-        tabBarInactiveTintColor: '#8E8E93',
+        tabBarActiveTintColor: studioColors.accent,
+        tabBarInactiveTintColor: studioColors.textMuted,
+        tabBarStyle: {
+          backgroundColor: studioColors.tabBarBackground,
+          borderTopColor: studioColors.tabBarBorder,
+        },
       }}
     >
       <Tab.Screen

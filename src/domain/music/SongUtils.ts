@@ -1,9 +1,9 @@
 import { cloneSongAccentPattern } from './AccentPattern';
-import { type Bar } from './Bar';
+import { type Bar, cloneBarTempoFields } from './Bar';
+import { cloneClickPattern } from './ClickPattern';
 import { cloneMeter } from './Meter';
 import { type Section } from './Section';
 import { type Song } from './Song';
-import { cloneTempoEvent } from './TempoEvent';
 
 function cloneBar(bar: Bar): Bar {
   return {
@@ -11,7 +11,8 @@ function cloneBar(bar: Bar): Bar {
     meter: cloneMeter(bar.meter),
     accentPattern: cloneSongAccentPattern(bar.accentPattern),
     repeatCount: bar.repeatCount,
-    ...(bar.tempo === undefined ? {} : { tempo: cloneTempoEvent(bar.tempo) }),
+    ...cloneBarTempoFields(bar),
+    ...(bar.clickPattern === undefined ? {} : { clickPattern: cloneClickPattern(bar.clickPattern) }),
   };
 }
 

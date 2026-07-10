@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { Animated, Pressable, StyleSheet, View } from 'react-native';
 
+import { studioColors } from '../../theme';
 import { getBeatDotMetrics, useResponsiveLayout } from '../../layout/useResponsiveLayout';
 
 type DotStyle = {
@@ -22,13 +23,13 @@ function useDotStyle(
       if (isCurrentBeat) {
         if (isSubdivisionTick) {
           return {
-            backgroundColor: '#5AC8FA',
+            backgroundColor: studioColors.beatSubdivision,
             borderWidth: 0,
-            borderColor: '#5AC8FA',
+            borderColor: studioColors.beatSubdivision,
           };
         }
 
-        const backgroundColor = isCurrentAccent ? '#FF9500' : '#007AFF';
+        const backgroundColor = isCurrentAccent ? studioColors.beatAccent : studioColors.beatActive;
 
         return {
           backgroundColor,
@@ -38,24 +39,24 @@ function useDotStyle(
       }
 
       return {
-        backgroundColor: '#C7C7CC',
+        backgroundColor: studioColors.beatInactivePlaying,
         borderWidth: 0,
-        borderColor: '#C7C7CC',
+        borderColor: studioColors.beatInactivePlaying,
       };
     }
 
     if (isPatternAccent) {
       return {
-        backgroundColor: '#FF9500',
+        backgroundColor: studioColors.beatAccent,
         borderWidth,
-        borderColor: '#FF9500',
+        borderColor: studioColors.beatAccent,
       };
     }
 
     return {
       backgroundColor: 'transparent',
       borderWidth,
-      borderColor: '#C7C7CC',
+      borderColor: studioColors.beatBorderIdle,
     };
   }, [
     borderWidth,

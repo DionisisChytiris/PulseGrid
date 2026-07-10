@@ -7,6 +7,10 @@ export type SongDebugTickState = {
   sectionId: string;
   bpm: number;
   sequenceIndex: number;
+  beatIndexInBar: number;
+  beatsPerMeasure: number;
+  meterNumerator: number;
+  meterDenominator: number;
 };
 
 export type SongPlaybackState = {
@@ -89,6 +93,10 @@ const songPlaybackSlice = createSlice({
         sectionId: action.payload.sectionId,
         bpm: action.payload.bpm,
         sequenceIndex: action.payload.sequenceIndex,
+        beatIndexInBar: action.payload.beatIndexInBar,
+        beatsPerMeasure: action.payload.beatsPerMeasure,
+        meterNumerator: action.payload.meterNumerator,
+        meterDenominator: action.payload.meterDenominator,
       };
       state.currentBarIndex = action.payload.currentBarIndex;
     },

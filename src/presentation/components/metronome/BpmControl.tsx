@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 
 import { useResponsiveLayout } from '../../layout/useResponsiveLayout';
+import { studioColors } from '../../theme';
 import { BpmCircularSlider } from './BpmCircularSlider';
 
 type BpmControlProps = {
@@ -206,7 +207,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   stepButton: {
-    backgroundColor: '#F2F2F7',
+    backgroundColor: studioColors.surfaceElevated,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -215,10 +216,10 @@ const styles = StyleSheet.create({
   },
   stepButtonText: {
     fontWeight: '400',
-    color: '#007AFF',
+    color: studioColors.accent,
   },
   stepButtonTextDisabled: {
-    color: '#8E8E93',
+    color: studioColors.textMuted,
   },
   bpmDisplay: {
     alignItems: 'center',
@@ -228,13 +229,13 @@ const styles = StyleSheet.create({
   bpmValue: {
     fontWeight: '300',
     fontVariant: ['tabular-nums'],
-    color: '#000000',
+    color: studioColors.textPrimary,
     textAlign: 'center',
   },
   bpmInput: {
     fontWeight: '300',
     fontVariant: ['tabular-nums'],
-    color: '#000000',
+    color: studioColors.textPrimary,
     textAlign: 'center',
     padding: 0,
   },
@@ -243,7 +244,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
   },
   bpmLabel: {
-    color: '#8E8E93',
+    color: studioColors.textSecondary,
     letterSpacing: 1,
     textTransform: 'uppercase',
   },

@@ -1,8 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   Pressable,
   StyleSheet,
   Text,
@@ -11,10 +10,13 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { formatMeter } from '../../../../domain/music/Meter';
-import type { Bar } from '../../../../domain/music/Bar';
-import { formatBarMeter, meterOptions, useSongEditor } from '../../../hooks/useSongEditor';
+import { createSong } from '../../../../domain/music/Song';
+import { SongTimelineView, TimelinePlaybackPanel } from '../../../../components/songTimeline';
+import { meterOptions, useSongEditor } from '../../../hooks/useSongEditor';
+import { useSongPlayback } from '../../../hooks/useSongPlayback';
+import { useTimelinePlaybackViewModels } from '../../../hooks/useTimelinePlaybackViewModels';
 import type { SongsStackParamList } from '../../../navigation/types';
+import { studioColors } from '../../../theme';
 
 type Props = NativeStackScreenProps<SongsStackParamList, 'SongEditor'>;
 
@@ -28,20 +30,32 @@ export default function SongEditorScreen({ navigation, route }: Props) {
     error,
     setSongName,
     addBar,
-    deleteBar,
-    moveBarUp,
-    moveBarDown,
-    setBarMeter,
-    setBarBpm,
+    setSegmentBarCount,
+    setSegmentMeter,
+    setSegmentBpmOverride,
+    setSegmentAccent,
   } = useSongEditor(songId);
 
-  const bars = song?.sections[0]?.bars ?? [];
+  const playback = useSongPlayback();
   const meterChoices = meterOptions();
+  const placeholderSong = useMemo(
+    () => createSong({ id: 'loading', name: '', sections: [] }),
+    [],
+  );
+
+  const timeline = useTimelinePlaybackViewModels({
+    song: song ?? placeholderSong,
+    currentBarIndex: playback.currentBarIndex,
+    totalBars: playback.totalBars,
+    songName: playback.songName,
+    isPlaying: playback.isPlaying,
+    isPaused: playback.isPaused,
+  });
 
   if (loading) {
     return (
       <View style={[styles.centered, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color={studioColors.accent} />
       </View>
     );
   }
@@ -58,7 +72,12 @@ export default function SongEditorScreen({ navigation, route }: Props) {
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 }]}>
+    <View
+      style={[
+        styles.container,
+        { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 },
+      ]}
+    >
       <View style={styles.headerRow}>
         <Pressable onPress={() => navigation.goBack()}>
           <Text style={styles.backLink}>← Songs</Text>
@@ -66,39 +85,68 @@ export default function SongEditorScreen({ navigation, route }: Props) {
         {saving ? <Text style={styles.saving}>Saving…</Text> : null}
       </View>
 
-      <Text style={styles.title}>Edit Song</Text>
+      <Text style={styles.title}>{song.name}</Text>
 
-      <Text style={styles.label}>Name</Text>
+      <Text style={styles.label}>Song name</Text>
       <SongNameInput initialName={song.name} onCommit={setSongName} />
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-      <View style={styles.toolbar}>
-        <Pressable style={styles.primaryButton} onPress={addBar}>
-          <Text style={styles.primaryButtonText}>+ Add Bar</Text>
+      <View style={styles.transportRow}>
+        <Pressable
+          style={[styles.transportButton, styles.playButton]}
+          onPress={() => playback.onPlaySong(song)}
+        >
+          <Text style={styles.playButtonText}>▶ Play</Text>
         </Pressable>
+        {timeline.showTransport ? (
+          <>
+            {!playback.isPlaying ? (
+              <Pressable style={styles.transportButton} onPress={playback.onResume}>
+                <Text style={styles.transportButtonText}>Resume</Text>
+              </Pressable>
+            ) : (
+              <Pressable style={styles.transportButton} onPress={playback.onPause}>
+                <Text style={styles.transportButtonText}>Pause</Text>
+              </Pressable>
+            )}
+            <Pressable style={styles.transportButton} onPress={playback.onStop}>
+              <Text style={styles.transportButtonText}>Stop</Text>
+            </Pressable>
+          </>
+        ) : null}
       </View>
 
-      <FlatList
-        data={bars}
-        keyExtractor={(bar) => bar.id}
-        contentContainerStyle={styles.listContent}
-        renderItem={({ item: bar, index }) => (
-          <BarEditorRow
-            bar={bar}
-            index={index}
-            totalBars={bars.length}
-            meterLabel={formatBarMeter(song, bar.id)}
-            meterChoices={meterChoices}
-            onDelete={() => deleteBar(bar.id)}
-            onMoveUp={() => moveBarUp(bar.id)}
-            onMoveDown={() => moveBarDown(bar.id)}
-            onMeterChange={(meter) => setBarMeter(bar.id, meter)}
-            onBpmChange={(bpm) => setBarBpm(bar.id, bpm)}
-          />
-        )}
-        ListEmptyComponent={<Text style={styles.empty}>No bars yet. Add a bar to begin.</Text>}
-      />
+      {timeline.showTransport ? (
+        <View style={styles.seekRow}>
+          <Pressable style={styles.seekButton} onPress={playback.onSeekPreviousBar}>
+            <Text style={styles.seekButtonText}>◀ Bar</Text>
+          </Pressable>
+          <Pressable style={styles.seekButton} onPress={playback.onSeekNextBar}>
+            <Text style={styles.seekButtonText}>Bar ▶</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      <View style={styles.timelineArea}>
+        <SongTimelineView
+          song={song}
+          segments={timeline.segments}
+          meterOptions={meterChoices}
+          isTimelineActive={timeline.isTimelineActive}
+          currentBarIndex={playback.currentBarIndex}
+          onSegmentBarCountChange={setSegmentBarCount}
+          onSegmentMeterChange={setSegmentMeter}
+          onSegmentBpmOverrideChange={setSegmentBpmOverride}
+          onSegmentAccentChange={setSegmentAccent}
+        />
+      </View>
+
+      <TimelinePlaybackPanel status={timeline.playbackStatus} />
+
+      <Pressable style={styles.addBarButton} onPress={addBar}>
+        <Text style={styles.addBarButtonText}>+ Add Bar</Text>
+      </Pressable>
     </View>
   );
 }
@@ -119,141 +167,73 @@ function SongNameInput({
       onChangeText={setName}
       onEndEditing={() => onCommit(name)}
       placeholder="Song name"
+      placeholderTextColor={studioColors.textMuted}
     />
   );
 }
 
-function BarEditorRow({
-  bar,
-  index,
-  totalBars,
-  meterLabel,
-  meterChoices,
-  onDelete,
-  onMoveUp,
-  onMoveDown,
-  onMeterChange,
-  onBpmChange,
-}: {
-  bar: Bar;
-  index: number;
-  totalBars: number;
-  meterLabel: string;
-  meterChoices: string[];
-  onDelete: () => void;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
-  onMeterChange: (meter: string) => void;
-  onBpmChange: (bpm: string) => void;
-}) {
-  const [bpmText, setBpmText] = useState(bar.tempo?.bpm?.toString() ?? '');
-
-  return (
-    <View style={styles.barCard}>
-      <Text style={styles.barTitle}>Bar {index + 1}</Text>
-      <Text style={styles.barMeta}>Meter: {formatMeter(bar.meter)}</Text>
-
-      <Text style={styles.label}>Meter</Text>
-      <View style={styles.meterRow}>
-        {meterChoices.map((meter) => (
-          <Pressable
-            key={meter}
-            style={[styles.chip, meter === meterLabel && styles.chipSelected]}
-            onPress={() => onMeterChange(meter)}
-          >
-            <Text style={[styles.chipText, meter === meterLabel && styles.chipTextSelected]}>{meter}</Text>
-          </Pressable>
-        ))}
-      </View>
-
-      <Text style={styles.label}>BPM override (optional)</Text>
-      <TextInput
-        style={styles.input}
-        value={bpmText}
-        keyboardType="numeric"
-        placeholder="inherit"
-        onChangeText={setBpmText}
-        onEndEditing={() => onBpmChange(bpmText)}
-      />
-
-      <View style={styles.barActions}>
-        <Pressable style={styles.smallButton} disabled={index === 0} onPress={onMoveUp}>
-          <Text style={styles.smallButtonText}>↑</Text>
-        </Pressable>
-        <Pressable style={styles.smallButton} disabled={index >= totalBars - 1} onPress={onMoveDown}>
-          <Text style={styles.smallButtonText}>↓</Text>
-        </Pressable>
-        <Pressable style={[styles.smallButton, styles.deleteButton]} onPress={onDelete}>
-          <Text style={styles.deleteButtonText}>Delete</Text>
-        </Pressable>
-      </View>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 16, backgroundColor: '#fff' },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
+  container: { flex: 1, paddingHorizontal: 16, backgroundColor: studioColors.background },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    backgroundColor: studioColors.background,
+  },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  backLink: { color: '#1a73e8', fontSize: 16, marginBottom: 8 },
-  saving: { color: '#666', fontSize: 13 },
-  title: { fontSize: 24, fontWeight: '700', marginBottom: 12 },
-  label: { fontSize: 13, color: '#555', marginBottom: 6, marginTop: 8 },
+  backLink: { color: studioColors.accent, fontSize: 16, marginBottom: 4 },
+  saving: { color: studioColors.textSecondary, fontSize: 13 },
+  title: { fontSize: 22, fontWeight: '800', color: studioColors.textPrimary, marginBottom: 4 },
+  label: { fontSize: 12, color: studioColors.textSecondary, marginBottom: 4, marginTop: 8 },
   input: {
     borderWidth: 1,
-    borderColor: '#d0d7e2',
+    borderColor: studioColors.border,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
+    color: studioColors.textPrimary,
+    backgroundColor: studioColors.surface,
   },
-  toolbar: { marginVertical: 12 },
-  primaryButton: {
-    backgroundColor: '#1a73e8',
-    borderRadius: 8,
+  transportRow: { flexDirection: 'row', gap: 8, marginTop: 12, marginBottom: 8 },
+  transportButton: {
+    flex: 1,
+    backgroundColor: studioColors.surfaceElevated,
+    borderRadius: 10,
     paddingVertical: 12,
     alignItems: 'center',
   },
-  primaryButtonText: { color: '#fff', fontWeight: '600' },
+  transportButtonText: { fontWeight: '600', color: studioColors.textPrimary },
+  playButton: { backgroundColor: studioColors.accent },
+  playButtonText: { color: '#fff', fontWeight: '700' },
+  seekRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+  seekButton: {
+    flex: 1,
+    backgroundColor: studioColors.surface,
+    borderRadius: 8,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: studioColors.border,
+  },
+  seekButtonText: { fontWeight: '600', color: studioColors.textPrimary },
+  timelineArea: { flex: 1, minHeight: 220 },
+  addBarButton: {
+    marginTop: 10,
+    backgroundColor: studioColors.surfaceElevated,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  addBarButtonText: { fontWeight: '600', color: studioColors.textPrimary },
   secondaryButton: {
     marginTop: 12,
-    backgroundColor: '#eef2f7',
+    backgroundColor: studioColors.surfaceElevated,
     borderRadius: 8,
     paddingVertical: 10,
     paddingHorizontal: 16,
   },
-  secondaryButtonText: { fontWeight: '600' },
-  listContent: { paddingBottom: 24, gap: 12 },
-  barCard: {
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 10,
-    padding: 12,
-    backgroundColor: '#fafafa',
-  },
-  barTitle: { fontSize: 16, fontWeight: '700' },
-  barMeta: { fontSize: 12, color: '#666', marginBottom: 4 },
-  meterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: {
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  chipSelected: { backgroundColor: '#1a73e8', borderColor: '#1a73e8' },
-  chipText: { fontSize: 13, color: '#334155' },
-  chipTextSelected: { color: '#fff' },
-  barActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
-  smallButton: {
-    backgroundColor: '#eef2f7',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  smallButtonText: { fontWeight: '700' },
-  deleteButton: { marginLeft: 'auto', backgroundColor: '#fee2e2' },
-  deleteButtonText: { color: '#b91c1c', fontWeight: '600' },
-  empty: { color: '#666', textAlign: 'center', marginTop: 24 },
-  errorText: { color: '#b45309', marginBottom: 8 },
+  secondaryButtonText: { fontWeight: '600', color: studioColors.textPrimary },
+  errorText: { color: studioColors.beatAccent, marginBottom: 8 },
 });

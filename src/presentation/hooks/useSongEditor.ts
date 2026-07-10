@@ -12,6 +12,13 @@ import {
 import { createMeter, formatMeter } from '../../domain/music/Meter';
 import type { Song } from '../../domain/music/Song';
 import { songRepository } from '../../domain/music/storage';
+import {
+  setSegmentAccentPreset,
+  setSegmentBarCount,
+  setSegmentBpmOverride,
+  setSegmentMeterLabel,
+  type TimelineSegment,
+} from '../../components/songTimeline';
 
 export function useSongEditor(songId: string) {
   const [song, setSong] = useState<Song | null>(null);
@@ -106,6 +113,14 @@ export function useSongEditor(songId: string) {
 
       applyAndSave((current) => updateBarBpm(current, barId, bpm));
     },
+    setSegmentBarCount: (segment: TimelineSegment, count: number) =>
+      applyAndSave((current) => setSegmentBarCount(current, segment, count)),
+    setSegmentMeter: (segment: TimelineSegment, meterLabel: string) =>
+      applyAndSave((current) => setSegmentMeterLabel(current, segment, meterLabel)),
+    setSegmentBpmOverride: (segment: TimelineSegment, bpm: number | null) =>
+      applyAndSave((current) => setSegmentBpmOverride(current, segment, bpm)),
+    setSegmentAccent: (segment: TimelineSegment, presetId: string) =>
+      applyAndSave((current) => setSegmentAccentPreset(current, segment, presetId)),
   };
 }
 

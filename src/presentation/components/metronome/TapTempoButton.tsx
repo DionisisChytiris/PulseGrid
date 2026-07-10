@@ -1,6 +1,7 @@
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useResponsiveLayout } from '../../layout/useResponsiveLayout';
+import { studioColors } from '../../theme';
 
 type TapTempoButtonProps = {
   onPress: () => void;
@@ -67,9 +68,9 @@ const styles = StyleSheet.create({
   button: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F2F2F7',
+    backgroundColor: studioColors.surfaceElevated,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: studioColors.border,
   },
   buttonDisabled: {
     opacity: 0.45,
@@ -78,7 +79,7 @@ const styles = StyleSheet.create({
     opacity: 0.75,
   },
   label: {
-    color: '#1C1C1E',
+    color: studioColors.textPrimary,
     fontWeight: '700',
     letterSpacing: 0.5,
   },
@@ -87,7 +88,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
   },
   caption: {
-    color: '#8E8E93',
+    color: studioColors.textSecondary,
     fontWeight: '500',
     textAlign: 'center',
   },

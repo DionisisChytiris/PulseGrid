@@ -4,7 +4,7 @@ import { createMeter } from '../Meter';
 import { createSection } from '../Section';
 import { createSong, type Song } from '../Song';
 import { locateBarsInSong } from '../SongUtils';
-import { createTempoEvent } from '../TempoEvent';
+import { createTempoDefinitionForMeter } from '../TempoDefinition';
 import type { SubdivisionKind } from '../../valueObjects/Subdivision';
 import type { TimelineCompiledPlaybackSequence } from './TimelineCompiledPlaybackSequence';
 import type { TimelinePlaybackEvent } from './TimelinePlaybackEvent';
@@ -142,6 +142,7 @@ function canonicalizeEvent(event: TimelinePlaybackEvent): string {
   return [
     event.sequenceIndex,
     event.scheduledBpm,
+    event.beatDurationNs,
     event.beatsPerBar,
     event.subdivision,
     canonicalizeAccentPattern(event.accentPattern),
@@ -309,6 +310,35 @@ function collectTempoChanges(
           },
         });
       }
+
+      if (event.beatDurationNs !== first.beatDurationNs) {
+        pushIssue(issues, {
+          code: 'BEAT_DURATION_GAP_IN_BAR',
+          severity: 'error',
+          message: 'All events in a bar instance must share the same beatDurationNs',
+          context: {
+            barInstanceIndex,
+            beatIndex,
+            barId: event.barId,
+            expectedBeatDurationNs: first.beatDurationNs,
+            actualBeatDurationNs: event.beatDurationNs,
+          },
+        });
+      }
+
+      if (!Number.isFinite(event.beatDurationNs) || event.beatDurationNs <= 0) {
+        pushIssue(issues, {
+          code: 'INVALID_BEAT_DURATION_NS',
+          severity: 'error',
+          message: 'beatDurationNs must be a positive finite number',
+          context: {
+            barInstanceIndex,
+            beatIndex,
+            beatDurationNs: event.beatDurationNs,
+            barId: event.barId,
+          },
+        });
+      }
     });
 
     if (previousBpm !== null && first.scheduledBpm !== previousBpm) {
@@ -460,7 +490,12 @@ export function buildStressTestSong(barInstanceCount: number): Song {
       meter,
       accentPattern: downbeatAccentPattern(meter.numerator),
       repeatCount: 1,
-      ...(index % 97 === 0 ? { tempo: createTempoEvent(72 + (index % 60)) } : {}),
+      ...(index % 97 === 0
+        ? {
+            tempoDefinition: createTempoDefinitionForMeter(72 + (index % 60), meter),
+            tempoTransition: 'instant' as const,
+          }
+        : {}),
     });
   });
 

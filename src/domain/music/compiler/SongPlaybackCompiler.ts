@@ -1,6 +1,6 @@
-import type { SongAccentPattern } from '../AccentPattern';
+import { resolveAccentFlags } from '../AccentPattern';
 import type { Bar } from '../Bar';
-import type { Meter } from '../Meter';
+import { getBarTempoBpm } from '../Bar';
 import type { Section } from '../Section';
 import type { Song } from '../Song';
 import { locateBarsInSong } from '../SongUtils';
@@ -35,42 +35,6 @@ function assertPositiveBpm(bpm: number): void {
   }
 }
 
-function resolveAccentFlags(
-  pattern: SongAccentPattern,
-  beatCount: number,
-): readonly boolean[] {
-  if (beatCount <= 0) {
-    throw new RangeError('Beat count must be positive');
-  }
-
-  if (pattern.kind === 'steps') {
-    return Array.from({ length: beatCount }, (_, beatIndex) => {
-      return pattern.steps[beatIndex % pattern.steps.length] ?? false;
-    });
-  }
-
-  const accentGroupStarts = pattern.accentGroupStarts ?? true;
-  const fromGroups: boolean[] = [];
-
-  for (const groupSize of pattern.groups) {
-    for (let pulse = 0; pulse < groupSize; pulse += 1) {
-      fromGroups.push(accentGroupStarts && pulse === 0);
-    }
-  }
-
-  if (fromGroups.length === beatCount) {
-    return fromGroups;
-  }
-
-  if (fromGroups.length > beatCount) {
-    return fromGroups.slice(0, beatCount);
-  }
-
-  return Array.from({ length: beatCount }, (_, beatIndex) => {
-    return fromGroups[beatIndex % fromGroups.length] ?? false;
-  });
-}
-
 /**
  * Effective BPM at a global bar index (after repeat expansion).
  * Tempo on a bar applies from that bar onward until the next override.
@@ -95,9 +59,9 @@ export function resolveTempoAtPosition(
   let resolvedBpm = defaultBpm;
 
   for (let index = 0; index <= clampedIndex; index += 1) {
-    const tempo = locatedBars[index].bar.tempo;
-    if (tempo !== undefined) {
-      resolvedBpm = tempo.bpm;
+    const tempoBpm = getBarTempoBpm(locatedBars[index].bar);
+    if (tempoBpm !== undefined) {
+      resolvedBpm = tempoBpm;
     }
   }
 
@@ -139,7 +103,7 @@ export function flattenToEventStream(
   song: Song,
   options: CompileSongOptions = {},
 ): PlaybackEvent[] {
-  return compileSong(song, options).events;
+  return [...compileSong(song, options).events];
 }
 
 export function compileSong(
@@ -156,10 +120,10 @@ export function compileSong(
   let globalTickIndex = 0;
 
   for (const located of locatedBars) {
-    const tempo = located.bar.tempo;
-    const tempoChangedOnThisBar = tempo !== undefined;
+    const tempoBpm = getBarTempoBpm(located.bar);
+    const tempoChangedOnThisBar = tempoBpm !== undefined;
     if (tempoChangedOnThisBar) {
-      currentBpm = tempo.bpm;
+      currentBpm = tempoBpm;
     }
 
     const context: BarCompileContext = {

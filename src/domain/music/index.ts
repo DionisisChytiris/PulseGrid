@@ -2,13 +2,41 @@ export {
   createAccentPatternGrouped,
   createAccentPatternSteps,
   cloneSongAccentPattern,
+  defaultAccentPatternFromMeter,
   downbeatAccentPattern,
+  resolveAccentFlags,
   type AccentPatternGrouped,
   type AccentPatternSteps,
   type SongAccentPattern,
 } from './AccentPattern';
-export { createBar, type Bar, type CreateBarInput } from './Bar';
-export { createMeter, cloneMeter, formatMeter, metersEqual, type Meter } from './Meter';
+export {
+  ClickAccent,
+  cloneClickPattern,
+  clickPatternEnabledFlags,
+  createClickPattern,
+  createClickStep,
+  createDefaultClickPattern,
+  resolveClickPattern,
+  validateClickPattern,
+  countEnabledClicks,
+  type ClickPattern,
+  type ClickStep,
+} from './ClickPattern';
+export { createBar, getBarTempoBpm, hasBarTempoOverride, type Bar, type CreateBarInput } from './Bar';
+export {
+  createMeter,
+  cloneMeter,
+  defaultMeterGrouping,
+  formatMeter,
+  inferBeatUnitFromDenominator,
+  inferBeatUnitFromMeter,
+  inferPulseBeatUnitFromMeter,
+  inferTempoBeatUnitFromMeter,
+  metersEqual,
+  validateMeterGrouping,
+  type Meter,
+} from './Meter';
+export { BeatUnit } from './BeatUnit';
 export { createSection, createSectionWithBars, type Section, type CreateSectionInput } from './Section';
 export { createSong, type Song, type CreateSongInput } from './Song';
 export {
@@ -23,9 +51,17 @@ export {
 export {
   createTempoEvent,
   cloneTempoEvent,
+  getTempoEventBpm,
   type TempoEvent,
   type TempoTransitionType,
 } from './TempoEvent';
+export {
+  createTempoDefinition,
+  createTempoDefinitionForMeter,
+  cloneTempoDefinition,
+  getTempoDefinitionBpm,
+  type TempoDefinition,
+} from './TempoDefinition';
 export {
   compileSong,
   DEFAULT_COMPILE_BPM,
@@ -61,6 +97,12 @@ export {
   type TimelineValidationSummary,
   type ValidateTimelineOptions,
 } from './timelineCompiler';
+export {
+  beatUnitWholeNoteFraction,
+  computeBeatDurationNs,
+  computePulseDurationNs,
+  computeTimelineDeadlineOffsetsNs,
+} from './tempo';
 export {
   createSongPlaybackCursor,
   createSongSchedulerAdapter,
