@@ -23,6 +23,15 @@ export type NativeAudioModuleSpec = {
   setTempo(bpm: number): void;
   setAccentPattern(accentPattern: boolean[]): void;
   setSubdivision(subdivision: string): void;
+  setNormalClickSound?(soundId: string): void;
+  setAccentClickSound?(soundId: string): void;
+  setSubdivisionClickSound?(soundId: string): void;
+  setSubdivisionAccentMode?(mode: string): void;
+  setSubdivisionAccentEveryNth?(value: number): void;
+  setSubdivisionAccentPattern?(pattern: boolean[]): void;
+  previewNormalClick?(): void;
+  previewAccentClick?(): void;
+  previewSubdivisionClick?(): void;
   addListener?(
     eventName: 'onTick',
     listener: (event: NativeTickEvent) => void,
@@ -41,6 +50,15 @@ const noopModule: NativeAudioModuleSpec = {
   setTempo() {},
   setAccentPattern() {},
   setSubdivision() {},
+  setNormalClickSound() {},
+  setAccentClickSound() {},
+  setSubdivisionClickSound() {},
+  setSubdivisionAccentMode() {},
+  setSubdivisionAccentEveryNth() {},
+  setSubdivisionAccentPattern() {},
+  previewNormalClick() {},
+  previewAccentClick() {},
+  previewSubdivisionClick() {},
 };
 
 export function isNativeAudioModuleAvailable(): boolean {
@@ -151,6 +169,33 @@ const NativeAudioModuleClient: NativeAudioModuleSpec = {
   },
   setSubdivision: (subdivision) => {
     getModule().setSubdivision(subdivision);
+  },
+  setNormalClickSound: (soundId) => {
+    getModule().setNormalClickSound?.(soundId);
+  },
+  setAccentClickSound: (soundId) => {
+    getModule().setAccentClickSound?.(soundId);
+  },
+  setSubdivisionClickSound: (soundId) => {
+    getModule().setSubdivisionClickSound?.(soundId);
+  },
+  setSubdivisionAccentMode: (mode) => {
+    getModule().setSubdivisionAccentMode?.(mode);
+  },
+  setSubdivisionAccentEveryNth: (value) => {
+    getModule().setSubdivisionAccentEveryNth?.(value);
+  },
+  setSubdivisionAccentPattern: (pattern) => {
+    getModule().setSubdivisionAccentPattern?.(pattern);
+  },
+  previewNormalClick: () => {
+    getModule().previewNormalClick?.();
+  },
+  previewAccentClick: () => {
+    getModule().previewAccentClick?.();
+  },
+  previewSubdivisionClick: () => {
+    getModule().previewSubdivisionClick?.();
   },
   addListener: (eventName, listener) => {
     if (eventName === 'onTick') {

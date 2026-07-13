@@ -280,9 +280,37 @@ void OboeEngine::stop() {
 }
 
 void OboeEngine::enqueueClick(ClickType type, int64_t scheduledDeadlineNs) {
+  if (!acceptingClicks_.load(std::memory_order_acquire)) {
+    return;
+  }
+
   ClickEvent event{type, scheduledDeadlineNs};
   if (!eventQueue_.push(event)) {
     __android_log_print(ANDROID_LOG_WARN, kLogTagEngine, "Event queue full, click dropped");
+  }
+}
+
+void OboeEngine::flushScheduledClicks() {
+  acceptingClicks_.store(false, std::memory_order_release);
+  eventQueue_.clear();
+  renderer_.stopAllPlayers();
+}
+
+void OboeEngine::resumeScheduledClicks() {
+  acceptingClicks_.store(true, std::memory_order_release);
+}
+
+void OboeEngine::previewClick(ClickType type) {
+  switch (type) {
+    case ClickType::Accent:
+      renderer_.previewAccent();
+      break;
+    case ClickType::Normal:
+      renderer_.previewNormal();
+      break;
+    case ClickType::Subdivision:
+      renderer_.previewSubdivision();
+      break;
   }
 }
 

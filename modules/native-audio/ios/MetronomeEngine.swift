@@ -19,6 +19,9 @@ final class MetronomeEngine {
   private var beatsPerMeasure: Int = 4
   private var ticksPerBeat: Int = 1
   private var accentPattern: [Bool] = [true, false, false, false]
+  private var subdivisionAccentMode: SubdivisionAccentMode = .off
+  private var subdivisionAccentEveryNth: Int = 4
+  private var subdivisionAccentPattern: [Bool] = []
   private var totalTickCount: UInt64 = 0
   private var anchorTimeNs: UInt64 = 0
   private let stateLock = NSLock()
@@ -98,6 +101,27 @@ final class MetronomeEngine {
     }
   }
 
+  func updateSubdivisionAccentMode(_ mode: SubdivisionAccentMode) {
+    stateLock.lock()
+    defer { stateLock.unlock() }
+
+    subdivisionAccentMode = mode
+  }
+
+  func updateSubdivisionAccentEveryNth(_ everyNth: Int) {
+    stateLock.lock()
+    defer { stateLock.unlock() }
+
+    subdivisionAccentEveryNth = min(16, max(1, everyNth))
+  }
+
+  func updateSubdivisionAccentPattern(_ pattern: [Bool]) {
+    stateLock.lock()
+    defer { stateLock.unlock() }
+
+    subdivisionAccentPattern = pattern
+  }
+
   func stop() {
     stateLock.lock()
     defer { stateLock.unlock() }
@@ -124,6 +148,9 @@ final class MetronomeEngine {
       let currentBeatsPerMeasure = beatsPerMeasure
       let currentTicksPerBeat = ticksPerBeat
       let currentAccentPattern = accentPattern
+      let currentSubdivisionAccentMode = subdivisionAccentMode
+      let currentSubdivisionAccentEveryNth = subdivisionAccentEveryNth
+      let currentSubdivisionAccentPattern = subdivisionAccentPattern
       let tickCount = totalTickCount
       let anchor = anchorTimeNs
       stateLock.unlock()
@@ -147,10 +174,14 @@ final class MetronomeEngine {
       let subdivisionIndex = Int(tickCount % UInt64(currentTicksPerBeat))
       let beatIndexInBar = Int((tickCount / UInt64(currentTicksPerBeat)) % UInt64(currentBeatsPerMeasure))
       let beatNumber = beatIndexInBar + 1
-      let isAccent = isAccentForTick(
+      let isAccent = AccentClassification.resolveTickAccent(
         beatIndexInBar: beatIndexInBar,
         subdivisionIndex: subdivisionIndex,
-        accentPattern: currentAccentPattern
+        accentPattern: currentAccentPattern,
+        ticksPerBeat: currentTicksPerBeat,
+        subdivisionAccentMode: currentSubdivisionAccentMode,
+        subdivisionAccentEveryNth: currentSubdivisionAccentEveryNth,
+        subdivisionAccentPattern: currentSubdivisionAccentPattern
       )
       let sequence = tickCount
       let timestampMs = Double(tickTime &- anchor) / 1_000_000.0
@@ -159,8 +190,13 @@ final class MetronomeEngine {
       stateLock.unlock()
 
       playClickForTick(
-        isAccent: isAccent,
+        beatIndexInBar: beatIndexInBar,
         subdivisionIndex: subdivisionIndex,
+        accentPattern: currentAccentPattern,
+        ticksPerBeat: currentTicksPerBeat,
+        subdivisionAccentMode: currentSubdivisionAccentMode,
+        subdivisionAccentEveryNth: currentSubdivisionAccentEveryNth,
+        subdivisionAccentPattern: currentSubdivisionAccentPattern,
         scheduledDeadlineNs: deadlineNs
       )
       onTick(
@@ -192,19 +228,33 @@ final class MetronomeEngine {
     }
   }
 
-  private func playClickForTick(isAccent: Bool, subdivisionIndex: Int, scheduledDeadlineNs: UInt64) {
-    if subdivisionIndex == 0 {
-      playClickForBeat(isAccent: isAccent, scheduledDeadlineNs: scheduledDeadlineNs)
-    } else {
-      clickSoundPlayer?.playSubdivision(scheduledDeadlineNs: scheduledDeadlineNs)
-    }
-  }
-
-  private func playClickForBeat(isAccent: Bool, scheduledDeadlineNs: UInt64) {
-    if isAccent {
+  private func playClickForTick(
+    beatIndexInBar: Int,
+    subdivisionIndex: Int,
+    accentPattern: [Bool],
+    ticksPerBeat: Int,
+    subdivisionAccentMode: SubdivisionAccentMode,
+    subdivisionAccentEveryNth: Int,
+    subdivisionAccentPattern: [Bool],
+    scheduledDeadlineNs: UInt64
+  ) {
+    switch AccentClassification.resolveClickSoundKind(
+      beatIndexInBar: beatIndexInBar,
+      subdivisionIndex: subdivisionIndex,
+      accentPattern: accentPattern,
+      ticksPerBeat: ticksPerBeat,
+      subdivisionAccentMode: subdivisionAccentMode,
+      subdivisionAccentEveryNth: subdivisionAccentEveryNth,
+      subdivisionAccentPattern: subdivisionAccentPattern
+    ) {
+    case .beatAccent:
       clickSoundPlayer?.playAccent(scheduledDeadlineNs: scheduledDeadlineNs)
-    } else {
+    case .subdivisionAccent:
       clickSoundPlayer?.playNormal(scheduledDeadlineNs: scheduledDeadlineNs)
+    case .normal:
+      clickSoundPlayer?.playNormal(scheduledDeadlineNs: scheduledDeadlineNs)
+    case .subdivision:
+      clickSoundPlayer?.playSubdivision(scheduledDeadlineNs: scheduledDeadlineNs)
     }
   }
 
@@ -214,18 +264,6 @@ final class MetronomeEngine {
 
   private func tickOffsetNs(_ tickCount: UInt64, _ bpm: Double, _ ticksPerBeat: Int) -> UInt64 {
     (beatDurationNs(bpm) * tickCount) / UInt64(ticksPerBeat)
-  }
-
-  private func isAccentForTick(
-    beatIndexInBar: Int,
-    subdivisionIndex: Int,
-    accentPattern: [Bool]
-  ) -> Bool {
-    if subdivisionIndex != 0 {
-      return false
-    }
-
-    return accentPattern[beatIndexInBar % accentPattern.count]
   }
 
   private func normalizeTicksPerBeat(_ value: Int) -> Int {

@@ -25,6 +25,24 @@ export class NoopAudioEngine implements IAudioEngine {
   setAccentPattern(_accentPattern: boolean[]): void {}
 
   setSubdivision(_subdivision: SubdivisionKind): void {}
+
+  setNormalClickSound(_soundId: string): void {}
+
+  setAccentClickSound(_soundId: string): void {}
+
+  setSubdivisionClickSound(_soundId: string): void {}
+
+  setSubdivisionAccentMode(_mode: string): void {}
+
+  setSubdivisionAccentEveryNth(_value: number): void {}
+
+  setSubdivisionAccentPattern(_pattern: boolean[]): void {}
+
+  previewNormalClick(): void {}
+
+  previewAccentClick(): void {}
+
+  previewSubdivisionClick(): void {}
 }
 
 export const noopAudioEngine = new NoopAudioEngine();

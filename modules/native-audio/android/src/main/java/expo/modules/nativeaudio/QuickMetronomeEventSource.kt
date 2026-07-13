@@ -7,6 +7,9 @@ internal data class QuickMetronomeState(
   val beatsPerMeasure: Int,
   val ticksPerBeat: Int,
   val accentPattern: BooleanArray,
+  val subdivisionAccentMode: SubdivisionAccentMode,
+  val subdivisionAccentEveryNth: Int,
+  val subdivisionAccentPattern: BooleanArray,
 )
 
 /**
@@ -27,7 +30,15 @@ internal class QuickMetronomeEventSource(
     val subdivisionIndex = (sequence % state.ticksPerBeat).toInt()
     val beatIndexInBar = ((sequence / state.ticksPerBeat) % state.beatsPerMeasure).toInt()
     val beatNumber = beatIndexInBar + 1
-    val isAccent = isAccentForTick(beatIndexInBar, subdivisionIndex, state.accentPattern)
+    val isAccent = AccentClassification.resolveTickAccent(
+      beatIndexInBar,
+      subdivisionIndex,
+      state.accentPattern,
+      state.ticksPerBeat,
+      state.subdivisionAccentMode,
+      state.subdivisionAccentEveryNth,
+      state.subdivisionAccentPattern,
+    )
 
     return EventSourceTick(
       beatIndexInBar = beatIndexInBar,
@@ -49,18 +60,6 @@ internal class QuickMetronomeEventSource(
 
   override fun ticksPerBeatAt(sequence: Long): Int {
     return stateProvider().ticksPerBeat
-  }
-
-  private fun isAccentForTick(
-    beatIndexInBar: Int,
-    subdivisionIndex: Int,
-    accentPattern: BooleanArray,
-  ): Boolean {
-    if (subdivisionIndex != 0) {
-      return false
-    }
-
-    return accentPattern[beatIndexInBar % accentPattern.size]
   }
 
   private fun tickOffsetNs(tickCount: Long, bpm: Double, ticksPerBeat: Int): Long {

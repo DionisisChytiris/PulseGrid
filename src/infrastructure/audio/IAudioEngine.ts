@@ -26,4 +26,13 @@ export interface IAudioEngine {
   setTempo(bpm: number): void;
   setAccentPattern(accentPattern: boolean[]): void;
   setSubdivision(subdivision: SubdivisionKind): void;
+  setNormalClickSound(soundId: string): void;
+  setAccentClickSound(soundId: string): void;
+  setSubdivisionClickSound(soundId: string): void;
+  setSubdivisionAccentMode(mode: string): void;
+  setSubdivisionAccentEveryNth(value: number): void;
+  setSubdivisionAccentPattern(pattern: boolean[]): void;
+  previewNormalClick(): void;
+  previewAccentClick(): void;
+  previewSubdivisionClick(): void;
 }

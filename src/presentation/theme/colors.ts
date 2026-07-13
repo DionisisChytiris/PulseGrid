@@ -17,12 +17,23 @@ export const studioColors = {
   beatAccent: '#FF9F0A',
   beatInactive: '#475569',
   beatInactivePlaying: '#64748B',
+  /** LED beat lamp resting state while playing (gray, low opacity). */
+  beatLedRestingOpacity: 0.38,
   beatSubdivision: '#5AC8FA',
   beatBorderIdle: '#64748B',
 
   play: '#34C759',
   stop: '#FF453A',
   danger: '#FF3B30',
+
+  /** Transport control glass tints (Quick Metronome play button). */
+  transportGlassBase: 'rgba(37, 43, 51, 0.72)',
+  transportGlassBorder: 'rgba(255, 255, 255, 0.14)',
+  transportGlassHighlight: 'rgba(255, 255, 255, 0.06)',
+  transportPlayTint: 'rgba(52, 199, 89, 0.28)',
+  transportStopTint: 'rgba(255, 69, 58, 0.26)',
+  transportIcon: '#FFFFFF',
+  transportShadow: '#000000',
 
   overlay: 'rgba(0, 0, 0, 0.6)',
 

@@ -1,4 +1,9 @@
 import type { TimeSignature } from '../entities/Metronome';
+import { resolveTickAccent } from '../metronome/resolveTickAccent';
+import {
+  DEFAULT_SUBDIVISION_ACCENT_MODE,
+  type SubdivisionAccentMode,
+} from '../metronome/SubdivisionAccentMode';
 import { AccentPattern } from '../valueObjects/AccentPattern';
 import { Subdivision } from '../valueObjects/Subdivision';
 import { BeatClock } from './BeatClock';
@@ -10,6 +15,7 @@ export type RuntimeSchedulerConfig = {
   timeSignature: TimeSignature;
   accentPattern?: AccentPattern;
   subdivision?: Subdivision;
+  subdivisionAccentMode?: SubdivisionAccentMode;
   onTick: (tick: Tick) => void;
 };
 
@@ -23,6 +29,7 @@ export class RuntimeScheduler {
   private timeSignature: TimeSignature;
   private accentPattern: AccentPattern;
   private subdivision: Subdivision;
+  private subdivisionAccentMode: SubdivisionAccentMode;
   private timeoutId: ReturnType<typeof setTimeout> | null = null;
   private tickIndex = 0;
   private logicalTimestampMs = 0;
@@ -37,6 +44,8 @@ export class RuntimeScheduler {
       config.accentPattern ??
       AccentPattern.downbeatOnly(config.timeSignature.numerator);
     this.subdivision = config.subdivision ?? Subdivision.quarter();
+    this.subdivisionAccentMode =
+      config.subdivisionAccentMode ?? DEFAULT_SUBDIVISION_ACCENT_MODE;
     this.onTick = config.onTick;
   }
 
@@ -166,9 +175,14 @@ export class RuntimeScheduler {
 
   private emitCurrentTick(): void {
     const { beatIndex, subdivisionIndex } = this.subdivision.splitBeatIndex(this.tickIndex);
-    const isAccent =
-      this.subdivision.isPrimaryBeat(subdivisionIndex) &&
-      this.accentPattern.isAccent(beatIndex);
+    const beatIndexInBar = beatIndex % this.timeSignature.numerator;
+    const isAccent = resolveTickAccent({
+      beatIndexInBar,
+      subdivisionIndex,
+      accentPattern: this.accentPattern.toArray(),
+      ticksPerBeat: this.subdivision.getTicksPerBeat(),
+      subdivisionAccentMode: this.subdivisionAccentMode,
+    });
 
     const tick: Tick = {
       beatIndex,

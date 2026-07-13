@@ -59,6 +59,8 @@ class NativeAudioModule : Module() {
         emptyList()
       }
 
+      clickSoundPlayer?.resumeScheduledClicks()
+
       metronomeEngine.start(
         bpm,
         beatsPerMeasure,
@@ -71,6 +73,7 @@ class NativeAudioModule : Module() {
 
     Function("stop") {
       metronomeEngine.stop()
+      clickSoundPlayer?.flushScheduledClicks()
     }
 
     Function("setTempo") { bpm: Double ->
@@ -83,6 +86,42 @@ class NativeAudioModule : Module() {
 
     Function("setSubdivision") { subdivision: String ->
       metronomeEngine.updateSubdivision(readTicksPerBeat(subdivision))
+    }
+
+    Function("setSubdivisionAccentMode") { mode: String ->
+      metronomeEngine.updateSubdivisionAccentMode(SubdivisionAccentModeMapping.fromString(mode))
+    }
+
+    Function("setSubdivisionAccentEveryNth") { everyNth: Int ->
+      metronomeEngine.updateSubdivisionAccentEveryNth(everyNth)
+    }
+
+    Function("setSubdivisionAccentPattern") { pattern: List<Boolean> ->
+      metronomeEngine.updateSubdivisionAccentPattern(readSubdivisionAccentPatternList(pattern))
+    }
+
+    Function("setNormalClickSound") { soundId: String ->
+      clickSoundPlayer?.setNormalClickSound(ClickSoundMapping.normalSoundId(soundId))
+    }
+
+    Function("setAccentClickSound") { soundId: String ->
+      clickSoundPlayer?.setAccentClickSound(ClickSoundMapping.accentSoundId(soundId))
+    }
+
+    Function("setSubdivisionClickSound") { soundId: String ->
+      clickSoundPlayer?.setSubdivisionClickSound(ClickSoundMapping.subdivisionSoundId(soundId))
+    }
+
+    Function("previewNormalClick") {
+      clickSoundPlayer?.previewNormalClick()
+    }
+
+    Function("previewAccentClick") {
+      clickSoundPlayer?.previewAccentClick()
+    }
+
+    Function("previewSubdivisionClick") {
+      clickSoundPlayer?.previewSubdivisionClick()
     }
   }
 
@@ -172,6 +211,10 @@ class NativeAudioModule : Module() {
       "sixteenth" -> 4
       else -> 1
     }
+  }
+
+  private fun readSubdivisionAccentPatternList(pattern: List<Boolean>): BooleanArray {
+    return pattern.toBooleanArray()
   }
 
   private fun readAccentPatternList(pattern: List<Boolean>): BooleanArray {

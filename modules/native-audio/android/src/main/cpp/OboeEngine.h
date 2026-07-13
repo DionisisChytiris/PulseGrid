@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <memory>
 
 #include <oboe/Oboe.h>
@@ -53,12 +54,17 @@ public:
   bool isInitialized() const;
 
   void enqueueClick(ClickType type, int64_t scheduledDeadlineNs);
+  void previewClick(ClickType type);
+  void flushScheduledClicks();
+  void resumeScheduledClicks();
+  AudioRenderer& renderer() { return renderer_; }
 
 private:
   std::shared_ptr<oboe::AudioStream> stream_;
   AudioRenderer renderer_;
   ClickEventQueue eventQueue_;
   OboeStreamDataCallback streamCallback_{&renderer_, &eventQueue_};
+  std::atomic<bool> acceptingClicks_{true};
   bool initialized_ = false;
   bool running_ = false;
 };

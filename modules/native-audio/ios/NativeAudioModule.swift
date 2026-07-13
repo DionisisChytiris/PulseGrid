@@ -49,6 +49,42 @@ public class NativeAudioModule: Module {
     Function("setSubdivision") { (subdivision: String) in
       self.metronomeEngine.updateSubdivision(self.readTicksPerBeat(subdivision))
     }
+
+    Function("setSubdivisionAccentMode") { (mode: String) in
+      self.metronomeEngine.updateSubdivisionAccentMode(self.readSubdivisionAccentMode(mode))
+    }
+
+    Function("setSubdivisionAccentEveryNth") { (everyNth: Int) in
+      self.metronomeEngine.updateSubdivisionAccentEveryNth(everyNth)
+    }
+
+    Function("setSubdivisionAccentPattern") { (pattern: [Bool]) in
+      self.metronomeEngine.updateSubdivisionAccentPattern(pattern)
+    }
+
+    Function("setNormalClickSound") { (soundId: String) in
+      self.clickSoundPlayer.setNormalClickSound(soundId)
+    }
+
+    Function("setAccentClickSound") { (soundId: String) in
+      self.clickSoundPlayer.setAccentClickSound(soundId)
+    }
+
+    Function("setSubdivisionClickSound") { (soundId: String) in
+      self.clickSoundPlayer.setSubdivisionClickSound(soundId)
+    }
+
+    Function("previewNormalClick") {
+      self.clickSoundPlayer.previewNormalClick()
+    }
+
+    Function("previewAccentClick") {
+      self.clickSoundPlayer.previewAccentClick()
+    }
+
+    Function("previewSubdivisionClick") {
+      self.clickSoundPlayer.previewSubdivisionClick()
+    }
   }
 
   private func createMetronomeEngine() -> MetronomeEngine {
@@ -107,6 +143,19 @@ public class NativeAudioModule: Module {
 
     return (0..<beatsPerMeasure).map { index in
       pattern[index % pattern.count]
+    }
+  }
+
+  private func readSubdivisionAccentMode(_ value: String) -> SubdivisionAccentMode {
+    switch value {
+    case "group_start":
+      return .groupStart
+    case "every_nth":
+      return .everyNth
+    case "custom":
+      return .custom
+    default:
+      return .off
     }
   }
 }

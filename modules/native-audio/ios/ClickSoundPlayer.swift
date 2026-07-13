@@ -14,28 +14,71 @@ final class ClickSoundPlayer {
   private var normalIndex = 0
   private var subdivisionIndex = 0
 
+  private var selectedNormalSound = "classic"
+  private var selectedAccentSound = "classic"
+  private var selectedSubdivisionSound = "classic"
+
   var areReady: Bool {
     !accentPlayers.isEmpty && !normalPlayers.isEmpty && !subdivisionPlayers.isEmpty
   }
 
   func initialize() {
-    if areReady {
+    activateAudioSession()
+    reloadPools()
+  }
+
+  func setNormalClickSound(_ soundId: String) {
+    let nextSound = Self.normalResourceName(for: soundId)
+    guard nextSound != selectedNormalSound else {
       return
     }
 
-    activateAudioSession()
+    selectedNormalSound = nextSound
+    normalPlayers = loadPlayerPool(
+      named: Self.normalFileName(for: nextSound),
+      count: Self.normalPoolSize,
+      volume: 0.85
+    )
+  }
 
-    accentPlayers = loadPlayerPool(named: "click_accent", count: Self.accentPoolSize, volume: 1.0)
-    normalPlayers = loadPlayerPool(named: "click_normal", count: Self.normalPoolSize, volume: 0.85)
+  func setAccentClickSound(_ soundId: String) {
+    let nextSound = Self.accentResourceName(for: soundId)
+    guard nextSound != selectedAccentSound else {
+      return
+    }
+
+    selectedAccentSound = nextSound
+    accentPlayers = loadPlayerPool(
+      named: Self.accentFileName(for: nextSound),
+      count: Self.accentPoolSize,
+      volume: 1.0
+    )
+  }
+
+  func setSubdivisionClickSound(_ soundId: String) {
+    let nextSound = Self.normalResourceName(for: soundId)
+    guard nextSound != selectedSubdivisionSound else {
+      return
+    }
+
+    selectedSubdivisionSound = nextSound
     subdivisionPlayers = loadPlayerPool(
-      named: "click_subdivision",
+      named: Self.subdivisionFileName(for: nextSound),
       count: Self.subdivisionPoolSize,
       volume: 0.65
     )
+  }
 
-    if !areReady {
-      print("ClickSoundPlayer.initialize() — missing one or more click samples")
-    }
+  func previewNormalClick() {
+    playFromPool(&normalPlayers, index: &normalIndex, label: "normal-preview")
+  }
+
+  func previewAccentClick() {
+    playFromPool(&accentPlayers, index: &accentIndex, label: "accent-preview")
+  }
+
+  func previewSubdivisionClick() {
+    playFromPool(&subdivisionPlayers, index: &subdivisionIndex, label: "subdivision-preview")
   }
 
   func playAccent(scheduledDeadlineNs: UInt64) {
@@ -48,6 +91,28 @@ final class ClickSoundPlayer {
 
   func playSubdivision(scheduledDeadlineNs: UInt64) {
     playFromPool(&subdivisionPlayers, index: &subdivisionIndex, label: "subdivision")
+  }
+
+  private func reloadPools() {
+    accentPlayers = loadPlayerPool(
+      named: Self.accentFileName(for: selectedAccentSound),
+      count: Self.accentPoolSize,
+      volume: 1.0
+    )
+    normalPlayers = loadPlayerPool(
+      named: Self.normalFileName(for: selectedNormalSound),
+      count: Self.normalPoolSize,
+      volume: 0.85
+    )
+    subdivisionPlayers = loadPlayerPool(
+      named: Self.subdivisionFileName(for: selectedSubdivisionSound),
+      count: Self.subdivisionPoolSize,
+      volume: 0.65
+    )
+
+    if !areReady {
+      print("ClickSoundPlayer.initialize() — missing one or more click samples")
+    }
   }
 
   private func playFromPool(
@@ -107,5 +172,45 @@ final class ClickSoundPlayer {
     }
 
     return Bundle(for: ClickSoundPlayer.self).url(forResource: name, withExtension: "wav")
+  }
+
+  private static func normalResourceName(for soundId: String) -> String {
+    switch soundId {
+    case "soft":
+      return "soft"
+    case "digital":
+      return "digital"
+    case "bright":
+      return "bright"
+    case "cowbell":
+      return "cowbell"
+    default:
+      return "classic"
+    }
+  }
+
+  private static func accentResourceName(for soundId: String) -> String {
+    switch soundId {
+    case "strong_accent":
+      return "strong"
+    case "digital_accent":
+      return "digital"
+    case "cowbell_accent":
+      return "cowbell"
+    default:
+      return "classic"
+    }
+  }
+
+  private static func normalFileName(for resource: String) -> String {
+    "click_normal_\(resource)"
+  }
+
+  private static func accentFileName(for resource: String) -> String {
+    "click_accent_\(resource)"
+  }
+
+  private static func subdivisionFileName(for normalResource: String) -> String {
+    "click_subdivision_\(normalResource)"
   }
 }

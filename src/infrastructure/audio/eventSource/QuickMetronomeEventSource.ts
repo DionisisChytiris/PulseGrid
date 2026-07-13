@@ -1,4 +1,5 @@
 import type { PlaybackEvent } from '../../../domain/music/compiler/PlaybackEvent';
+import { resolveTickAccent } from '../../../domain/metronome/resolveTickAccent';
 
 import type { EventSource } from './EventSource';
 
@@ -13,12 +14,14 @@ function resolveAccent(
   beatIndexInBar: number,
   subdivisionIndex: number,
   accentPattern: readonly boolean[],
+  ticksPerBeat: number,
 ): boolean {
-  if (subdivisionIndex !== 0) {
-    return false;
-  }
-
-  return accentPattern[beatIndexInBar % accentPattern.length] ?? false;
+  return resolveTickAccent({
+    beatIndexInBar,
+    subdivisionIndex,
+    accentPattern,
+    ticksPerBeat,
+  });
 }
 
 /**
@@ -68,7 +71,12 @@ export class QuickMetronomeEventSource implements EventSource {
       sectionId: 'quick',
       meter: { numerator: beatsPerMeasure, denominator: 4 },
       bpm: this.config.bpm,
-      accent: resolveAccent(beatIndexInBar, subdivisionIndex, this.config.accentPattern),
+      accent: resolveAccent(
+        beatIndexInBar,
+        subdivisionIndex,
+        this.config.accentPattern,
+        ticksPerBeat,
+      ),
       subdivisionIndex,
       globalTickIndex: sequence,
       source: 'song',

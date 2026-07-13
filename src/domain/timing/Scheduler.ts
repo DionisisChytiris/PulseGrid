@@ -1,4 +1,9 @@
 import type { TimeSignature } from '../entities/Metronome';
+import { resolveTickAccent } from '../metronome/resolveTickAccent';
+import {
+  DEFAULT_SUBDIVISION_ACCENT_MODE,
+  type SubdivisionAccentMode,
+} from '../metronome/SubdivisionAccentMode';
 import { AccentPattern } from '../valueObjects/AccentPattern';
 import { Subdivision } from '../valueObjects/Subdivision';
 import { BeatClock, msPerBeat } from './BeatClock';
@@ -12,6 +17,7 @@ export type SchedulerConfig = {
   timeSignature: TimeSignature;
   accentPattern?: AccentPattern;
   subdivision?: Subdivision;
+  subdivisionAccentMode?: SubdivisionAccentMode;
 };
 
 function assertPositiveInteger(value: number, label: string): void {
@@ -36,6 +42,7 @@ export class Scheduler {
   private timeSignature: TimeSignature;
   private accentPattern: AccentPattern;
   private subdivision: Subdivision;
+  private subdivisionAccentMode: SubdivisionAccentMode;
 
   constructor(config: SchedulerConfig) {
     this.clock = new BeatClock(config.tempo);
@@ -44,6 +51,8 @@ export class Scheduler {
       config.accentPattern ??
       AccentPattern.downbeatOnly(config.timeSignature.numerator);
     this.subdivision = config.subdivision ?? Subdivision.quarter();
+    this.subdivisionAccentMode =
+      config.subdivisionAccentMode ?? DEFAULT_SUBDIVISION_ACCENT_MODE;
   }
 
   getStatus(): SchedulerStatus {
@@ -110,11 +119,15 @@ export class Scheduler {
     assertNonNegativeInteger(beatIndex, 'Beat index');
     assertNonNegativeInteger(subdivisionIndex, 'Subdivision index');
 
-    if (!this.subdivision.isPrimaryBeat(subdivisionIndex)) {
-      return false;
-    }
+    const beatIndexInBar = beatIndex % this.timeSignature.numerator;
 
-    return this.accentPattern.isAccent(beatIndex);
+    return resolveTickAccent({
+      beatIndexInBar,
+      subdivisionIndex,
+      accentPattern: this.accentPattern.toArray(),
+      ticksPerBeat: this.subdivision.getTicksPerBeat(),
+      subdivisionAccentMode: this.subdivisionAccentMode,
+    });
   }
 
   private createTick(

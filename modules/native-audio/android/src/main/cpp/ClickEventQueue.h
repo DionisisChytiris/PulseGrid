@@ -52,6 +52,12 @@ public:
     return head_.load(std::memory_order_acquire) == tail_.load(std::memory_order_acquire);
   }
 
+  /** Producer-side discard of all pending events (safe on stop). */
+  void clear() {
+    const std::size_t currentTail = tail_.load(std::memory_order_acquire);
+    head_.store(currentTail, std::memory_order_release);
+  }
+
 private:
   ClickEvent buffer_[kCapacity]{};
   std::atomic<std::size_t> head_{0};

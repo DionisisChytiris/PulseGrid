@@ -3,6 +3,10 @@ import { beatUnitWholeNoteFraction } from '../music/tempo/beatDuration';
 import { BeatUnit } from '../music/BeatUnit';
 import { createMeter, inferBeatUnitFromDenominator } from '../music/Meter';
 import type { SubdivisionKind } from '../valueObjects/Subdivision';
+import {
+  DEFAULT_SUBDIVISION_ACCENT_MODE,
+  type SubdivisionAccentMode,
+} from './SubdivisionAccentMode';
 
 const QUARTER_FRACTION = beatUnitWholeNoteFraction(BeatUnit.QUARTER);
 
@@ -27,6 +31,8 @@ export type PulseGridEngineConfig = {
   readonly beatsPerMeasure: number;
   readonly accentPattern: readonly boolean[];
   readonly subdivision: SubdivisionKind;
+  /** Subdivision accent behavior; beat accents use accentPattern only. */
+  readonly subdivisionAccentMode: SubdivisionAccentMode;
 };
 
 export type SubdivisionAvailability = {
@@ -179,5 +185,6 @@ export function resolvePulseGridEngineConfig(input: {
     beatsPerMeasure: timeSignature.numerator,
     accentPattern,
     subdivision: resolveEngineSubdivision(timeSignature.denominator, normalizedFinerSubdivision),
+    subdivisionAccentMode: DEFAULT_SUBDIVISION_ACCENT_MODE,
   };
 }

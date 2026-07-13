@@ -1,161 +1,97 @@
-import { useEffect, useMemo, useRef } from 'react';
-import { Animated, Pressable, StyleSheet, View } from 'react-native';
+import { memo, useMemo } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import { studioColors } from '../../theme';
+import {
+  selectAccentPattern,
+  selectCurrentBeat,
+  selectIsPlaying,
+  selectTimeSignature,
+} from '../../../features/metronome/metronomeSelectors';
+import { useAppSelector } from '../../../store/hooks';
 import { getBeatDotMetrics, useResponsiveLayout } from '../../layout/useResponsiveLayout';
+import { studioColors } from '../../theme';
 
-type DotStyle = {
+type LedAppearance = {
   backgroundColor: string;
-  borderWidth: number;
   borderColor: string;
+  borderWidth: number;
+  opacity: number;
 };
 
-function useDotStyle(
+function ledAppearance(
   isPlaying: boolean,
   isCurrentBeat: boolean,
-  isSubdivisionTick: boolean,
-  isCurrentAccent: boolean,
   isPatternAccent: boolean,
   borderWidth: number,
-): DotStyle {
-  return useMemo(() => {
-    if (isPlaying) {
-      if (isCurrentBeat) {
-        if (isSubdivisionTick) {
-          return {
-            backgroundColor: studioColors.beatSubdivision,
-            borderWidth: 0,
-            borderColor: studioColors.beatSubdivision,
-          };
-        }
-
-        const backgroundColor = isCurrentAccent ? studioColors.beatAccent : studioColors.beatActive;
-
-        return {
-          backgroundColor,
-          borderWidth: 0,
-          borderColor: backgroundColor,
-        };
-      }
+): LedAppearance {
+  if (isPlaying) {
+    if (isCurrentBeat) {
+      const color = isPatternAccent ? studioColors.beatAccent : studioColors.beatActive;
 
       return {
-        backgroundColor: studioColors.beatInactivePlaying,
+        backgroundColor: color,
+        borderColor: color,
         borderWidth: 0,
-        borderColor: studioColors.beatInactivePlaying,
-      };
-    }
-
-    if (isPatternAccent) {
-      return {
-        backgroundColor: studioColors.beatAccent,
-        borderWidth,
-        borderColor: studioColors.beatAccent,
+        opacity: 1,
       };
     }
 
     return {
-      backgroundColor: 'transparent',
-      borderWidth,
-      borderColor: studioColors.beatBorderIdle,
+      backgroundColor: studioColors.beatInactivePlaying,
+      borderColor: studioColors.beatInactivePlaying,
+      borderWidth: 0,
+      opacity: studioColors.beatLedRestingOpacity,
     };
-  }, [
+  }
+
+  if (isPatternAccent) {
+    return {
+      backgroundColor: studioColors.beatAccent,
+      borderColor: studioColors.beatAccent,
+      borderWidth: 0,
+      opacity: 1,
+    };
+  }
+
+  return {
+    backgroundColor: 'transparent',
+    borderColor: studioColors.beatBorderIdle,
     borderWidth,
-    isCurrentAccent,
-    isCurrentBeat,
-    isPatternAccent,
-    isPlaying,
-    isSubdivisionTick,
-  ]);
+    opacity: 1,
+  };
 }
 
-type PlayingBeatDotProps = {
-  size: number;
-  isPrimaryTick: boolean;
-  isSubdivisionTick: boolean;
-  dotStyle: DotStyle;
-};
-
-function PlayingBeatDot({
-  size,
-  isPrimaryTick,
-  isSubdivisionTick,
-  dotStyle,
-}: PlayingBeatDotProps) {
-  const scale = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    const targetScale = isPrimaryTick ? 1.5 : isSubdivisionTick ? 1.2 : 1;
-
-    Animated.timing(scale, {
-      toValue: targetScale,
-      duration: isPrimaryTick || isSubdivisionTick ? 60 : 100,
-      useNativeDriver: true,
-    }).start();
-  }, [isPrimaryTick, isSubdivisionTick, scale]);
-
-  return (
-    <Animated.View
-      style={[
-        styles.dot,
-        {
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          transform: [{ scale }],
-        },
-        dotStyle,
-      ]}
-    />
-  );
-}
-
-type BeatDotProps = {
+type BeatLedProps = {
   beatNumber: number;
   size: number;
   isPlaying: boolean;
   isCurrentBeat: boolean;
-  isPrimaryTick: boolean;
-  isSubdivisionTick: boolean;
-  isCurrentAccent: boolean;
   isPatternAccent: boolean;
   onPress?: () => void;
 };
 
-function BeatDot({
+const BeatLed = memo(function BeatLed({
   beatNumber,
   size,
   isPlaying,
   isCurrentBeat,
-  isPrimaryTick,
-  isSubdivisionTick,
-  isCurrentAccent,
   isPatternAccent,
   onPress,
-}: BeatDotProps) {
+}: BeatLedProps) {
   const borderWidth = Math.max(2, Math.round(size * 0.12));
-  const dotStyle = useDotStyle(
-    isPlaying,
-    isCurrentBeat,
-    isSubdivisionTick,
-    isCurrentAccent,
-    isPatternAccent,
-    borderWidth,
-  );
-  const dotDimensions = {
+  const appearance = ledAppearance(isPlaying, isCurrentBeat, isPatternAccent, borderWidth);
+  const dotStyle = {
     width: size,
     height: size,
     borderRadius: size / 2,
+    backgroundColor: appearance.backgroundColor,
+    borderColor: appearance.borderColor,
+    borderWidth: appearance.borderWidth,
+    opacity: appearance.opacity,
   };
 
   if (isPlaying) {
-    return (
-      <PlayingBeatDot
-        size={size}
-        isPrimaryTick={isPrimaryTick}
-        isSubdivisionTick={isSubdivisionTick}
-        dotStyle={dotStyle}
-      />
-    );
+    return <View style={[styles.dot, dotStyle]} />;
   }
 
   return (
@@ -168,30 +104,22 @@ function BeatDot({
       accessibilityState={{ selected: isPatternAccent }}
       style={({ pressed }) => pressed && styles.dotPressed}
     >
-      <View style={[styles.dot, dotDimensions, dotStyle]} />
+      <View style={[styles.dot, dotStyle]} />
     </Pressable>
   );
-}
+});
 
 type BeatIndicatorsProps = {
-  beatCount: number;
-  accentPattern: readonly boolean[];
-  currentBeat: number;
-  currentSubdivisionIndex: number;
-  isAccent: boolean;
-  isPlaying: boolean;
   onAccentPatternChange: (pattern: boolean[]) => void;
 };
 
-export function BeatIndicators({
-  beatCount,
-  accentPattern,
-  currentBeat,
-  currentSubdivisionIndex,
-  isAccent,
-  isPlaying,
-  onAccentPatternChange,
-}: BeatIndicatorsProps) {
+function BeatIndicatorsComponent({ onAccentPatternChange }: BeatIndicatorsProps) {
+  const isPlaying = useAppSelector(selectIsPlaying);
+  const currentBeat = useAppSelector(selectCurrentBeat);
+  const accentPattern = useAppSelector(selectAccentPattern);
+  const timeSignature = useAppSelector(selectTimeSignature);
+  const beatCount = timeSignature.numerator;
+
   const layout = useResponsiveLayout();
   const { dotSize, gap, minHeight } = useMemo(
     () => getBeatDotMetrics(beatCount, layout),
@@ -210,29 +138,22 @@ export function BeatIndicators({
       style={[styles.row, { gap, minHeight, maxWidth: '100%' }]}
       accessibilityLabel={isPlaying ? 'Beat indicators' : 'Beat indicators, tap to set accents'}
     >
-      {Array.from({ length: beatCount }, (_, index) => {
-        const isCurrentBeat = isPlaying && index === currentBeat;
-        const isPrimaryTick = isCurrentBeat && currentSubdivisionIndex === 0;
-        const isSubdivisionTick = isCurrentBeat && currentSubdivisionIndex > 0;
-
-        return (
-          <BeatDot
-            key={index}
-            beatNumber={index + 1}
-            size={dotSize}
-            isPlaying={isPlaying}
-            isCurrentBeat={isCurrentBeat}
-            isPrimaryTick={isPrimaryTick}
-            isSubdivisionTick={isSubdivisionTick}
-            isCurrentAccent={isPrimaryTick && isAccent}
-            isPatternAccent={accentPattern[index] ?? false}
-            onPress={() => toggleBeat(index)}
-          />
-        );
-      })}
+      {Array.from({ length: beatCount }, (_, index) => (
+        <BeatLed
+          key={index}
+          beatNumber={index + 1}
+          size={dotSize}
+          isPlaying={isPlaying}
+          isCurrentBeat={isPlaying && index === currentBeat}
+          isPatternAccent={accentPattern[index] ?? false}
+          onPress={() => toggleBeat(index)}
+        />
+      ))}
     </View>
   );
 }
+
+export const BeatIndicators = memo(BeatIndicatorsComponent);
 
 const styles = StyleSheet.create({
   row: {

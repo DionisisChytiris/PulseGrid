@@ -92,6 +92,42 @@ export class NativeAudioEngine implements IAudioEngine {
     const nativeSubdivision = toNativeSubdivision(subdivision);
     NativeAudioModule.setSubdivision(nativeSubdivision);
   }
+
+  setNormalClickSound(soundId: string): void {
+    NativeAudioModule.setNormalClickSound?.(soundId);
+  }
+
+  setAccentClickSound(soundId: string): void {
+    NativeAudioModule.setAccentClickSound?.(soundId);
+  }
+
+  setSubdivisionClickSound(soundId: string): void {
+    NativeAudioModule.setSubdivisionClickSound?.(soundId);
+  }
+
+  setSubdivisionAccentMode(mode: string): void {
+    NativeAudioModule.setSubdivisionAccentMode?.(mode);
+  }
+
+  setSubdivisionAccentEveryNth(value: number): void {
+    NativeAudioModule.setSubdivisionAccentEveryNth?.(value);
+  }
+
+  setSubdivisionAccentPattern(pattern: boolean[]): void {
+    NativeAudioModule.setSubdivisionAccentPattern?.(pattern);
+  }
+
+  previewNormalClick(): void {
+    NativeAudioModule.previewNormalClick?.();
+  }
+
+  previewAccentClick(): void {
+    NativeAudioModule.previewAccentClick?.();
+  }
+
+  previewSubdivisionClick(): void {
+    NativeAudioModule.previewSubdivisionClick?.();
+  }
 }
 
 export const nativeAudioEngine = new NativeAudioEngine();

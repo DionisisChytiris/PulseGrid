@@ -36,6 +36,9 @@ internal class MetronomeEngine(
   private var beatsPerMeasure: Int = 4
   private var ticksPerBeat: Int = 1
   private var accentPattern: BooleanArray = booleanArrayOf(true, false, false, false)
+  private var subdivisionAccentMode: SubdivisionAccentMode = SubdivisionAccentMode.OFF
+  private var subdivisionAccentEveryNth: Int = 4
+  private var subdivisionAccentPattern: BooleanArray = booleanArrayOf()
 
   private var playbackMode: PlaybackMode = PlaybackMode.QUICK_METRONOME
 
@@ -45,6 +48,9 @@ internal class MetronomeEngine(
       beatsPerMeasure = 4,
       ticksPerBeat = 1,
       accentPattern = booleanArrayOf(true, false, false, false),
+      subdivisionAccentMode = SubdivisionAccentMode.OFF,
+      subdivisionAccentEveryNth = 4,
+      subdivisionAccentPattern = booleanArrayOf(),
     )
   }
 
@@ -127,7 +133,7 @@ internal class MetronomeEngine(
       isRunning = true
     }
 
-    publishLookaheadEvents()
+    publishLookaheadEvents(activeGeneration)
 
     var firstSnapshot: TickSnapshot? = null
     synchronized(lock) {
@@ -161,6 +167,24 @@ internal class MetronomeEngine(
 
   fun updateSubdivision(ticksPerBeat: Int) {
     applyMusicalStateChange(MusicalStateChange(ticksPerBeat = ticksPerBeat))
+  }
+
+  fun updateSubdivisionAccentMode(mode: SubdivisionAccentMode) {
+    synchronized(lock) {
+      subdivisionAccentMode = mode
+    }
+  }
+
+  fun updateSubdivisionAccentEveryNth(everyNth: Int) {
+    synchronized(lock) {
+      subdivisionAccentEveryNth = everyNth.coerceIn(1, 16)
+    }
+  }
+
+  fun updateSubdivisionAccentPattern(pattern: BooleanArray) {
+    synchronized(lock) {
+      subdivisionAccentPattern = pattern.copyOf()
+    }
   }
 
   fun stop() {
@@ -210,7 +234,7 @@ internal class MetronomeEngine(
       scheduleNextUiTickLocked(activeGeneration)
     }
 
-    enqueueAudioSnapshots(snapshots)
+    enqueueAudioSnapshots(snapshots, activeGeneration)
   }
 
   /**
@@ -238,7 +262,7 @@ internal class MetronomeEngine(
       scheduleNextUiTickLocked(activeGeneration)
     }
 
-    enqueueAudioSnapshots(snapshots)
+    enqueueAudioSnapshots(snapshots, activeGeneration)
   }
 
   /**
@@ -249,6 +273,7 @@ internal class MetronomeEngine(
    */
   private fun applyMusicalStateChange(change: MusicalStateChange) {
     val snapshots: List<TickSnapshot>
+    val activeGeneration: Long
     synchronized(lock) {
       if (playbackMode == PlaybackMode.SONG_TIMELINE) {
         return
@@ -286,9 +311,10 @@ internal class MetronomeEngine(
 
       assertSchedulingInvariantsLocked()
       snapshots = collectLookaheadSnapshotsLocked()
+      activeGeneration = generation
     }
 
-    enqueueAudioSnapshots(snapshots)
+    enqueueAudioSnapshots(snapshots, activeGeneration)
   }
 
   private fun haltLoopLocked(logStop: Boolean) {
@@ -335,6 +361,9 @@ internal class MetronomeEngine(
         beatsPerMeasure = beatsPerMeasure,
         ticksPerBeat = ticksPerBeat,
         accentPattern = accentPattern,
+        subdivisionAccentMode = subdivisionAccentMode,
+        subdivisionAccentEveryNth = subdivisionAccentEveryNth,
+        subdivisionAccentPattern = subdivisionAccentPattern,
       )
     }
   }
@@ -376,7 +405,7 @@ internal class MetronomeEngine(
     }
 
     snapshot?.let { emitUiTick(it) }
-    enqueueAudioSnapshots(snapshots)
+    enqueueAudioSnapshots(snapshots, activeGeneration)
   }
 
   /** Caller must hold [lock]. Pure musical snapshot for [sequence], or null past score end. */
@@ -400,7 +429,7 @@ internal class MetronomeEngine(
    * Publishes audio for every tick whose deadline falls within the lookahead horizon.
    * Advances [lastPublishedSequence] monotonically; never enqueues the same sequence twice.
    */
-  private fun publishLookaheadEvents() {
+  private fun publishLookaheadEvents(activeGeneration: Long) {
     val snapshots: List<TickSnapshot>
     synchronized(lock) {
       if (!isRunning || isPaused) {
@@ -411,7 +440,7 @@ internal class MetronomeEngine(
       snapshots = collectLookaheadSnapshotsLocked()
     }
 
-    enqueueAudioSnapshots(snapshots)
+    enqueueAudioSnapshots(snapshots, activeGeneration)
   }
 
   /**
@@ -536,17 +565,38 @@ internal class MetronomeEngine(
     }
   }
 
-  private fun enqueueAudioSnapshots(snapshots: List<TickSnapshot>) {
+  private fun enqueueAudioSnapshots(snapshots: List<TickSnapshot>, activeGeneration: Long) {
+    if (snapshots.isEmpty()) {
+      return
+    }
+
+    synchronized(lock) {
+      if (!isRunning || generation != activeGeneration) {
+        return
+      }
+    }
+
     for (snapshot in snapshots) {
       enqueueAudioForTick(snapshot)
     }
   }
 
   private fun enqueueAudioForTick(snapshot: TickSnapshot) {
-    if (snapshot.subdivisionIndex == 0) {
-      playClickForBeat(snapshot.isAccent, snapshot.scheduledDeadlineNs)
-    } else {
-      clickSoundPlayer?.playSubdivision(snapshot.scheduledDeadlineNs)
+    val soundKind = AccentClassification.resolveClickSoundKind(
+      beatIndexInBar = snapshot.beatIndexInBar,
+      subdivisionIndex = snapshot.subdivisionIndex,
+      accentPattern = accentPattern,
+      ticksPerBeat = ticksPerBeat,
+      subdivisionAccentMode = subdivisionAccentMode,
+      subdivisionAccentEveryNth = subdivisionAccentEveryNth,
+      subdivisionAccentPattern = subdivisionAccentPattern,
+    )
+
+    when (soundKind) {
+      ClickSoundKind.BEAT_ACCENT -> clickSoundPlayer?.playAccent(snapshot.scheduledDeadlineNs)
+      ClickSoundKind.SUBDIVISION_ACCENT -> clickSoundPlayer?.playNormal(snapshot.scheduledDeadlineNs)
+      ClickSoundKind.NORMAL -> clickSoundPlayer?.playNormal(snapshot.scheduledDeadlineNs)
+      ClickSoundKind.SUBDIVISION -> clickSoundPlayer?.playSubdivision(snapshot.scheduledDeadlineNs)
     }
   }
 
@@ -604,14 +654,6 @@ internal class MetronomeEngine(
 
   private fun beatDurationNs(bpm: Double): Long {
     return max(1L, (60_000_000_000.0 / bpm).toLong())
-  }
-
-  private fun playClickForBeat(isAccent: Boolean, scheduledDeadlineNs: Long) {
-    if (isAccent) {
-      clickSoundPlayer?.playAccent(scheduledDeadlineNs)
-    } else {
-      clickSoundPlayer?.playNormal(scheduledDeadlineNs)
-    }
   }
 
   private fun copyAccentPattern(pattern: BooleanArray): BooleanArray {

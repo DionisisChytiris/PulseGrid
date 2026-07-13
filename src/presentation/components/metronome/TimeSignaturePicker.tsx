@@ -231,10 +231,10 @@ export function TimeSignaturePicker({
       style={[
         styles.container,
         layout.isTablet && styles.containerTablet,
-        { paddingBottom: bottomInset + (layout.isTablet ? 0 : layout.isShort ? 16 : 24) },
+        { paddingBottom: bottomInset + (layout.isTablet ? 0 : layout.isShort ? 6 : 10) , paddingTop: 24},
       ]}
     >
-      <View style={styles.labelWrap}>
+      {/* <View style={styles.labelWrap}>
         <Text
           allowFontScaling={false}
           style={[
@@ -245,7 +245,7 @@ export function TimeSignaturePicker({
         >
           Time Signature
         </Text>
-      </View>
+      </View> */}
 
       <View
         style={[

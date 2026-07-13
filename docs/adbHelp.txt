@@ -12,7 +12,7 @@
  adb -s 7834401e logcat | findstr PulseGrid-Oboe
  adb -s 7834401e logcat -s PulseGrid-Oboe
 
- adb logcat -s MetronomeEngine
+ adb -s 7834401e logcat -s MetronomeEngine
 
 
 

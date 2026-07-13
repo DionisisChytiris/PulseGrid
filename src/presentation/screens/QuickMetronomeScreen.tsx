@@ -1,6 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useQuickMetronome } from '../hooks/useQuickMetronome';
 import { useResponsiveLayout } from '../layout/useResponsiveLayout';
 import { BeatIndicators } from '../components/metronome/BeatIndicators';
@@ -10,6 +9,7 @@ import { SubdivisionCycleButton } from '../components/metronome/SubdivisionCycle
 import { TapTempoButton } from '../components/metronome/TapTempoButton';
 import { TapTempoHintModal } from '../components/metronome/TapTempoHintModal';
 import { TimeSignaturePicker } from '../components/metronome/TimeSignaturePicker';
+import { TransportPlayButton } from '../components/metronome/TransportPlayButton';
 import { studioColors } from '../theme';
 
 export default function QuickMetronomeScreen() {
@@ -17,12 +17,8 @@ export default function QuickMetronomeScreen() {
     bpm,
     isPlaying,
     timeSignature,
-    accentPattern,
     finerSubdivision,
     subdivisionAvailability,
-    currentBeat,
-    currentSubdivisionIndex,
-    isAccent,
     minBpm,
     maxBpm,
     onStart,
@@ -57,15 +53,7 @@ export default function QuickMetronomeScreen() {
         <View style={[styles.content, { gap: layout.sectionGap }]}>
           <Text style={[styles.title, { fontSize: layout.scale(24) }]}>Pulse Grid</Text>
 
-          <BeatIndicators
-            beatCount={timeSignature.numerator}
-            accentPattern={accentPattern}
-            currentBeat={currentBeat}
-            currentSubdivisionIndex={currentSubdivisionIndex}
-            isAccent={isAccent}
-            isPlaying={isPlaying}
-            onAccentPatternChange={onAccentPatternChange}
-          />
+          <BeatIndicators onAccentPatternChange={onAccentPatternChange} />
 
           <BpmControl
             value={bpm}
@@ -85,24 +73,10 @@ export default function QuickMetronomeScreen() {
               <TapTempoButton onPress={onTapTempo} onLongPress={onTapTempoHelp} />
             </View>
 
-            <Pressable
-              style={[
-                styles.playButton,
-                isPlaying ? styles.stopButton : styles.startButton,
-                {
-                  minWidth: layout.scale(160),
-                  paddingVertical: layout.scale(14, 0.1, 0.05),
-                  paddingHorizontal: layout.scale(48, 0.1, 0.05),
-                },
-              ]}
+            <TransportPlayButton
+              isPlaying={isPlaying}
               onPress={isPlaying ? onStop : onStart}
-              accessibilityRole="button"
-              accessibilityLabel={isPlaying ? 'Stop metronome' : 'Start metronome'}
-            >
-              <Text style={[styles.buttonText, { fontSize: layout.scale(17) }]}>
-                {isPlaying ? <Ionicons name="stop" size={22} color="white" /> : <Ionicons name="play" size={22} color="white" />}
-              </Text>
-            </Pressable>
+            />
 
             <View style={styles.subdivisionSlot} pointerEvents="box-none">
               <SubdivisionCycleButton
@@ -187,20 +161,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
     color: studioColors.textPrimary,
-  },
-  playButton: {
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  startButton: {
-    backgroundColor: studioColors.play,
-  },
-  stopButton: {
-    backgroundColor: studioColors.stop,
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
   },
   footer: {
     width: '100%',
