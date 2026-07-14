@@ -1,10 +1,12 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { subdivisionAccentSettingsService } from '../../../application/services/subdivisionAccentSettingsServiceInstance';
 import {
+  CUSTOM_SUBDIVISION_ACCENT_UNAVAILABLE_MESSAGE,
   SUBDIVISION_ACCENT_MODE_OPTIONS,
+  isCustomSubdivisionAccentAvailable,
   type SubdivisionAccentModeOption,
 } from '../../../domain/metronome/SubdivisionAccentCatalog';
 import { SubdivisionAccentMode } from '../../../domain/metronome/SubdivisionAccentMode';
@@ -17,6 +19,7 @@ import {
   INITIAL_SUBDIVISION_ACCENT_CUSTOM_PATTERN,
   type SubdivisionAccentPattern,
 } from '../../../domain/metronome/SubdivisionAccentPattern';
+import { selectSubdivision } from '../../../features/metronome/metronomeSelectors';
 import {
   selectSubdivisionAccentEveryNth,
   selectSubdivisionAccentMode,
@@ -29,12 +32,19 @@ import { studioColors } from '../../theme';
 type ModeOptionRowProps = {
   option: SubdivisionAccentModeOption;
   selected: boolean;
+  disabled: boolean;
+  helperText?: string;
   onSelect: () => void;
 };
 
-function ModeOptionRow({ option, selected, onSelect }: ModeOptionRowProps) {
+function ModeOptionRow({
+  option,
+  selected,
+  disabled,
+  helperText,
+  onSelect,
+}: ModeOptionRowProps) {
   const layout = useResponsiveLayout();
-  const disabled = option.comingSoon;
 
   return (
     <Pressable
@@ -62,8 +72,8 @@ function ModeOptionRow({ option, selected, onSelect }: ModeOptionRowProps) {
         >
           {option.label}
         </Text>
-        {option.comingSoon ? (
-          <Text style={[styles.comingSoon, { fontSize: layout.scale(12) }]}>Coming soon</Text>
+        {helperText ? (
+          <Text style={[styles.helperText, { fontSize: layout.scale(12) }]}>{helperText}</Text>
         ) : null}
       </View>
     </Pressable>
@@ -117,22 +127,38 @@ function PatternToggle({ accented, index, onToggle }: PatternToggleProps) {
 
 export function SubdivisionAccentSection() {
   const layout = useResponsiveLayout();
+  const subdivision = useAppSelector(selectSubdivision);
   const subdivisionAccentMode = useAppSelector(selectSubdivisionAccentMode);
   const subdivisionAccentEveryNth = useAppSelector(selectSubdivisionAccentEveryNth);
   const subdivisionAccentPattern = useAppSelector(selectSubdivisionAccentPattern);
+  const customAvailable = isCustomSubdivisionAccentAvailable(subdivision);
 
   const editablePattern = useMemo(
     () => toEditablePattern(subdivisionAccentPattern),
     [subdivisionAccentPattern],
   );
 
-  const onSelect = useCallback((option: SubdivisionAccentModeOption) => {
-    if (option.comingSoon) {
-      return;
-    }
+  useEffect(() => {
+    void subdivisionAccentSettingsService.syncCustomModeForSubdivision(subdivision);
+  }, [subdivision]);
 
-    void subdivisionAccentSettingsService.setSubdivisionAccentMode(option.id);
-  }, []);
+  const onSelect = useCallback(
+    (option: SubdivisionAccentModeOption) => {
+      if (option.comingSoon) {
+        return;
+      }
+
+      if (
+        option.id === SubdivisionAccentMode.CUSTOM &&
+        !isCustomSubdivisionAccentAvailable(subdivision)
+      ) {
+        return;
+      }
+
+      void subdivisionAccentSettingsService.setSubdivisionAccentMode(option.id);
+    },
+    [subdivision],
+  );
 
   const onChangeEveryNth = useCallback(
     (delta: number) => {
@@ -158,14 +184,23 @@ export function SubdivisionAccentSection() {
   return (
     <View style={[styles.group, { gap: layout.scale(8) }]}>
       <Text style={[styles.groupLabel, { fontSize: layout.scale(13) }]}>Subdivision Accents</Text>
-      {SUBDIVISION_ACCENT_MODE_OPTIONS.map((option) => (
-        <ModeOptionRow
-          key={option.id}
-          option={option}
-          selected={subdivisionAccentMode === option.id}
-          onSelect={() => onSelect(option)}
-        />
-      ))}
+      {SUBDIVISION_ACCENT_MODE_OPTIONS.map((option) => {
+        const isCustom = option.id === SubdivisionAccentMode.CUSTOM;
+        const disabled = option.comingSoon || (isCustom && !customAvailable);
+        const helperText =
+          isCustom && !customAvailable ? CUSTOM_SUBDIVISION_ACCENT_UNAVAILABLE_MESSAGE : undefined;
+
+        return (
+          <ModeOptionRow
+            key={option.id}
+            option={option}
+            selected={subdivisionAccentMode === option.id}
+            disabled={disabled}
+            helperText={helperText}
+            onSelect={() => onSelect(option)}
+          />
+        );
+      })}
 
       {subdivisionAccentMode === SubdivisionAccentMode.EVERY_NTH ? (
         <View style={styles.everyNthRow}>
@@ -196,7 +231,7 @@ export function SubdivisionAccentSection() {
         </View>
       ) : null}
 
-      {subdivisionAccentMode === SubdivisionAccentMode.CUSTOM ? (
+      {subdivisionAccentMode === SubdivisionAccentMode.CUSTOM && customAvailable ? (
         <View style={styles.patternRow}>
           <Text style={[styles.patternLabel, { fontSize: layout.scale(13) }]}>Pattern</Text>
           <View style={styles.patternToggles}>
@@ -259,7 +294,7 @@ const styles = StyleSheet.create({
   optionLabelDisabled: {
     color: studioColors.textSecondary,
   },
-  comingSoon: {
+  helperText: {
     color: studioColors.textMuted,
     fontWeight: '500',
   },

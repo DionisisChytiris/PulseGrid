@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import { playbackService } from '../../application/services/playbackServiceInstance';
+import { subdivisionAccentSettingsService } from '../../application/services/subdivisionAccentSettingsServiceInstance';
 import {
   selectAccentPattern,
   selectBpm,
@@ -64,13 +65,18 @@ export function useQuickMetronome() {
     onStop: () => playbackService.stop(),
     onBpmChange: (value: number) =>
       playbackService.setBpm(toEngineBpm(value, timeSignature.denominator)),
-    onTimeSignatureChange: (value: TimeSignature) => playbackService.setTimeSignature(value),
+    onTimeSignatureChange: (value: TimeSignature) => {
+      playbackService.setTimeSignature(value);
+      void subdivisionAccentSettingsService.syncCustomModeForSubdivision(
+        resolveEngineSubdivision(value.denominator, null),
+      );
+    },
     onAccentPatternChange: (pattern: boolean[]) => playbackService.setAccentPattern(pattern),
     onSubdivisionChange: (value: FinerSubdivisionSelection) => {
+      const engineSubdivision = resolveEngineSubdivision(timeSignature.denominator, value);
       dispatch(finerSubdivisionChanged(value));
-      playbackService.setSubdivision(
-        resolveEngineSubdivision(timeSignature.denominator, value),
-      );
+      playbackService.setSubdivision(engineSubdivision);
+      void subdivisionAccentSettingsService.syncCustomModeForSubdivision(engineSubdivision);
     },
     onTapTempo,
     onTapTempoHelp,

@@ -3,6 +3,7 @@ import {
   subdivisionAccentModeChanged,
   subdivisionAccentPatternChanged,
 } from '../../features/settings/settingsSlice';
+import { isCustomSubdivisionAccentAvailable } from '../../domain/metronome/SubdivisionAccentCatalog';
 import { SubdivisionAccentMode } from '../../domain/metronome/SubdivisionAccentMode';
 import type { SubdivisionAccentMode as SubdivisionAccentModeId } from '../../domain/metronome/SubdivisionAccentMode';
 import { normalizeSubdivisionAccentEveryNth } from '../../domain/metronome/SubdivisionAccentMode';
@@ -11,6 +12,7 @@ import {
   normalizeSubdivisionAccentPattern,
   type SubdivisionAccentPattern,
 } from '../../domain/metronome/SubdivisionAccentPattern';
+import type { SubdivisionKind } from '../../domain/valueObjects/Subdivision';
 import { saveMetronomeSettings } from '../../infrastructure/persistence/metronomeSettingsStorage';
 import type { IAudioEngine } from '../../infrastructure/audio/IAudioEngine';
 import type { AppDispatch, RootState } from '../../store';
@@ -35,10 +37,36 @@ export class SubdivisionAccentSettingsService {
     this.audioEngine.setSubdivisionAccentMode(subdivisionAccentMode);
     this.audioEngine.setSubdivisionAccentEveryNth(subdivisionAccentEveryNth);
     this.audioEngine.setSubdivisionAccentPattern(subdivisionAccentPattern);
+    await this.syncCustomModeForSubdivision(this.getState().metronome.subdivision);
+  }
+
+  /**
+   * When leaving 16th-note grids, CUSTOM mode falls back to OFF.
+   * The saved custom pattern is preserved untouched.
+   */
+  async syncCustomModeForSubdivision(subdivision: SubdivisionKind): Promise<void> {
+    const { subdivisionAccentMode } = this.getState().settings;
+    if (
+      subdivisionAccentMode !== SubdivisionAccentMode.CUSTOM ||
+      isCustomSubdivisionAccentAvailable(subdivision)
+    ) {
+      return;
+    }
+
+    this.dispatch(subdivisionAccentModeChanged(SubdivisionAccentMode.OFF));
+    this.audioEngine.setSubdivisionAccentMode(SubdivisionAccentMode.OFF);
+    await this.persistCurrent();
   }
 
   async setSubdivisionAccentMode(mode: SubdivisionAccentModeId): Promise<void> {
     if (!ACTIVE_SUBDIVISION_ACCENT_MODES.has(mode)) {
+      return;
+    }
+
+    if (
+      mode === SubdivisionAccentMode.CUSTOM &&
+      !isCustomSubdivisionAccentAvailable(this.getState().metronome.subdivision)
+    ) {
       return;
     }
 
