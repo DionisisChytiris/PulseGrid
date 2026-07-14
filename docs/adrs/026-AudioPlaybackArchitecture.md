@@ -119,7 +119,7 @@ All: mono, 44.1 kHz, PCM 16-bit. Envelope uses **cosine** so sample 0 has peak e
 |-------|------|
 | `NativeTimingSource.ts` | UI tick events only (`onTick` → Redux) |
 | `PlaybackService.ts` | Start/stop/tempo/pattern — no `play()` |
-| `ExpoAudioEngine` | Legacy / web fallback — not used on device native path |
+| `ExpoAudioEngine` | Removed — replaced by native audio path |
 | JS timers | Not used for metronome beats |
 
 ---

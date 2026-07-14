@@ -29,7 +29,7 @@ export function beatDurationNs(bpm: number): number {
   return Math.max(1, Math.floor(60_000_000_000 / bpm));
 }
 
-/** Cumulative score offsets per sequence index — matches SongTimelineEventSource. */
+/** Cumulative score offsets per sequence index — matches native SongTimelineEventSource. */
 export function computeDeadlineOffsets(events: readonly PlaybackEvent[]): readonly number[] {
   const offsets = new Array<number>(events.length + 1);
   let offsetNs = 0;
