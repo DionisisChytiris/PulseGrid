@@ -1,13 +1,13 @@
 import { ClickSoundType } from './ClickSoundType';
 import { SubdivisionAccentMode } from './SubdivisionAccentMode';
-import { resolveClickSound } from './resolveClickSound';
+import { resolveClickSoundType } from './resolveClickSound';
 
 const accentPattern = [true, false, false, false];
 
-describe('resolveClickSound', () => {
+describe('resolveClickSoundType', () => {
   it('uses beat accent on quarter-note beats', () => {
     expect(
-      resolveClickSound({
+      resolveClickSoundType({
         beatIndexInBar: 0,
         subdivisionIndex: 0,
         accentPattern,
@@ -16,7 +16,7 @@ describe('resolveClickSound', () => {
     ).toBe(ClickSoundType.BeatAccent);
 
     expect(
-      resolveClickSound({
+      resolveClickSoundType({
         beatIndexInBar: 1,
         subdivisionIndex: 0,
         accentPattern,
@@ -27,7 +27,7 @@ describe('resolveClickSound', () => {
 
   it('uses only beat accent on accented beats when subdivision accent mode is off', () => {
     expect(
-      resolveClickSound({
+      resolveClickSoundType({
         beatIndexInBar: 0,
         subdivisionIndex: 0,
         accentPattern,
@@ -37,7 +37,7 @@ describe('resolveClickSound', () => {
     ).toBe(ClickSoundType.BeatAccent);
 
     expect(
-      resolveClickSound({
+      resolveClickSoundType({
         beatIndexInBar: 0,
         subdivisionIndex: 1,
         accentPattern,
@@ -47,7 +47,7 @@ describe('resolveClickSound', () => {
     ).toBe(ClickSoundType.Normal);
 
     expect(
-      resolveClickSound({
+      resolveClickSoundType({
         beatIndexInBar: 0,
         subdivisionIndex: 2,
         accentPattern,
@@ -60,7 +60,7 @@ describe('resolveClickSound', () => {
   it('uses normal fills on non-accented beats when mode is off', () => {
     for (let subdivisionIndex = 0; subdivisionIndex < 3; subdivisionIndex += 1) {
       expect(
-        resolveClickSound({
+        resolveClickSoundType({
           beatIndexInBar: 1,
           subdivisionIndex,
           accentPattern,
@@ -73,7 +73,7 @@ describe('resolveClickSound', () => {
 
   it('prioritizes beat accent over group-start on accented beats', () => {
     expect(
-      resolveClickSound({
+      resolveClickSoundType({
         beatIndexInBar: 0,
         subdivisionIndex: 0,
         accentPattern,
@@ -85,7 +85,7 @@ describe('resolveClickSound', () => {
 
   it('uses subdivision accent for group starts on non-accented beats', () => {
     expect(
-      resolveClickSound({
+      resolveClickSoundType({
         beatIndexInBar: 1,
         subdivisionIndex: 0,
         accentPattern,
@@ -95,7 +95,7 @@ describe('resolveClickSound', () => {
     ).toBe(ClickSoundType.SubdivisionAccent);
 
     expect(
-      resolveClickSound({
+      resolveClickSoundType({
         beatIndexInBar: 1,
         subdivisionIndex: 1,
         accentPattern,
@@ -119,7 +119,7 @@ describe('resolveClickSound', () => {
 
     for (let subdivisionIndex = 0; subdivisionIndex < 3; subdivisionIndex += 1) {
       expect(
-        resolveClickSound({
+        resolveClickSoundType({
           beatIndexInBar: 0,
           subdivisionIndex,
           accentPattern,
@@ -132,7 +132,7 @@ describe('resolveClickSound', () => {
     for (let beatIndexInBar = 1; beatIndexInBar < 4; beatIndexInBar += 1) {
       for (let subdivisionIndex = 0; subdivisionIndex < 3; subdivisionIndex += 1) {
         expect(
-          resolveClickSound({
+          resolveClickSoundType({
             beatIndexInBar,
             subdivisionIndex,
             accentPattern,
@@ -146,7 +146,7 @@ describe('resolveClickSound', () => {
 
   it('accents the first sixteenth as beat accent and uses normal fills in GROUP_START mode', () => {
     expect(
-      resolveClickSound({
+      resolveClickSoundType({
         beatIndexInBar: 0,
         subdivisionIndex: 0,
         accentPattern,
@@ -157,7 +157,7 @@ describe('resolveClickSound', () => {
 
     for (let subdivisionIndex = 1; subdivisionIndex < 4; subdivisionIndex += 1) {
       expect(
-        resolveClickSound({
+        resolveClickSoundType({
           beatIndexInBar: 0,
           subdivisionIndex,
           accentPattern,
@@ -172,7 +172,7 @@ describe('resolveClickSound', () => {
     const sevenEightPattern = [true, false, false, true, false, true, false];
 
     expect(
-      resolveClickSound({
+      resolveClickSoundType({
         beatIndexInBar: 0,
         subdivisionIndex: 0,
         accentPattern: sevenEightPattern,
@@ -181,7 +181,7 @@ describe('resolveClickSound', () => {
     ).toBe(ClickSoundType.BeatAccent);
 
     expect(
-      resolveClickSound({
+      resolveClickSoundType({
         beatIndexInBar: 3,
         subdivisionIndex: 0,
         accentPattern: sevenEightPattern,
@@ -190,7 +190,7 @@ describe('resolveClickSound', () => {
     ).toBe(ClickSoundType.BeatAccent);
 
     expect(
-      resolveClickSound({
+      resolveClickSoundType({
         beatIndexInBar: 1,
         subdivisionIndex: 0,
         accentPattern: sevenEightPattern,

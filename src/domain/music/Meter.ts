@@ -141,6 +141,3 @@ export function inferTempoBeatUnitFromMeter(meter: Meter): BeatUnit {
 export function inferPulseBeatUnitFromMeter(meter: Meter): BeatUnit {
   return inferBeatUnitFromDenominator(meter.denominator);
 }
-
-/** @deprecated Use inferTempoBeatUnitFromMeter */
-export const inferBeatUnitFromMeter = inferTempoBeatUnitFromMeter;

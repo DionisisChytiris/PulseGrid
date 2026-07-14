@@ -69,6 +69,3 @@ export function resolveClickSoundType({
 
   return ClickSoundType.Normal;
 }
-
-/** @deprecated Use resolveClickSoundType */
-export const resolveClickSound = resolveClickSoundType;

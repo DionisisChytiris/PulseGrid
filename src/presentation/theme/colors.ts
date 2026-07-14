@@ -40,12 +40,3 @@ export const studioColors = {
   tabBarBackground: '#1A1F26',
   tabBarBorder: '#2E3640',
 } as const;
-
-/** Warm light surfaces — editing screens (Songs). */
-export const editColors = {
-  background: '#F8FAFC',
-  surface: '#FFFFFF',
-  border: '#E2E8F0',
-  textPrimary: '#0F172A',
-  textSecondary: '#64748B',
-} as const;

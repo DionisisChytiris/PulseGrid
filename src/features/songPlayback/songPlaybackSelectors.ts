@@ -1,7 +1,5 @@
 import type { RootState } from '../../store';
 
-export const selectSongPlaybackMode = (state: RootState) => state.songPlayback.playbackMode;
-
 export const selectSongPlaybackIsPlaying = (state: RootState) => state.songPlayback.isPlaying;
 
 export const selectSongPlaybackIsPaused = (state: RootState) => state.songPlayback.isPaused;
@@ -29,12 +27,6 @@ export const selectSongPlaybackModeLabel = (state: RootState): string => {
 
   return 'IDLE';
 };
-
-export const selectIsSongTimelineMode = (state: RootState): boolean =>
-  state.songPlayback.playbackMode === 'SONG_TIMELINE';
-
-export const selectIsSongTimelinePlaying = (state: RootState): boolean =>
-  state.songPlayback.playbackMode === 'SONG_TIMELINE' && state.songPlayback.isPlaying;
 
 /** True when this song is the active SONG_TIMELINE target (playing or paused). */
 export const selectSongTimelineActiveForSong = (

@@ -1,1 +1,1 @@
-export { editColors, studioColors } from './colors';
+export { studioColors } from './colors';

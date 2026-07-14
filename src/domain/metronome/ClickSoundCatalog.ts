@@ -1,5 +1,3 @@
-import { ClickSoundType } from './ClickSoundType';
-
 export const NORMAL_CLICK_SOUNDS = [
   { id: 'classic', label: 'Default' },
   { id: 'soft', label: 'Soft' },
@@ -74,23 +72,4 @@ export function normalizeSubdivisionClickSound(
   return value && isSubdivisionClickSoundId(value)
     ? value
     : DEFAULT_SUBDIVISION_CLICK_SOUND;
-}
-
-export function getClickSoundLabel(
-  type: ClickSoundType,
-  soundId: ClickSoundId,
-): string | undefined {
-  switch (type) {
-    case ClickSoundType.Normal:
-      return (
-        NORMAL_CLICK_SOUNDS.find((sound) => sound.id === soundId)?.label ??
-        SUBDIVISION_CLICK_SOUNDS.find((sound) => sound.id === soundId)?.label
-      );
-    case ClickSoundType.BeatAccent:
-      return ACCENT_CLICK_SOUNDS.find((sound) => sound.id === soundId)?.label;
-    case ClickSoundType.SubdivisionAccent:
-      return NORMAL_CLICK_SOUNDS.find((sound) => sound.id === soundId)?.label;
-    default:
-      return undefined;
-  }
 }

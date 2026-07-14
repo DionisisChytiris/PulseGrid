@@ -3,10 +3,6 @@ import { beatUnitWholeNoteFraction } from '../music/tempo/beatDuration';
 import { BeatUnit } from '../music/BeatUnit';
 import { createMeter, inferBeatUnitFromDenominator } from '../music/Meter';
 import type { SubdivisionKind } from '../valueObjects/Subdivision';
-import {
-  DEFAULT_SUBDIVISION_ACCENT_MODE,
-  type SubdivisionAccentMode,
-} from './SubdivisionAccentMode';
 
 const QUARTER_FRACTION = beatUnitWholeNoteFraction(BeatUnit.QUARTER);
 
@@ -25,15 +21,6 @@ const TICKS_PER_SUBDIVISION_KIND: Record<SubdivisionKind, number> = {
 };
 
 export type FinerSubdivisionSelection = SubdivisionKind | null;
-
-export type PulseGridEngineConfig = {
-  readonly engineBpm: number;
-  readonly beatsPerMeasure: number;
-  readonly accentPattern: readonly boolean[];
-  readonly subdivision: SubdivisionKind;
-  /** Subdivision accent behavior; beat accents use accentPattern only. */
-  readonly subdivisionAccentMode: SubdivisionAccentMode;
-};
 
 export type SubdivisionAvailability = {
   readonly finerSubdivisions: readonly SubdivisionKind[];
@@ -166,25 +153,4 @@ export function defaultAccentPatternForTimeSignature(timeSignature: TimeSignatur
   }
 
   return accents;
-}
-
-export function resolvePulseGridEngineConfig(input: {
-  readonly displayBpm: number;
-  readonly timeSignature: TimeSignature;
-  readonly accentPattern: readonly boolean[];
-  readonly finerSubdivision: FinerSubdivisionSelection;
-}): PulseGridEngineConfig {
-  const { displayBpm, timeSignature, accentPattern, finerSubdivision } = input;
-  const normalizedFinerSubdivision = normalizeFinerSubdivision(
-    timeSignature.denominator,
-    finerSubdivision,
-  );
-
-  return {
-    engineBpm: toEngineBpm(displayBpm, timeSignature.denominator),
-    beatsPerMeasure: timeSignature.numerator,
-    accentPattern,
-    subdivision: resolveEngineSubdivision(timeSignature.denominator, normalizedFinerSubdivision),
-    subdivisionAccentMode: DEFAULT_SUBDIVISION_ACCENT_MODE,
-  };
 }

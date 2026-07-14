@@ -29,7 +29,6 @@ export {
   defaultMeterGrouping,
   formatMeter,
   inferBeatUnitFromDenominator,
-  inferBeatUnitFromMeter,
   inferPulseBeatUnitFromMeter,
   inferTempoBeatUnitFromMeter,
   metersEqual,
