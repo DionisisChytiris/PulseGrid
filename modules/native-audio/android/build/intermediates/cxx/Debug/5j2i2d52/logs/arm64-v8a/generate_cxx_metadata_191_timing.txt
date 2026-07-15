@@ -18,3 +18,22 @@ generate_cxx_metadata
   write-metadata-json-to-file 41ms
 generate_cxx_metadata completed in 3905ms
 
+# C/C++ build system timings
+generate_cxx_metadata
+  [gap of 78ms]
+  create-invalidation-state 202ms
+  generate-prefab-packages
+    [gap of 93ms]
+    exec-prefab 2434ms
+    [gap of 44ms]
+  generate-prefab-packages completed in 2571ms
+  execute-generate-process
+    exec-configure 596ms
+    [gap of 127ms]
+  execute-generate-process completed in 724ms
+  [gap of 15ms]
+  remove-unexpected-so-files 12ms
+  [gap of 55ms]
+  write-metadata-json-to-file 15ms
+generate_cxx_metadata completed in 3693ms
+

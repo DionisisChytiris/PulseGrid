@@ -1,1 +1,18 @@
 expo.modules.nativeaudio
+raw click_accent
+raw click_accent_classic
+raw click_accent_cowbell
+raw click_accent_digital
+raw click_accent_strong
+raw click_normal
+raw click_normal_bright
+raw click_normal_classic
+raw click_normal_cowbell
+raw click_normal_digital
+raw click_normal_soft
+raw click_subdivision
+raw click_subdivision_bright
+raw click_subdivision_classic
+raw click_subdivision_cowbell
+raw click_subdivision_digital
+raw click_subdivision_soft

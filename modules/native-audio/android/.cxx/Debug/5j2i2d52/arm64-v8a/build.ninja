@@ -53,7 +53,7 @@ build CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/AudioRenderer.cpp.o: CXX
   DEFINES = -Dnativeaudio_oboe_stub_EXPORTS
   DEP_FILE = CMakeFiles\nativeaudio_oboe_stub.dir\src\main\cpp\AudioRenderer.cpp.o.d
   FLAGS = -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -fno-limit-debug-info  -fPIC
-  INCLUDES = -isystem C:/gcache/caches/8.14.3/transforms/0cb0b508e366a3d8ff1a36493f9d0d20/transformed/oboe-1.10.0/prefab/modules/oboe/include
+  INCLUDES = -isystem D:/.gradle/caches/8.14.3/transforms/0cb0b508e366a3d8ff1a36493f9d0d20/transformed/oboe-1.10.0/prefab/modules/oboe/include
   OBJECT_DIR = CMakeFiles\nativeaudio_oboe_stub.dir
   OBJECT_FILE_DIR = CMakeFiles\nativeaudio_oboe_stub.dir\src\main\cpp
 
@@ -61,7 +61,7 @@ build CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/OboeEngine.cpp.o: CXX_CO
   DEFINES = -Dnativeaudio_oboe_stub_EXPORTS
   DEP_FILE = CMakeFiles\nativeaudio_oboe_stub.dir\src\main\cpp\OboeEngine.cpp.o.d
   FLAGS = -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -fno-limit-debug-info  -fPIC
-  INCLUDES = -isystem C:/gcache/caches/8.14.3/transforms/0cb0b508e366a3d8ff1a36493f9d0d20/transformed/oboe-1.10.0/prefab/modules/oboe/include
+  INCLUDES = -isystem D:/.gradle/caches/8.14.3/transforms/0cb0b508e366a3d8ff1a36493f9d0d20/transformed/oboe-1.10.0/prefab/modules/oboe/include
   OBJECT_DIR = CMakeFiles\nativeaudio_oboe_stub.dir
   OBJECT_FILE_DIR = CMakeFiles\nativeaudio_oboe_stub.dir\src\main\cpp
 
@@ -69,7 +69,7 @@ build CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/SamplePlayer.cpp.o: CXX_
   DEFINES = -Dnativeaudio_oboe_stub_EXPORTS
   DEP_FILE = CMakeFiles\nativeaudio_oboe_stub.dir\src\main\cpp\SamplePlayer.cpp.o.d
   FLAGS = -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -fno-limit-debug-info  -fPIC
-  INCLUDES = -isystem C:/gcache/caches/8.14.3/transforms/0cb0b508e366a3d8ff1a36493f9d0d20/transformed/oboe-1.10.0/prefab/modules/oboe/include
+  INCLUDES = -isystem D:/.gradle/caches/8.14.3/transforms/0cb0b508e366a3d8ff1a36493f9d0d20/transformed/oboe-1.10.0/prefab/modules/oboe/include
   OBJECT_DIR = CMakeFiles\nativeaudio_oboe_stub.dir
   OBJECT_FILE_DIR = CMakeFiles\nativeaudio_oboe_stub.dir\src\main\cpp
 
@@ -77,7 +77,7 @@ build CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/oboe_click_player_jni.cp
   DEFINES = -Dnativeaudio_oboe_stub_EXPORTS
   DEP_FILE = CMakeFiles\nativeaudio_oboe_stub.dir\src\main\cpp\oboe_click_player_jni.cpp.o.d
   FLAGS = -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -fno-limit-debug-info  -fPIC
-  INCLUDES = -isystem C:/gcache/caches/8.14.3/transforms/0cb0b508e366a3d8ff1a36493f9d0d20/transformed/oboe-1.10.0/prefab/modules/oboe/include
+  INCLUDES = -isystem D:/.gradle/caches/8.14.3/transforms/0cb0b508e366a3d8ff1a36493f9d0d20/transformed/oboe-1.10.0/prefab/modules/oboe/include
   OBJECT_DIR = CMakeFiles\nativeaudio_oboe_stub.dir
   OBJECT_FILE_DIR = CMakeFiles\nativeaudio_oboe_stub.dir\src\main\cpp
 
@@ -89,10 +89,10 @@ build CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/oboe_click_player_jni.cp
 #############################################
 # Link the shared library ..\..\..\..\build\intermediates\cxx\Debug\5j2i2d52\obj\arm64-v8a\libnativeaudio_oboe_stub.so
 
-build ../../../../build/intermediates/cxx/Debug/5j2i2d52/obj/arm64-v8a/libnativeaudio_oboe_stub.so: CXX_SHARED_LIBRARY_LINKER__nativeaudio_oboe_stub_Debug CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/AudioRenderer.cpp.o CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/OboeEngine.cpp.o CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/SamplePlayer.cpp.o CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/oboe_click_player_jni.cpp.o | C$:/gcache/caches/8.14.3/transforms/0cb0b508e366a3d8ff1a36493f9d0d20/transformed/oboe-1.10.0/prefab/modules/oboe/libs/android.arm64-v8a/liboboe.so
+build ../../../../build/intermediates/cxx/Debug/5j2i2d52/obj/arm64-v8a/libnativeaudio_oboe_stub.so: CXX_SHARED_LIBRARY_LINKER__nativeaudio_oboe_stub_Debug CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/AudioRenderer.cpp.o CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/OboeEngine.cpp.o CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/SamplePlayer.cpp.o CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/oboe_click_player_jni.cpp.o | D$:/.gradle/caches/8.14.3/transforms/0cb0b508e366a3d8ff1a36493f9d0d20/transformed/oboe-1.10.0/prefab/modules/oboe/libs/android.arm64-v8a/liboboe.so
   LANGUAGE_COMPILE_FLAGS = -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -fno-limit-debug-info
   LINK_FLAGS = -Wl,--build-id=sha1 -Wl,--no-rosegment -Wl,--no-undefined-version -Wl,--fatal-warnings -Wl,--no-undefined -Qunused-arguments
-  LINK_LIBRARIES = C:/gcache/caches/8.14.3/transforms/0cb0b508e366a3d8ff1a36493f9d0d20/transformed/oboe-1.10.0/prefab/modules/oboe/libs/android.arm64-v8a/liboboe.so  -llog  -latomic -lm
+  LINK_LIBRARIES = D:/.gradle/caches/8.14.3/transforms/0cb0b508e366a3d8ff1a36493f9d0d20/transformed/oboe-1.10.0/prefab/modules/oboe/libs/android.arm64-v8a/liboboe.so  -llog  -latomic -lm
   OBJECT_DIR = CMakeFiles\nativeaudio_oboe_stub.dir
   POST_BUILD = cd .
   PRE_LINK = cd .

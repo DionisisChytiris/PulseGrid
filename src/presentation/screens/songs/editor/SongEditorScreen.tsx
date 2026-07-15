@@ -11,8 +11,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { createSong } from '../../../../domain/music/Song';
-import { SongTimelineView, TimelinePlaybackPanel } from '../../../../components/songTimeline';
+import { TimelinePlaybackPanel } from '../../../../components/songTimeline';
+import { SongSignatureTimeline } from '../../../components/songSignatureTimeline';
 import { meterOptions, useSongEditor } from '../../../hooks/useSongEditor';
+import { useSongEditorLandscapeLock } from '../../../hooks/useSongEditorLandscapeLock';
 import { useSongPlayback } from '../../../hooks/useSongPlayback';
 import { useTimelinePlaybackViewModels } from '../../../hooks/useTimelinePlaybackViewModels';
 import type { SongsStackParamList } from '../../../navigation/types';
@@ -21,6 +23,7 @@ import { studioColors } from '../../../theme';
 type Props = NativeStackScreenProps<SongsStackParamList, 'SongEditor'>;
 
 export default function SongEditorScreen({ navigation, route }: Props) {
+  useSongEditorLandscapeLock();
   const insets = useSafeAreaInsets();
   const { songId } = route.params;
   const {
@@ -75,61 +78,59 @@ export default function SongEditorScreen({ navigation, route }: Props) {
     <View
       style={[
         styles.container,
-        { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 },
+        {
+          paddingTop: insets.top + 8,
+          paddingBottom: insets.bottom + 8,
+          paddingLeft: Math.max(insets.left, 12),
+          paddingRight: Math.max(insets.right, 12),
+        },
       ]}
     >
-      <View style={styles.headerRow}>
-        <Pressable onPress={() => navigation.goBack()}>
+      <View style={styles.topBar}>
+        <Pressable onPress={() => navigation.goBack()} hitSlop={8}>
           <Text style={styles.backLink}>← Songs</Text>
         </Pressable>
+
+        <SongNameInput initialName={song.name} onCommit={setSongName} />
+
+        <View style={styles.transportCluster}>
+          <Pressable
+            style={[styles.transportButton, styles.playButton]}
+            onPress={() => playback.onPlaySong(song)}
+          >
+            <Text style={styles.playButtonText}>Play</Text>
+          </Pressable>
+          {timeline.showTransport ? (
+            <>
+              <Pressable style={styles.transportButton} onPress={playback.onSeekPreviousBar}>
+                <Text style={styles.transportButtonText}>Prev</Text>
+              </Pressable>
+              {!playback.isPlaying ? (
+                <Pressable style={styles.transportButton} onPress={playback.onResume}>
+                  <Text style={styles.transportButtonText}>Resume</Text>
+                </Pressable>
+              ) : (
+                <Pressable style={styles.transportButton} onPress={playback.onPause}>
+                  <Text style={styles.transportButtonText}>Pause</Text>
+                </Pressable>
+              )}
+              <Pressable style={styles.transportButton} onPress={playback.onStop}>
+                <Text style={styles.transportButtonText}>Stop</Text>
+              </Pressable>
+              <Pressable style={styles.transportButton} onPress={playback.onSeekNextBar}>
+                <Text style={styles.transportButtonText}>Next</Text>
+              </Pressable>
+            </>
+          ) : null}
+        </View>
+
         {saving ? <Text style={styles.saving}>Saving…</Text> : null}
       </View>
 
-      <Text style={styles.title}>{song.name}</Text>
-
-      <Text style={styles.label}>Song name</Text>
-      <SongNameInput initialName={song.name} onCommit={setSongName} />
-
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-      <View style={styles.transportRow}>
-        <Pressable
-          style={[styles.transportButton, styles.playButton]}
-          onPress={() => playback.onPlaySong(song)}
-        >
-          <Text style={styles.playButtonText}>▶ Play</Text>
-        </Pressable>
-        {timeline.showTransport ? (
-          <>
-            {!playback.isPlaying ? (
-              <Pressable style={styles.transportButton} onPress={playback.onResume}>
-                <Text style={styles.transportButtonText}>Resume</Text>
-              </Pressable>
-            ) : (
-              <Pressable style={styles.transportButton} onPress={playback.onPause}>
-                <Text style={styles.transportButtonText}>Pause</Text>
-              </Pressable>
-            )}
-            <Pressable style={styles.transportButton} onPress={playback.onStop}>
-              <Text style={styles.transportButtonText}>Stop</Text>
-            </Pressable>
-          </>
-        ) : null}
-      </View>
-
-      {timeline.showTransport ? (
-        <View style={styles.seekRow}>
-          <Pressable style={styles.seekButton} onPress={playback.onSeekPreviousBar}>
-            <Text style={styles.seekButtonText}>◀ Bar</Text>
-          </Pressable>
-          <Pressable style={styles.seekButton} onPress={playback.onSeekNextBar}>
-            <Text style={styles.seekButtonText}>Bar ▶</Text>
-          </Pressable>
-        </View>
-      ) : null}
-
       <View style={styles.timelineArea}>
-        <SongTimelineView
+        <SongSignatureTimeline
           song={song}
           segments={timeline.segments}
           meterOptions={meterChoices}
@@ -142,11 +143,12 @@ export default function SongEditorScreen({ navigation, route }: Props) {
         />
       </View>
 
-      <TimelinePlaybackPanel status={timeline.playbackStatus} />
-
-      <Pressable style={styles.addBarButton} onPress={addBar}>
-        <Text style={styles.addBarButtonText}>+ Add Bar</Text>
-      </Pressable>
+      <View style={styles.footer}>
+        <TimelinePlaybackPanel status={timeline.playbackStatus} />
+        <Pressable style={styles.addBarButton} onPress={addBar}>
+          <Text style={styles.addBarButtonText}>+ Add Bar</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -162,7 +164,7 @@ function SongNameInput({
 
   return (
     <TextInput
-      style={styles.input}
+      style={styles.nameInput}
       value={name}
       onChangeText={setName}
       onEndEditing={() => onCommit(name)}
@@ -173,7 +175,10 @@ function SongNameInput({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 16, backgroundColor: studioColors.background },
+  container: {
+    flex: 1,
+    backgroundColor: studioColors.background,
+  },
   centered: {
     flex: 1,
     alignItems: 'center',
@@ -181,52 +186,63 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: studioColors.background,
   },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  backLink: { color: studioColors.accent, fontSize: 16, marginBottom: 4 },
-  saving: { color: studioColors.textSecondary, fontSize: 13 },
-  title: { fontSize: 22, fontWeight: '800', color: studioColors.textPrimary, marginBottom: 4 },
-  label: { fontSize: 12, color: studioColors.textSecondary, marginBottom: 4, marginTop: 8 },
-  input: {
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 8,
+  },
+  backLink: {
+    color: studioColors.accent,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  nameInput: {
+    flex: 1,
+    minWidth: 120,
     borderWidth: 1,
     borderColor: studioColors.border,
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 8,
     fontSize: 16,
+    fontWeight: '700',
     color: studioColors.textPrimary,
     backgroundColor: studioColors.surface,
   },
-  transportRow: { flexDirection: 'row', gap: 8, marginTop: 12, marginBottom: 8 },
+  transportCluster: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   transportButton: {
-    flex: 1,
     backgroundColor: studioColors.surfaceElevated,
-    borderRadius: 10,
-    paddingVertical: 12,
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
     alignItems: 'center',
   },
-  transportButtonText: { fontWeight: '600', color: studioColors.textPrimary },
+  transportButtonText: { fontWeight: '600', color: studioColors.textPrimary, fontSize: 12 },
   playButton: { backgroundColor: studioColors.accent },
-  playButtonText: { color: '#fff', fontWeight: '700' },
-  seekRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
-  seekButton: {
+  playButtonText: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  saving: { color: studioColors.textSecondary, fontSize: 12 },
+  timelineArea: {
     flex: 1,
-    backgroundColor: studioColors.surface,
+    minHeight: 160,
+  },
+  footer: {
+    flexGrow: 0,
+    flexShrink: 0,
+    gap: 6,
+    marginTop: 6,
+  },
+  addBarButton: {
+    backgroundColor: studioColors.surfaceElevated,
     borderRadius: 8,
     paddingVertical: 8,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: studioColors.border,
   },
-  seekButtonText: { fontWeight: '600', color: studioColors.textPrimary },
-  timelineArea: { flex: 1, minHeight: 220 },
-  addBarButton: {
-    marginTop: 10,
-    backgroundColor: studioColors.surfaceElevated,
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  addBarButtonText: { fontWeight: '600', color: studioColors.textPrimary },
+  addBarButtonText: { fontWeight: '600', color: studioColors.textPrimary, fontSize: 13 },
   secondaryButton: {
     marginTop: 12,
     backgroundColor: studioColors.surfaceElevated,

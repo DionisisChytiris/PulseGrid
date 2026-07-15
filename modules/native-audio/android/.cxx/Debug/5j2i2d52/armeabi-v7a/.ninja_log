@@ -1,11 +1,11 @@
 # ninja log v5
-16	1803	8050533184133575	CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/SamplePlayer.cpp.o	9ae6ab0774ff776e
-45	2932	8050533195419388	CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/AudioRenderer.cpp.o	7b61901a44fdd04e
-0	2950	8050533195562896	CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/oboe_click_player_jni.cpp.o	9061f110e41ff910
-3080	3381	8050533199807479	../../../../build/intermediates/cxx/Debug/5j2i2d52/obj/armeabi-v7a/libnativeaudio_oboe_stub.so	e424abe677344c1e
-30	3079	8050533196853323	CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/OboeEngine.cpp.o	a27b6e71bed738b4
-41	1766	8050544054165532	CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/SamplePlayer.cpp.o	2a66ca5445848ba5
-56	2695	8050544063380030	CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/AudioRenderer.cpp.o	453ae34971064cd6
-22	2759	8050544064059565	CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/oboe_click_player_jni.cpp.o	cd2cb8addc71eeb2
-74	2894	8050544065360640	CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/OboeEngine.cpp.o	6dc307a48bc94734
-2894	3205	8050544068449364	../../../../build/intermediates/cxx/Debug/5j2i2d52/obj/armeabi-v7a/libnativeaudio_oboe_stub.so	d497c23365aa694d
+19	1528	8057697725066981	CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/SamplePlayer.cpp.o	71752f0ee35dadaf
+49	2457	8057697734284562	CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/AudioRenderer.cpp.o	50345023c23f52
+32	2567	8057697735418658	CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/oboe_click_player_jni.cpp.o	7b9047b9c115f68
+2711	3034	8057697739966611	../../../../build/intermediates/cxx/Debug/5j2i2d52/obj/armeabi-v7a/libnativeaudio_oboe_stub.so	64b336adee66bbc4
+60	2711	8057697736878559	CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/OboeEngine.cpp.o	d4f4f284e793e518
+15	1319	8057703215004850	CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/SamplePlayer.cpp.o	727c2408f0dfe6a7
+26	2146	8057703223275821	CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/oboe_click_player_jni.cpp.o	66164c6bc5b2154b
+37	2183	8057703223663892	CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/AudioRenderer.cpp.o	656b0728a4d5c947
+49	2230	8057703224083706	CMakeFiles/nativeaudio_oboe_stub.dir/src/main/cpp/OboeEngine.cpp.o	ec550fc7ab2749f0
+2230	2499	8057703226692918	../../../../build/intermediates/cxx/Debug/5j2i2d52/obj/armeabi-v7a/libnativeaudio_oboe_stub.so	7c29b2fb1e062806

@@ -1,6 +1,6 @@
 import type { Bar } from '../../domain/music/Bar';
 import { getBarTempoBpm } from '../../domain/music/Bar';
-import { formatMeter, metersEqual, type Meter } from '../../domain/music/Meter';
+import { formatMeter, type Meter } from '../../domain/music/Meter';
 import type { Song } from '../../domain/music/Song';
 
 import type { TimelineSegment } from './types';
@@ -19,8 +19,13 @@ function segmentBpmOverride(bars: readonly Bar[]): number | null {
   return allSame ? first : null;
 }
 
+function sameSignature(a: Meter, b: Meter): boolean {
+  return a.numerator === b.numerator && a.denominator === b.denominator;
+}
+
 /**
- * Groups consecutive bars with the same meter into horizontal timeline segments.
+ * Groups consecutive bars with the same time signature (numerator + denominator)
+ * into Signature Track meter regions.
  * Pure UI derivation — does not affect playback or scheduling.
  */
 export function buildTimelineSegments(song: Song): TimelineSegment[] {
@@ -52,10 +57,10 @@ export function buildTimelineSegments(song: Song): TimelineSegment[] {
   for (let index = 1; index <= bars.length; index += 1) {
     const prevMeter = bars[index - 1].meter;
     const atEnd = index === bars.length;
-    const meterChanged =
-      !atEnd && !metersEqual(prevMeter, bars[index].meter);
+    const signatureChanged =
+      !atEnd && !sameSignature(prevMeter, bars[index].meter);
 
-    if (atEnd || meterChanged) {
+    if (atEnd || signatureChanged) {
       pushSegment(runStart, index - 1);
       runStart = index;
     }

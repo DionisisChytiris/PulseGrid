@@ -7,56 +7,51 @@ type Props = {
   status: PlaybackStatusViewModel;
 };
 
+/** Compact single-line playback status — keeps Signature Track visible in landscape. */
 export function TimelinePlaybackPanel({ status }: Props) {
   if (!status.isActive) {
     return (
-      <View style={styles.panel}>
-        <Text style={styles.idle}>Press Play to follow the timeline</Text>
+      <View style={styles.strip}>
+        <Text style={styles.idle} numberOfLines={1}>
+          Press Play to follow the timeline
+        </Text>
       </View>
     );
   }
 
+  const tempoLabel = status.tempo !== null ? `${status.tempo} BPM` : '— BPM';
+  const line = `Bar ${status.currentBar}/${status.totalBars} · Beat ${status.currentBeat}/${status.beatsInBar} · ${status.meter} · ${tempoLabel}`;
+
   return (
-    <View style={styles.panel}>
-      <Text style={styles.row}>
-        <Text style={styles.label}>Current Section: </Text>
-        <Text style={styles.value}>{status.sectionName}</Text>
-      </Text>
-      <Text style={styles.row}>
-        <Text style={styles.label}>Current Bar: </Text>
-        <Text style={styles.value}>
-          {status.currentBar} / {status.totalBars}
-        </Text>
-      </Text>
-      <Text style={styles.row}>
-        <Text style={styles.label}>Current Beat: </Text>
-        <Text style={styles.value}>
-          {status.currentBeat} / {status.beatsInBar}
-        </Text>
-      </Text>
-      <Text style={styles.row}>
-        <Text style={styles.label}>Tempo: </Text>
-        <Text style={styles.value}>{status.tempo ?? '—'} BPM</Text>
-      </Text>
-      <Text style={styles.row}>
-        <Text style={styles.label}>Meter: </Text>
-        <Text style={styles.value}>{status.meter}</Text>
+    <View style={styles.strip}>
+      <Text style={styles.active} numberOfLines={1}>
+        {line}
       </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  panel: {
-    marginTop: 12,
-    padding: 14,
-    borderRadius: 12,
+  strip: {
+    minHeight: 32,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
     backgroundColor: studioColors.surfaceElevated,
     borderWidth: 1,
     borderColor: studioColors.border,
+    justifyContent: 'center',
   },
-  idle: { color: studioColors.textSecondary, fontSize: 13, textAlign: 'center' },
-  row: { marginBottom: 4 },
-  label: { color: studioColors.textSecondary, fontSize: 13 },
-  value: { color: studioColors.textPrimary, fontSize: 13, fontWeight: '700' },
+  idle: {
+    color: studioColors.textSecondary,
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  active: {
+    color: studioColors.textPrimary,
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+    letterSpacing: 0.2,
+  },
 });
