@@ -1,18 +1,21 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useMemo, useState } from 'react';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { createSong } from '../../../../domain/music/Song';
-import { TimelinePlaybackPanel } from '../../../../components/songTimeline';
+import { CustomKeyboard } from '../../../components/CustomKeyboard';
 import { SongSignatureTimeline } from '../../../components/songSignatureTimeline';
+import { useEditorCustomKeyboard } from '../../../hooks/useEditorCustomKeyboard';
 import { meterOptions, useSongEditor } from '../../../hooks/useSongEditor';
 import { useSongEditorLandscapeLock } from '../../../hooks/useSongEditorLandscapeLock';
 import { useSongPlayback } from '../../../hooks/useSongPlayback';
@@ -25,6 +28,7 @@ type Props = NativeStackScreenProps<SongsStackParamList, 'SongEditor'>;
 export default function SongEditorScreen({ navigation, route }: Props) {
   useSongEditorLandscapeLock();
   const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
   const { songId } = route.params;
   const {
     song,
@@ -41,6 +45,7 @@ export default function SongEditorScreen({ navigation, route }: Props) {
 
   const playback = useSongPlayback();
   const meterChoices = meterOptions();
+  const keyboard = useEditorCustomKeyboard();
   const placeholderSong = useMemo(
     () => createSong({ id: 'loading', name: '', sections: [] }),
     [],
@@ -54,6 +59,14 @@ export default function SongEditorScreen({ navigation, route }: Props) {
     isPlaying: playback.isPlaying,
     isPaused: playback.isPaused,
   });
+
+  const songNameKeyboardVisible = keyboard.activeField === 'songName';
+  const dockRight = songNameKeyboardVisible && width > height;
+  const rightPad = dockRight ? Math.round(width * 0.45) : Math.max(insets.right, 12);
+  const bottomPad =
+    songNameKeyboardVisible && !dockRight
+      ? Math.max(insets.bottom, 12) + 240
+      : insets.bottom + 8;
 
   if (loading) {
     return (
@@ -74,15 +87,23 @@ export default function SongEditorScreen({ navigation, route }: Props) {
     );
   }
 
+  const commitSongName = () => {
+    if (keyboard.activeField === 'songName') {
+      const next = keyboard.value.trim().length > 0 ? keyboard.value.trim() : song.name;
+      setSongName(next);
+    }
+    keyboard.dismiss();
+  };
+
   return (
     <View
       style={[
         styles.container,
         {
           paddingTop: insets.top + 8,
-          paddingBottom: insets.bottom + 8,
+          paddingBottom: bottomPad,
           paddingLeft: Math.max(insets.left, 12),
-          paddingRight: Math.max(insets.right, 12),
+          paddingRight: rightPad,
         },
       ]}
     >
@@ -91,38 +112,38 @@ export default function SongEditorScreen({ navigation, route }: Props) {
           <Text style={styles.backLink}>← Songs</Text>
         </Pressable>
 
-        <SongNameInput initialName={song.name} onCommit={setSongName} />
+        <SongNameInput
+          name={song.name}
+          draft={songNameKeyboardVisible ? keyboard.value : song.name}
+          focused={songNameKeyboardVisible}
+          onRegister={(ref) => keyboard.registerInput('songName', ref)}
+          onFocus={(current) => keyboard.focusField('songName', current, 'letters')}
+          onDraftChange={(value) => {
+            if (keyboard.activeField === 'songName') {
+              keyboard.setValue(value);
+            }
+          }}
+        />
 
-        <View style={styles.transportCluster}>
-          <Pressable
-            style={[styles.transportButton, styles.playButton]}
-            onPress={() => playback.onPlaySong(song)}
-          >
-            <Text style={styles.playButtonText}>Play</Text>
-          </Pressable>
-          {timeline.showTransport ? (
-            <>
-              <Pressable style={styles.transportButton} onPress={playback.onSeekPreviousBar}>
-                <Text style={styles.transportButtonText}>Prev</Text>
-              </Pressable>
-              {!playback.isPlaying ? (
-                <Pressable style={styles.transportButton} onPress={playback.onResume}>
-                  <Text style={styles.transportButtonText}>Resume</Text>
-                </Pressable>
-              ) : (
-                <Pressable style={styles.transportButton} onPress={playback.onPause}>
-                  <Text style={styles.transportButtonText}>Pause</Text>
-                </Pressable>
-              )}
-              <Pressable style={styles.transportButton} onPress={playback.onStop}>
-                <Text style={styles.transportButtonText}>Stop</Text>
-              </Pressable>
-              <Pressable style={styles.transportButton} onPress={playback.onSeekNextBar}>
-                <Text style={styles.transportButtonText}>Next</Text>
-              </Pressable>
-            </>
-          ) : null}
-        </View>
+        <Pressable
+          style={[
+            styles.transportButton,
+            timeline.showTransport ? styles.stopButton : styles.playButton,
+          ]}
+          onPress={
+            timeline.showTransport
+              ? playback.onStop
+              : () => playback.onPlaySong(song)
+          }
+          accessibilityRole="button"
+          accessibilityLabel={timeline.showTransport ? 'Stop playback' : 'Start playback'}
+        >
+          <Ionicons
+            name={timeline.showTransport ? 'stop' : 'play'}
+            size={20}
+            color="#fff"
+          />
+        </Pressable>
 
         {saving ? <Text style={styles.saving}>Saving…</Text> : null}
       </View>
@@ -135,41 +156,85 @@ export default function SongEditorScreen({ navigation, route }: Props) {
           segments={timeline.segments}
           meterOptions={meterChoices}
           isTimelineActive={timeline.isTimelineActive}
+          isPlaying={playback.isPlaying}
           currentBarIndex={playback.currentBarIndex}
+          currentBeatIndex={timeline.playbackStatus.currentBeat - 1}
+          currentBpm={timeline.playbackStatus.tempo}
+          currentMeter={timeline.playbackStatus.meter}
           onSegmentBarCountChange={setSegmentBarCount}
           onSegmentMeterChange={setSegmentMeter}
           onSegmentBpmOverrideChange={setSegmentBpmOverride}
           onSegmentAccentChange={setSegmentAccent}
+          onAddBar={addBar}
+          meterKeyboard={{
+            active: keyboard.activeField === 'segmentMeter',
+            value: keyboard.activeField === 'segmentMeter' ? keyboard.value : '',
+            onChangeText: keyboard.setValue,
+            onFocus: (currentValue) =>
+              keyboard.focusField('segmentMeter', currentValue, 'numbers'),
+            onDone: () => keyboard.dismiss(),
+            onRegister: (ref) => keyboard.registerInput('segmentMeter', ref),
+          }}
         />
       </View>
 
-      <View style={styles.footer}>
-        <TimelinePlaybackPanel status={timeline.playbackStatus} />
-        <Pressable style={styles.addBarButton} onPress={addBar}>
-          <Text style={styles.addBarButtonText}>+ Add Bar</Text>
-        </Pressable>
-      </View>
+      <CustomKeyboard
+        visible={songNameKeyboardVisible}
+        value={songNameKeyboardVisible ? keyboard.value : ''}
+        onChangeText={keyboard.setValue}
+        onDone={commitSongName}
+        placement="auto"
+        initialMode="letters"
+      />
     </View>
   );
 }
 
 function SongNameInput({
-  initialName,
-  onCommit,
+  name,
+  draft,
+  focused,
+  onRegister,
+  onFocus,
+  onDraftChange,
 }: {
-  initialName: string;
-  onCommit: (name: string) => void;
+  name: string;
+  draft: string;
+  focused: boolean;
+  onRegister: (ref: TextInput | null) => void;
+  onFocus: (current: string) => void;
+  onDraftChange: (value: string) => void;
 }) {
-  const [name, setName] = useState(initialName);
+  const inputRef = useRef<TextInput>(null);
+  const [local, setLocal] = useState(name);
+
+  useEffect(() => {
+    if (!focused) {
+      setLocal(name);
+      inputRef.current?.blur();
+    }
+  }, [focused, name]);
+
+  const display = focused ? draft : local;
 
   return (
     <TextInput
-      style={styles.nameInput}
-      value={name}
-      onChangeText={setName}
-      onEndEditing={() => onCommit(name)}
+      ref={(ref) => {
+        inputRef.current = ref;
+        onRegister(ref);
+      }}
+      style={[styles.nameInput, focused && styles.nameInputFocused]}
+      value={display}
+      onChangeText={(text) => {
+        setLocal(text);
+        onDraftChange(text);
+      }}
+      onFocus={() => onFocus(local)}
       placeholder="Song name"
       placeholderTextColor={studioColors.textMuted}
+      showSoftInputOnFocus={false}
+      disableFullscreenUI
+      caretHidden={!focused}
     />
   );
 }
@@ -210,39 +275,23 @@ const styles = StyleSheet.create({
     color: studioColors.textPrimary,
     backgroundColor: studioColors.surface,
   },
-  transportCluster: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  nameInputFocused: {
+    borderColor: studioColors.accent,
   },
   transportButton: {
-    backgroundColor: studioColors.surfaceElevated,
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  transportButtonText: { fontWeight: '600', color: studioColors.textPrimary, fontSize: 12 },
   playButton: { backgroundColor: studioColors.accent },
-  playButtonText: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  stopButton: { backgroundColor: studioColors.stop },
   saving: { color: studioColors.textSecondary, fontSize: 12 },
   timelineArea: {
     flex: 1,
     minHeight: 160,
   },
-  footer: {
-    flexGrow: 0,
-    flexShrink: 0,
-    gap: 6,
-    marginTop: 6,
-  },
-  addBarButton: {
-    backgroundColor: studioColors.surfaceElevated,
-    borderRadius: 8,
-    paddingVertical: 8,
-    alignItems: 'center',
-  },
-  addBarButtonText: { fontWeight: '600', color: studioColors.textPrimary, fontSize: 13 },
   secondaryButton: {
     marginTop: 12,
     backgroundColor: studioColors.surfaceElevated,

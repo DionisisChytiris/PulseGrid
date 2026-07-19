@@ -1,4 +1,5 @@
 import type { PlaybackEvent } from '../compiler/PlaybackEvent';
+import { toEngineBpm } from '../../metronome/PulseGridSettings';
 
 /**
  * Scheduler-facing tick snapshot aligned with MetronomeEngine TickSnapshot.
@@ -16,6 +17,7 @@ export type ScheduledTickSnapshot = {
   readonly scheduledDeadlineNs: number;
   readonly barId: string;
   readonly sectionId: string;
+  /** Engine BPM (same conversion as Quick Metronome via toEngineBpm). */
   readonly bpm: number;
   readonly sourceEventIndex: number;
 };
@@ -44,7 +46,7 @@ export function computeDeadlineOffsets(events: readonly PlaybackEvent[]): readon
 }
 
 function tickDurationNs(event: PlaybackEvent): number {
-  return beatDurationNs(event.bpm);
+  return beatDurationNs(toEngineBpm(event.bpm, event.meter.denominator));
 }
 
 export function mapPlaybackEventToScheduledSnapshot(
@@ -66,7 +68,7 @@ export function mapPlaybackEventToScheduledSnapshot(
     scheduledDeadlineNs: anchorTimeNs + offsetNs,
     barId: event.barId,
     sectionId: event.sectionId,
-    bpm: event.bpm,
+    bpm: toEngineBpm(event.bpm, event.meter.denominator),
     sourceEventIndex: sequence,
   };
 }

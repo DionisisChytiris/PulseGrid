@@ -1,5 +1,6 @@
 import type { CompiledPlaybackSequence } from '../../domain/music/compiler/CompiledPlaybackSequence';
 import type { PlaybackEvent } from '../../domain/music/compiler/PlaybackEvent';
+import { toEngineBpm } from '../../domain/metronome/PulseGridSettings';
 
 /** Wire format for one compiled tick passed to native MetronomeEngine. */
 export type NativeTimelinePlaybackEvent = {
@@ -16,7 +17,8 @@ export type NativeTimelinePlaybackEvent = {
 export function serializeTimelineEventForNative(event: PlaybackEvent): NativeTimelinePlaybackEvent {
   return {
     sequence: event.sequence,
-    bpm: event.bpm,
+    // Same conversion Quick Metronome applies before sending BPM to the engine.
+    bpm: toEngineBpm(event.bpm, event.meter.denominator),
     accent: event.accent,
     subdivisionIndex: event.subdivisionIndex,
     beatIndexInBar: event.beatIndexInBar,

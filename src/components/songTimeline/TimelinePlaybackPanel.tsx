@@ -10,13 +10,7 @@ type Props = {
 /** Compact single-line playback status — keeps Signature Track visible in landscape. */
 export function TimelinePlaybackPanel({ status }: Props) {
   if (!status.isActive) {
-    return (
-      <View style={styles.strip}>
-        <Text style={styles.idle} numberOfLines={1}>
-          Press Play to follow the timeline
-        </Text>
-      </View>
-    );
+    return null;
   }
 
   const tempoLabel = status.tempo !== null ? `${status.tempo} BPM` : '— BPM';
@@ -41,11 +35,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: studioColors.border,
     justifyContent: 'center',
-  },
-  idle: {
-    color: studioColors.textSecondary,
-    fontSize: 12,
-    textAlign: 'center',
   },
   active: {
     color: studioColors.textPrimary,

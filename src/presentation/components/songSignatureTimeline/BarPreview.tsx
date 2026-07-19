@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import type { AccentPreviewBeat } from '../../viewModels/TimelineSegmentViewModel';
@@ -6,30 +6,50 @@ import { studioColors } from '../../theme';
 
 import { BeatAccentIndicator } from './BeatAccentIndicator';
 import {
-  BAR_CELL_PADDING_H,
   BAR_CELL_PADDING_V,
-  BEAT_GAP,
-  BEAT_SIZE,
+  GRID_SLOT_WIDTH,
   TRACK_HEIGHT,
   barCellWidth,
+  pulseMarkerCenterX,
+  pulseMarkerSize,
 } from './signatureTimelineConstants';
 
 type Props = {
   beats: readonly AccentPreviewBeat[];
+  /** Time-signature denominator — drives pulse density on the fixed grid. */
+  denominator: number;
   isActive?: boolean;
   isPast?: boolean;
 };
 
 /**
- * One bar cell inside a Signature Track region:
- * │● ○ ○ ○│
+ * One bar cell inside a Signature Track region.
+ *
+ * Grid lines follow a fixed quarter-note ruler.
+ * The first pulse of each quarter-note group sits on the grid line;
+ * remaining subdivision pulses are evenly spaced toward the next grid line.
+ *
+ * Bar-start / section-start pulses (index 0) are kept fully inside the cell so
+ * parent overflow never clips them into half-circles at signature boundaries.
  */
 export const BarPreview = memo(function BarPreview({
   beats,
+  denominator,
   isActive = false,
   isPast = false,
 }: Props) {
-  const width = barCellWidth(beats.length);
+  const pulseCount = Math.max(1, beats.length);
+  const width = barCellWidth(pulseCount, denominator);
+  const markerSize = pulseMarkerSize(denominator);
+
+  const gridLineOffsets = useMemo(() => {
+    const offsets: number[] = [];
+    // Skip 0 — the cell's left border is the bar / first grid line.
+    for (let x = GRID_SLOT_WIDTH; x < width - 0.5; x += GRID_SLOT_WIDTH) {
+      offsets.push(x);
+    }
+    return offsets;
+  }, [width]);
 
   return (
     <View
@@ -40,14 +60,37 @@ export const BarPreview = memo(function BarPreview({
         isActive && styles.active,
       ]}
     >
-      <View style={styles.beatRow}>
-        {beats.map((beat, index) => (
-          <BeatAccentIndicator
-            key={`beat-${index}`}
-            accented={beat.symbol === 'accent'}
-            size={BEAT_SIZE}
-          />
+      <View pointerEvents="none" style={styles.grid}>
+        {gridLineOffsets.map((x) => (
+          <View key={`grid-${x}`} style={[styles.gridLine, { left: x }]} />
         ))}
+      </View>
+
+      <View pointerEvents="none" style={styles.pulseLayer}>
+        {beats.map((beat, index) => {
+          const centerX = pulseMarkerCenterX(index, denominator);
+          // Position by centre, so anchor pulses use the exact grid-line x-coordinate.
+          const left = centerX - markerSize / 2;
+
+          return (
+            <View
+              key={`pulse-${index}`}
+              style={[
+                styles.pulseSlot,
+                {
+                  left,
+                  width: markerSize,
+                  height: markerSize,
+                },
+              ]}
+            >
+              <BeatAccentIndicator
+                accented={beat.symbol === 'accent'}
+                size={markerSize}
+              />
+            </View>
+          );
+        })}
       </View>
     </View>
   );
@@ -55,10 +98,13 @@ export const BarPreview = memo(function BarPreview({
 
 const styles = StyleSheet.create({
   cell: {
-    alignItems: 'center',
+    alignSelf: 'stretch',
     justifyContent: 'center',
-    paddingHorizontal: BAR_CELL_PADDING_H,
     paddingVertical: BAR_CELL_PADDING_V,
+    borderLeftWidth: 1.5,
+    borderLeftColor: 'rgba(148, 163, 184, 0.42)',
+    overflow: 'visible',
+    position: 'relative',
   },
   past: {
     backgroundColor: 'rgba(59, 158, 255, 0.1)',
@@ -66,10 +112,27 @@ const styles = StyleSheet.create({
   active: {
     backgroundColor: studioColors.accentMutedBg,
   },
-  beatRow: {
-    flexDirection: 'row',
+  grid: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'hidden',
+  },
+  gridLine: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: StyleSheet.hairlineWidth,
+    marginLeft: -StyleSheet.hairlineWidth / 2,
+    backgroundColor: 'rgba(148, 163, 184, 0.18)',
+  },
+  pulseLayer: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    overflow: 'visible',
+    zIndex: 1,
+  },
+  pulseSlot: {
+    position: 'absolute',
     alignItems: 'center',
-    flexWrap: 'nowrap',
-    gap: BEAT_GAP,
+    justifyContent: 'center',
   },
 });

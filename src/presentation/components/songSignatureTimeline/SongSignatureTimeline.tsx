@@ -1,6 +1,7 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FlatList,
+  Pressable,
   StyleSheet,
   Text,
   View,
@@ -10,31 +11,103 @@ import {
 
 import { SegmentEditBottomSheet } from '../../../components/songTimeline/SegmentEditBottomSheet';
 import { AUTO_FOLLOW_SUSPEND_MS } from '../../../components/songTimeline/timelineConstants';
-import { useTimelineAutoScroll } from '../../../components/songTimeline/useTimelineAutoScroll';
-import { buildTimelineSegments } from '../../../components/songTimeline/buildTimelineSegments';
 import type { TimelineSegment } from '../../../components/songTimeline/types';
 import type { Song } from '../../../domain/music/Song';
+import { pulseDurationMsFromDisplayBpm } from '../../../domain/metronome/PulseGridSettings';
 import { findDomainSegmentById } from '../../viewModels/buildTimelineSegmentViewModels';
 import type { TimelineSegmentViewModel } from '../../viewModels/TimelineSegmentViewModel';
 import { studioColors } from '../../theme';
 
 import { MeterRegion } from './MeterRegion';
-import { REGION_GAP, meterRegionWidth } from './signatureTimelineConstants';
+import {
+  BAR_CELL_PADDING_V,
+  REGION_GAP,
+  TRACK_HEIGHT,
+  barCellWidth,
+  meterRegionWidth,
+  parseMeterDenominator,
+} from './signatureTimelineConstants';
 
 type Props = {
   song: Song;
   segments: readonly TimelineSegmentViewModel[];
   meterOptions: readonly string[];
   isTimelineActive: boolean;
+  isPlaying: boolean;
   currentBarIndex: number;
+  currentBeatIndex: number;
+  currentBpm: number | null;
+  currentMeter: string;
   onSegmentBarCountChange: (segment: TimelineSegment, count: number) => void;
   onSegmentMeterChange: (segment: TimelineSegment, meterLabel: string) => void;
   onSegmentBpmOverrideChange: (segment: TimelineSegment, bpm: number | null) => void;
   onSegmentAccentChange: (segment: TimelineSegment, presetId: string) => void;
+  onAddBar: () => void;
+  meterKeyboard?: {
+    active: boolean;
+    value: string;
+    onChangeText: (value: string) => void;
+    onFocus: (currentValue: string) => void;
+    onDone: () => void;
+    onRegister?: (ref: import('react-native').TextInput | null) => void;
+  };
+};
+
+type PlaybackCursor = {
+  barIndex: number;
+  beatIndex: number;
+  beatDurationMs: number;
+  tickReceivedAt: number;
+  isPlaying: boolean;
 };
 
 function segmentStride(segment: TimelineSegmentViewModel): number {
-  return meterRegionWidth(segment.numberOfBars, segment.accentPreview.length) + REGION_GAP;
+  const denominator = parseMeterDenominator(segment.meter);
+  return (
+    meterRegionWidth(segment.numberOfBars, segment.accentPreview.length, denominator) +
+    REGION_GAP
+  );
+}
+
+/**
+ * Shared coordinate system: pulse N is anchored at N * beatWidth (on the grid
+ * line for the first pulse of each quarter-note group). Fractional beats
+ * interpolate between consecutive pulse anchors.
+ */
+function playbackScrollOffset(
+  segments: readonly TimelineSegmentViewModel[],
+  barIndex: number,
+  beatPosition: number,
+): number {
+  let offset = 0;
+
+  for (const segment of segments) {
+    const segmentStartIndex = segment.startBar - 1;
+    const segmentEndIndex = segment.endBar - 1;
+    const beatsInBar = Math.max(1, segment.accentPreview.length);
+    const denominator = parseMeterDenominator(segment.meter);
+    const cellWidth = barCellWidth(beatsInBar, denominator);
+    const beatWidth = cellWidth / beatsInBar;
+
+    if (barIndex >= segmentStartIndex && barIndex <= segmentEndIndex) {
+      const clamped = Math.min(Math.max(beatPosition, 0), beatsInBar - 0.0001);
+      return (
+        offset +
+        (barIndex - segmentStartIndex) * cellWidth +
+        clamped * beatWidth
+      );
+    }
+
+    offset += segmentStride(segment);
+  }
+
+  return offset;
+}
+
+function pulseDurationMs(bpm: number | null, meterLabel: string): number {
+  const safeBpm = bpm !== null && bpm > 0 ? bpm : 120;
+  const denominator = Number(meterLabel.split('/')[1]) || 4;
+  return pulseDurationMsFromDisplayBpm(safeBpm, denominator);
 }
 
 /**
@@ -45,19 +118,37 @@ export function SongSignatureTimeline({
   segments,
   meterOptions,
   isTimelineActive,
+  isPlaying,
   currentBarIndex,
+  currentBeatIndex,
+  currentBpm,
+  currentMeter,
   onSegmentBarCountChange,
   onSegmentMeterChange,
   onSegmentBpmOverrideChange,
   onSegmentAccentChange,
+  onAddBar,
+  meterKeyboard,
 }: Props) {
   const listRef = useRef<FlatList<TimelineSegmentViewModel>>(null);
-  const segmentLayouts = useRef(new Map<string, { x: number; width: number }>());
   const autoFollowSuspendedUntil = useRef(0);
+  const animationFrameRef = useRef<number | null>(null);
+  const playbackCursorRef = useRef<PlaybackCursor>({
+    barIndex: 0,
+    beatIndex: 0,
+    beatDurationMs: pulseDurationMs(120, '4/4'),
+    tickReceivedAt: 0,
+    isPlaying: false,
+  });
+  const segmentsRef = useRef(segments);
+  const wasTimelineActiveRef = useRef(false);
+  const wasPlayingRef = useRef(false);
+  const lastTickKeyRef = useRef<string | null>(null);
   const [viewportWidth, setViewportWidth] = useState(0);
   const [editingSegmentId, setEditingSegmentId] = useState<string | null>(null);
 
-  const domainSegments = useMemo(() => buildTimelineSegments(song), [song]);
+  segmentsRef.current = segments;
+
   const editingDomainSegment =
     editingSegmentId === null ? null : findDomainSegmentById(song, editingSegmentId);
   const editingViewModel =
@@ -65,15 +156,130 @@ export function SongSignatureTimeline({
       ? null
       : (segments.find((segment) => segment.id === editingSegmentId) ?? null);
 
-  useTimelineAutoScroll({
-    listRef,
-    segments: domainSegments,
+  const scrollToPlaybackPosition = useCallback((animated: boolean) => {
+    const cursor = playbackCursorRef.current;
+    const elapsed = Math.max(0, performance.now() - cursor.tickReceivedAt);
+    const fraction = cursor.isPlaying
+      ? Math.min(0.999, elapsed / Math.max(1, cursor.beatDurationMs))
+      : 0;
+    const offset = playbackScrollOffset(
+      segmentsRef.current,
+      cursor.barIndex,
+      cursor.beatIndex + fraction,
+    );
+
+    if (Date.now() >= autoFollowSuspendedUntil.current) {
+      listRef.current?.scrollToOffset({ offset, animated });
+    }
+  }, []);
+
+  const animateFollow = useCallback(
+    (_timestamp: number) => {
+      const cursor = playbackCursorRef.current;
+
+      if (!cursor.isPlaying) {
+        animationFrameRef.current = null;
+        return;
+      }
+
+      scrollToPlaybackPosition(false);
+      animationFrameRef.current = requestAnimationFrame(animateFollow);
+    },
+    [scrollToPlaybackPosition],
+  );
+
+  useEffect(() => {
+    const meter =
+      currentMeter !== '—' && currentMeter.length > 0
+        ? currentMeter
+        : (segments.find(
+            (segment) =>
+              currentBarIndex >= segment.startBar - 1 &&
+              currentBarIndex <= segment.endBar - 1,
+          )?.meter ?? '4/4');
+
+    const tickKey = `${currentBarIndex}:${currentBeatIndex}:${currentBpm ?? 'na'}:${meter}`;
+    const tickChanged = tickKey !== lastTickKeyRef.current;
+    const startingPlayback = isTimelineActive && isPlaying && !wasPlayingRef.current;
+
+    wasPlayingRef.current = isTimelineActive && isPlaying;
+
+    if (tickChanged || startingPlayback) {
+      lastTickKeyRef.current = tickKey;
+      playbackCursorRef.current = {
+        barIndex: currentBarIndex,
+        beatIndex: Math.max(0, currentBeatIndex),
+        beatDurationMs: pulseDurationMs(currentBpm, meter),
+        tickReceivedAt: performance.now(),
+        isPlaying: isTimelineActive && isPlaying,
+      };
+    } else {
+      playbackCursorRef.current = {
+        ...playbackCursorRef.current,
+        isPlaying: isTimelineActive && isPlaying,
+        beatDurationMs: pulseDurationMs(currentBpm, meter),
+      };
+    }
+
+    if (startingPlayback) {
+      autoFollowSuspendedUntil.current = 0;
+      scrollToPlaybackPosition(false);
+    }
+
+    if (playbackCursorRef.current.isPlaying && animationFrameRef.current === null) {
+      animationFrameRef.current = requestAnimationFrame(animateFollow);
+    }
+
+    if (!playbackCursorRef.current.isPlaying && animationFrameRef.current !== null) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+  }, [
+    animateFollow,
     currentBarIndex,
+    currentBeatIndex,
+    currentBpm,
+    currentMeter,
+    isPlaying,
     isTimelineActive,
-    segmentLayouts,
-    viewportWidth,
-    autoFollowSuspendedUntil,
-  });
+    scrollToPlaybackPosition,
+    segments,
+  ]);
+
+  useEffect(() => {
+    const wasActive = wasTimelineActiveRef.current;
+    wasTimelineActiveRef.current = isTimelineActive;
+
+    if (wasActive && !isTimelineActive) {
+      playbackCursorRef.current = {
+        ...playbackCursorRef.current,
+        isPlaying: false,
+        barIndex: 0,
+        beatIndex: 0,
+        tickReceivedAt: performance.now(),
+      };
+      wasPlayingRef.current = false;
+      lastTickKeyRef.current = null;
+
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+
+      requestAnimationFrame(() => {
+        listRef.current?.scrollToOffset({ offset: 0, animated: true });
+      });
+    }
+  }, [isTimelineActive]);
+
+  useEffect(
+    () => () => {
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    },
+    [],
+  );
 
   const onManualScroll = useCallback(() => {
     autoFollowSuspendedUntil.current = Date.now() + AUTO_FOLLOW_SUSPEND_MS;
@@ -84,6 +290,16 @@ export function SongSignatureTimeline({
       onManualScroll();
     },
     [onManualScroll],
+  );
+
+  const openSegment = useCallback(
+    (segment: TimelineSegmentViewModel) => {
+      autoFollowSuspendedUntil.current = Date.now() + AUTO_FOLLOW_SUSPEND_MS;
+      const targetOffset = playbackScrollOffset(segments, segment.startBar - 1, 0);
+      listRef.current?.scrollToOffset({ offset: targetOffset, animated: true });
+      setEditingSegmentId(segment.id);
+    },
+    [segments],
   );
 
   const getItemLayout = useCallback(
@@ -99,17 +315,25 @@ export function SongSignatureTimeline({
     [segments],
   );
 
-  if (segments.length === 0) {
-    return (
-      <View style={styles.emptyWrap}>
-        <Text style={styles.empty}>No meter regions yet. Add a bar to start the timeline.</Text>
+  const addBarControl = (
+    <View style={styles.addBarRegion}>
+      {/* Matches MeterRegion header so the control sits in the pulse track band. */}
+      <View style={styles.addBarHeaderSpacer} />
+      <View style={styles.addBarTrack}>
+        <Pressable
+          style={styles.addBarButton}
+          onPress={onAddBar}
+          accessibilityRole="button"
+          accessibilityLabel="Add bar"
+        >
+          <Text style={styles.addBarButtonText}>+ Add Bar</Text>
+        </Pressable>
       </View>
-    );
-  }
+    </View>
+  );
 
   return (
     <View style={styles.wrapper}>
-      <View style={styles.trackRule} />
       <View
         style={styles.listContainer}
         onLayout={(event) => {
@@ -122,41 +346,54 @@ export function SongSignatureTimeline({
           horizontal
           data={segments as TimelineSegmentViewModel[]}
           keyExtractor={(item) => `${item.id}-${item.meter}-${item.numberOfBars}`}
-          renderItem={({ item, index }) => (
+          renderItem={({ item }) => (
             <View style={styles.item}>
               <MeterRegion
                 segment={item}
-                onPress={setEditingSegmentId}
-                onLayout={(segmentId, _x, width) => {
-                  // FlatList onLayout x is parent-relative; store content offset instead.
-                  let contentX = 0;
-                  for (let i = 0; i < index; i += 1) {
-                    contentX += segmentStride(segments[i]);
-                  }
-                  segmentLayouts.current.set(segmentId, { x: contentX, width });
-                }}
+                onPress={() => openSegment(item)}
               />
             </View>
           )}
+          ListEmptyComponent={
+            <View style={styles.emptyInline}>
+              <Text style={styles.empty}>No meter regions yet.</Text>
+            </View>
+          }
+          ListFooterComponent={addBarControl}
           getItemLayout={getItemLayout}
           showsHorizontalScrollIndicator
           decelerationRate="fast"
           onScrollBeginDrag={handleScrollBeginDrag}
-          onMomentumScrollBegin={handleScrollBeginDrag}
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[
+            styles.content,
+            {
+              paddingLeft: viewportWidth / 2,
+              paddingRight: viewportWidth / 2,
+            },
+          ]}
           extraData={`${currentBarIndex}-${isTimelineActive}`}
           windowSize={5}
           initialNumToRender={6}
           maxToRenderPerBatch={8}
         />
+        {viewportWidth > 0 ? (
+          <View
+            pointerEvents="none"
+            style={[styles.playhead, { left: viewportWidth / 2 }]}
+          >
+            <View style={styles.playheadCap} />
+          </View>
+        ) : null}
       </View>
-      <View style={styles.trackRule} />
 
       <SegmentEditBottomSheet
         visible={editingDomainSegment !== null && editingViewModel !== null}
         segment={editingViewModel}
         meterOptions={meterOptions}
-        onClose={() => setEditingSegmentId(null)}
+        onClose={() => {
+          meterKeyboard?.onDone();
+          setEditingSegmentId(null);
+        }}
         onBarCountChange={(count) => {
           if (editingDomainSegment !== null) {
             onSegmentBarCountChange(editingDomainSegment, count);
@@ -177,6 +414,7 @@ export function SongSignatureTimeline({
             onSegmentAccentChange(editingDomainSegment, presetId);
           }
         }}
+        meterKeyboard={meterKeyboard}
       />
     </View>
   );
@@ -187,37 +425,86 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 200,
   },
-  trackRule: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: studioColors.border,
-    marginHorizontal: 4,
-  },
   listContainer: {
     flex: 1,
     minHeight: 160,
+    overflow: 'hidden',
   },
   list: {
     flex: 1,
   },
   content: {
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 8,
+    alignItems: 'stretch',
+    paddingVertical: 4,
     flexGrow: 1,
   },
   item: {
+    alignSelf: 'stretch',
     marginRight: REGION_GAP,
-    justifyContent: 'center',
   },
-  emptyWrap: {
-    flex: 1,
-    alignItems: 'center',
+  playhead: {
+    position: 'absolute',
+    top: 8,
+    bottom: 8,
+    width: 2,
+    marginLeft: -1,
+    backgroundColor: studioColors.beatAccent,
+    shadowColor: studioColors.beatAccent,
+    shadowOpacity: 0.45,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  playheadCap: {
+    position: 'absolute',
+    top: 0,
+    left: -4,
+    width: 10,
+    height: 5,
+    borderBottomLeftRadius: 3,
+    borderBottomRightRadius: 3,
+    backgroundColor: studioColors.beatAccent,
+  },
+  emptyInline: {
+    alignSelf: 'stretch',
     justifyContent: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
   },
   empty: {
     color: studioColors.textSecondary,
-    textAlign: 'center',
-    fontSize: 15,
+    textAlign: 'left',
+    fontSize: 14,
+  },
+  addBarRegion: {
+    alignSelf: 'stretch',
+    height: '100%',
+    paddingTop: 2,
+    paddingBottom: 8,
+    paddingLeft: 28,
+    paddingRight: 8,
+  },
+  addBarHeaderSpacer: {
+    height: 34,
+  },
+  addBarTrack: {
+    flex: 1,
+    minHeight: TRACK_HEIGHT,
+    justifyContent: 'center',
+  },
+  addBarButton: {
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: studioColors.border,
+    borderStyle: 'dashed',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: studioColors.surface,
+    // Nudge down so the control's visual center matches the pulse glyphs.
+    transform: [{ translateY: BAR_CELL_PADDING_V }],
+  },
+  addBarButtonText: {
+    fontWeight: '600',
+    color: studioColors.textSecondary,
+    fontSize: 13,
   },
 });

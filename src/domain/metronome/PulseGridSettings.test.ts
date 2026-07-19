@@ -2,11 +2,13 @@ import {
   cycleFinerSubdivision,
   defaultAccentPatternForTimeSignature,
   getSubdivisionAvailability,
+  pulseDurationMsFromDisplayBpm,
   resolveEngineSubdivision,
   resolveTicksPerPulse,
   toDisplayBpm,
   toEngineBpm,
 } from './PulseGridSettings';
+import { msPerBeat } from '../timing/BeatClock';
 
 describe('PulseGridSettings BPM scaling', () => {
   it('maps display BPM to engine BPM for 4/8', () => {
@@ -17,6 +19,36 @@ describe('PulseGridSettings BPM scaling', () => {
   it('maps display BPM to engine BPM for 4/2', () => {
     expect(toEngineBpm(120, 2)).toBe(60);
     expect(toDisplayBpm(60, 2)).toBe(120);
+  });
+});
+
+describe('PulseGridSettings pulse duration (Quick Metronome path)', () => {
+  const displayBpm = 120;
+
+  it.each([
+    { denominator: 2, engineBpm: 60, label: '4/2 half-note pulse' },
+    { denominator: 4, engineBpm: 120, label: '4/4 quarter-note pulse' },
+    { denominator: 8, engineBpm: 240, label: '7/8 eighth-note pulse' },
+    { denominator: 16, engineBpm: 480, label: '7/16 sixteenth-note pulse' },
+  ])(
+    'matches Quick Metronome engine rate for $label',
+    ({ denominator, engineBpm }) => {
+      expect(toEngineBpm(displayBpm, denominator)).toBe(engineBpm);
+      expect(pulseDurationMsFromDisplayBpm(displayBpm, denominator)).toBe(
+        msPerBeat(engineBpm),
+      );
+      expect(pulseDurationMsFromDisplayBpm(displayBpm, denominator)).toBe(
+        60_000 / engineBpm,
+      );
+    },
+  );
+
+  it('is identical to msPerBeat(toEngineBpm(...)) for every denominator', () => {
+    for (const denominator of [2, 4, 8, 16, 32]) {
+      expect(pulseDurationMsFromDisplayBpm(displayBpm, denominator)).toBe(
+        msPerBeat(toEngineBpm(displayBpm, denominator)),
+      );
+    }
   });
 });
 

@@ -2,6 +2,7 @@ import type { TimeSignature } from '../entities/Metronome';
 import { beatUnitWholeNoteFraction } from '../music/tempo/beatDuration';
 import { BeatUnit } from '../music/BeatUnit';
 import { createMeter, inferBeatUnitFromDenominator } from '../music/Meter';
+import { msPerBeat } from '../timing/BeatClock';
 import type { SubdivisionKind } from '../valueObjects/Subdivision';
 
 const QUARTER_FRACTION = beatUnitWholeNoteFraction(BeatUnit.QUARTER);
@@ -41,6 +42,17 @@ export function toDisplayBpm(engineBpm: number, denominator: number): number {
 export function toEngineBpm(displayBpm: number, denominator: number): number {
   const pulseFraction = pulseFractionForDenominator(denominator);
   return displayBpm * (QUARTER_FRACTION / pulseFraction);
+}
+
+/**
+ * Wall-clock duration of one denominator pulse at [displayBpm].
+ * Same path as Quick Metronome: toEngineBpm → msPerBeat(engineBpm).
+ */
+export function pulseDurationMsFromDisplayBpm(
+  displayBpm: number,
+  denominator: number,
+): number {
+  return msPerBeat(toEngineBpm(displayBpm, denominator));
 }
 
 /** Finer subdivisions available for a denominator; excludes the base pulse resolution. */

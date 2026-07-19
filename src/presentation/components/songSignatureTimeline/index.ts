@@ -6,8 +6,13 @@ export { SongSignatureTimeline } from './SongSignatureTimeline';
 export {
   BEAT_GAP,
   BEAT_SIZE,
+  GRID_SLOT_WIDTH,
   BAR_GAP,
   REGION_GAP,
+  barCellWidth,
   meterRegionWidth,
   meterRegionCardWidth,
+  parseMeterDenominator,
+  pulseSlotWidth,
+  pulsesPerGridDivision,
 } from './signatureTimelineConstants';

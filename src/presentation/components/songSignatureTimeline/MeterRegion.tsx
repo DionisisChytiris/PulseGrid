@@ -1,4 +1,4 @@
-import { Fragment, memo } from 'react';
+import { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { TimelineSegmentViewModel } from '../../viewModels/TimelineSegmentViewModel';
@@ -6,10 +6,9 @@ import { studioColors } from '../../theme';
 
 import { BarPreview } from './BarPreview';
 import {
-  BAR_DIVIDER_WIDTH,
-  REGION_PADDING,
   TRACK_HEIGHT,
   meterRegionWidth,
+  parseMeterDenominator,
 } from './signatureTimelineConstants';
 
 type Props = {
@@ -32,9 +31,8 @@ export const MeterRegion = memo(function MeterRegion({
   onLayout,
 }: Props) {
   const beatCount = Math.max(1, segment.accentPreview.length);
-  const width = meterRegionWidth(segment.numberOfBars, beatCount);
-  const barsLabel =
-    segment.numberOfBars === 1 ? '1 bar' : `${segment.numberOfBars} bars`;
+  const denominator = parseMeterDenominator(segment.meter);
+  const width = meterRegionWidth(segment.numberOfBars, beatCount, denominator);
 
   return (
     <Pressable
@@ -48,23 +46,20 @@ export const MeterRegion = memo(function MeterRegion({
     >
       <View style={styles.header}>
         <Text style={styles.meter}>{segment.meter}</Text>
-        <Text style={styles.barsMeta}>{barsLabel}</Text>
+        {segment.bpmOverride !== null ? (
+          <Text style={styles.bpm}>♩ = {segment.bpmOverride}</Text>
+        ) : null}
       </View>
 
-      {segment.bpmOverride !== null ? (
-        <Text style={styles.bpm}>♩ = {segment.bpmOverride}</Text>
-      ) : null}
-
       <View style={[styles.track, segment.isActive && styles.trackActive]}>
-        {segment.barIndicators.map((indicator, offset) => (
-          <Fragment key={`bar-${indicator.barNumber}`}>
-            {offset > 0 ? <View style={styles.divider} /> : null}
-            <BarPreview
-              beats={segment.accentPreview}
-              isActive={indicator.isActive}
-              isPast={indicator.isPast}
-            />
-          </Fragment>
+        {segment.barIndicators.map((indicator) => (
+          <BarPreview
+            key={`bar-${indicator.barNumber}`}
+            beats={segment.accentPreview}
+            denominator={denominator}
+            isActive={indicator.isActive}
+            isPast={indicator.isPast}
+          />
         ))}
       </View>
     </Pressable>
@@ -73,58 +68,46 @@ export const MeterRegion = memo(function MeterRegion({
 
 const styles = StyleSheet.create({
   region: {
-    paddingHorizontal: REGION_PADDING,
-    paddingTop: 4,
-    paddingBottom: REGION_PADDING,
+    height: '100%',
+    paddingTop: 2,
+    paddingBottom: 8,
   },
   regionActive: {
     // Region chrome emphasizes active meter without shrinking content.
   },
   header: {
+    height: 34,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-    gap: 2,
+    gap: 8,
+    paddingLeft: 4,
   },
   meter: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '800',
     color: studioColors.textPrimary,
-    letterSpacing: 0.5,
-  },
-  barsMeta: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: studioColors.textMuted,
+    letterSpacing: 0.3,
   },
   bpm: {
-    textAlign: 'center',
-    marginBottom: 6,
     fontSize: 11,
     fontWeight: '700',
     color: studioColors.beatAccent,
   },
   track: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'stretch',
     minHeight: TRACK_HEIGHT,
-    borderWidth: 1.5,
-    borderColor: studioColors.border,
-    borderRadius: 12,
     backgroundColor: studioColors.surface,
-    overflow: 'hidden',
+    // Visible so section-start pulse markers are not clipped to half-circles.
+    overflow: 'visible',
   },
   trackActive: {
-    borderColor: studioColors.accent,
-    borderWidth: 2,
     backgroundColor: studioColors.surfaceElevated,
     shadowColor: studioColors.accent,
-    shadowOpacity: 0.22,
-    shadowRadius: 10,
+    shadowOpacity: 0.14,
+    shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
-    elevation: 4,
-  },
-  divider: {
-    width: BAR_DIVIDER_WIDTH,
-    backgroundColor: studioColors.border,
+    elevation: 3,
   },
 });

@@ -39,3 +39,16 @@ export async function lockLandscapeSafe(): Promise<void> {
     // Ignore unsupported / unavailable locks.
   }
 }
+
+export async function unlockOrientationSafe(): Promise<void> {
+  const ScreenOrientation = await loadOrientation();
+  if (ScreenOrientation === null) {
+    return;
+  }
+
+  try {
+    await ScreenOrientation.unlockAsync();
+  } catch {
+    // Ignore unsupported / unavailable unlock.
+  }
+}
