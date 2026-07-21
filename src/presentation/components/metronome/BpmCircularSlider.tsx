@@ -1,19 +1,23 @@
-import { useMemo, useRef, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   LayoutChangeEvent,
   PanResponder,
+  Pressable,
   StyleSheet,
   View,
   type ViewStyle,
 } from 'react-native';
 
 import { useResponsiveLayout } from '../../layout/useResponsiveLayout';
-import { studioColors } from '../../theme';
 import {
-  angleToArcRatio,
-  arcRatioFromBpm,
-  bpmFromArcRatio,
-} from './bpmCircularSliderMapping';
+  bpmToRotation,
+  clampRotation,
+  rotationToBpm,
+  shortestAngleDelta,
+} from './bpmRotaryMapping';
+import { getTempoRingColor } from './tempoRingColors';
+import { TempoRingProgress } from './TempoRingProgress';
+import { EclipseCoronaGlow } from './EclipseCoronaGlow';
 
 type BpmCircularSliderProps = {
   value: number;
@@ -22,7 +26,20 @@ type BpmCircularSliderProps = {
   onValueChange: (value: number) => void;
   children: ReactNode;
   style?: ViewStyle;
+  /** Scales ring diameter and proportional chrome (default 1). */
+  diameterScale?: number;
+  /** Corona effect is visual-only and should be triggered by press state. */
+  coronaActive?: boolean;
+  coronaColor?: string;
+  onCenterPress?: () => void;
+  onCenterPressIn?: () => void;
+  onCenterPressOut?: () => void;
+  centerAccessibilityLabel?: string;
 };
+
+/** Visual rest position: thumb at the top of the ring. */
+const INITIAL_KNOB_ROTATION = -Math.PI / 2;
+const TWO_PI = Math.PI * 2;
 
 export function BpmCircularSlider({
   value,
@@ -31,34 +48,57 @@ export function BpmCircularSlider({
   onValueChange,
   children,
   style,
+  diameterScale = 1,
+  coronaActive = false,
+  coronaColor = '#00FF66',
+  onCenterPress,
+  onCenterPressIn,
+  onCenterPressOut,
+  centerAccessibilityLabel,
 }: BpmCircularSliderProps) {
   const layout = useResponsiveLayout();
-  const diameter = useMemo(
-    () => layout.scale(layout.isTablet ? 220 : layout.isCompact ? 176 : 196, 0.05, 0.05),
-    [layout],
-  );
-  const strokeWidth = layout.scale(10, 0.05, 0.05);
-  const thumbSize = layout.scale(12, 0.05, 0.05);
-  const grabPadding = layout.scale(18, 0.05, 0.05);
+  const diameter = useMemo(() => {
+    const base = layout.isTablet ? 220 : layout.isCompact ? 176 : 196;
+    return layout.scale(base * diameterScale, 0.05, 0.05);
+  }, [diameterScale, layout]);
+  const strokeWidth = layout.scale(10 * diameterScale, 0.05, 0.05);
+  const thumbSize = layout.scale(12 * diameterScale, 0.05, 0.05);
+  const grabPadding = layout.scale(18 * diameterScale, 0.05, 0.05);
+  const centerInset = layout.scale(26 * diameterScale, 0.05, 0.05);
   const touchDiameter = diameter + grabPadding * 2;
 
   const centerRef = useRef({ x: 0, y: 0 });
   const radiusRef = useRef(0);
   const strokeWidthRef = useRef(strokeWidth);
   const grabPaddingRef = useRef(grabPadding);
+  const centerInsetRef = useRef(centerInset);
   const minimumValueRef = useRef(minimumValue);
   const maximumValueRef = useRef(maximumValue);
-  const currentValueRef = useRef(value);
-  const previousArcRatioRef = useRef<number | null>(null);
+  const knobRotationRef = useRef(bpmToRotation(value));
+  const lastEmittedBpmRef = useRef(Math.round(value));
+  const previousAngleRef = useRef<number | null>(null);
   const onValueChangeRef = useRef(onValueChange);
   const containerRef = useRef<View>(null);
+  const isDraggingRef = useRef(false);
+
+  const [knobRotation, setKnobRotation] = useState(() => bpmToRotation(value));
 
   strokeWidthRef.current = strokeWidth;
   grabPaddingRef.current = grabPadding;
+  centerInsetRef.current = centerInset;
   minimumValueRef.current = minimumValue;
   maximumValueRef.current = maximumValue;
-  currentValueRef.current = value;
   onValueChangeRef.current = onValueChange;
+
+  // Sync knob position from external BPM changes (+/-, text input, tap tempo).
+  useEffect(() => {
+    if (!isDraggingRef.current) {
+      const rotation = bpmToRotation(value);
+      knobRotationRef.current = rotation;
+      setKnobRotation(rotation);
+      lastEmittedBpmRef.current = Math.round(value);
+    }
+  }, [value]);
 
   const measureCenter = () => {
     containerRef.current?.measureInWindow((x, y, width, height) => {
@@ -67,6 +107,11 @@ export function BpmCircularSlider({
         y: y + height / 2,
       };
     });
+  };
+
+  const touchAngle = (pageX: number, pageY: number) => {
+    const { x, y } = centerRef.current;
+    return Math.atan2(pageY - y, pageX - x);
   };
 
   const isOnRing = (pageX: number, pageY: number) => {
@@ -83,34 +128,59 @@ export function BpmCircularSlider({
     const dy = pageY - y;
     const distance = Math.sqrt(dx * dx + dy * dy);
     const halfStroke = stroke / 2;
-    const innerTorus = ringRadius - halfStroke - grabPad;
-    const outerTorus = ringRadius + halfStroke + grabPad;
-    const centerExclusion = ringRadius - stroke - grabPad * 0.35;
+    const innerRingEdge = ringRadius - halfStroke;
+    const maxCenterRadius = innerRingEdge - centerInsetRef.current;
 
-    if (distance < centerExclusion) {
+    if (maxCenterRadius > 0 && distance < maxCenterRadius) {
       return false;
     }
+
+    const innerTorus = ringRadius - halfStroke - grabPad;
+    const outerTorus = ringRadius + halfStroke + grabPad;
 
     return distance >= innerTorus && distance <= outerTorus;
   };
 
-  const updateFromTouch = (pageX: number, pageY: number) => {
-    const { x, y } = centerRef.current;
-    const dx = pageX - x;
-    const dy = pageY - y;
-    const angle = Math.atan2(dy, dx);
-    const ratio = angleToArcRatio(angle);
-    const nextBpm = bpmFromArcRatio(
-      ratio,
-      minimumValueRef.current,
-      maximumValueRef.current,
-      currentValueRef.current,
-      previousArcRatioRef.current,
+  const applyRotationDelta = (deltaRadians: number) => {
+    const nextRotation = clampRotation(knobRotationRef.current + deltaRadians);
+
+    if (nextRotation === knobRotationRef.current) {
+      return;
+    }
+
+    knobRotationRef.current = nextRotation;
+    setKnobRotation(nextRotation);
+
+    const nextBpm = Math.round(
+      Math.min(
+        maximumValueRef.current,
+        Math.max(minimumValueRef.current, rotationToBpm(nextRotation)),
+      ),
     );
 
-    previousArcRatioRef.current = ratio;
-    currentValueRef.current = nextBpm;
-    onValueChangeRef.current(nextBpm);
+    if (nextBpm !== lastEmittedBpmRef.current) {
+      lastEmittedBpmRef.current = nextBpm;
+      onValueChangeRef.current(nextBpm);
+    }
+  };
+
+  const updateFromTouch = (pageX: number, pageY: number) => {
+    const angle = touchAngle(pageX, pageY);
+    const previous = previousAngleRef.current;
+
+    if (previous === null) {
+      previousAngleRef.current = angle;
+      return;
+    }
+
+    const delta = shortestAngleDelta(previous, angle);
+    previousAngleRef.current = angle;
+
+    if (delta === 0) {
+      return;
+    }
+
+    applyRotationDelta(delta);
   };
 
   const panResponder = useRef(
@@ -123,21 +193,22 @@ export function BpmCircularSlider({
         Math.abs(gestureState.dx) > 2 || Math.abs(gestureState.dy) > 2,
       onPanResponderGrant: (event) => {
         measureCenter();
-        previousArcRatioRef.current = arcRatioFromBpm(
-          currentValueRef.current,
-          minimumValueRef.current,
-          maximumValueRef.current,
+        isDraggingRef.current = true;
+        previousAngleRef.current = touchAngle(
+          event.nativeEvent.pageX,
+          event.nativeEvent.pageY,
         );
-        updateFromTouch(event.nativeEvent.pageX, event.nativeEvent.pageY);
       },
       onPanResponderMove: (event) => {
         updateFromTouch(event.nativeEvent.pageX, event.nativeEvent.pageY);
       },
       onPanResponderRelease: () => {
-        previousArcRatioRef.current = null;
+        previousAngleRef.current = null;
+        isDraggingRef.current = false;
       },
       onPanResponderTerminate: () => {
-        previousArcRatioRef.current = null;
+        previousAngleRef.current = null;
+        isDraggingRef.current = false;
       },
     }),
   ).current;
@@ -149,13 +220,14 @@ export function BpmCircularSlider({
   const radius = (diameter - strokeWidth) / 2;
   radiusRef.current = radius;
   const center = diameter / 2;
-  const ratio = arcRatioFromBpm(value, minimumValue, maximumValue);
-  const thumbAngle = -Math.PI / 2 + ratio * Math.PI * 2;
+  const thumbAngle = INITIAL_KNOB_ROTATION + (knobRotation % TWO_PI);
   const thumbLeft = center + radius * Math.cos(thumbAngle) - thumbSize / 2;
   const thumbTop = center + radius * Math.sin(thumbAngle) - thumbSize / 2;
-  const progressDotCount = 36;
-  const activeDots = Math.round(ratio * progressDotCount);
-  const progressDotSize = Math.max(3, strokeWidth * 0.28);
+  const displayBpm = rotationToBpm(knobRotation);
+  const thumbColor = getTempoRingColor(displayBpm);
+  const innerRingEdge = radius - strokeWidth / 2;
+  const centerPressRadius = Math.max(0, innerRingEdge - centerInset);
+  const centerPressDiameter = centerPressRadius * 2;
 
   return (
     <View
@@ -183,42 +255,14 @@ export function BpmCircularSlider({
           },
         ]}
       >
-        <View
-          style={[
-            styles.trackRing,
-            {
-              width: diameter,
-              height: diameter,
-              borderRadius: diameter / 2,
-              borderWidth: strokeWidth,
-            },
-          ]}
+        <EclipseCoronaGlow
+          active={coronaActive}
+          color={coronaColor}
+          diameter={diameter}
+          strokeWidth={strokeWidth}
         />
 
-        {Array.from({ length: progressDotCount }, (_, index) => {
-          const dotRatio = index / progressDotCount;
-          const angle = -Math.PI / 2 + dotRatio * Math.PI * 2;
-          const dotSize = progressDotSize;
-          const dotRadius = radius;
-          const isActive = index < activeDots;
-
-          return (
-            <View
-              key={index}
-              style={[
-                styles.progressDot,
-                {
-                  width: dotSize,
-                  height: dotSize,
-                  borderRadius: dotSize / 2,
-                  left: center + dotRadius * Math.cos(angle) - dotSize / 2,
-                  top: center + dotRadius * Math.sin(angle) - dotSize / 2,
-                  backgroundColor: isActive ? studioColors.beatInactivePlaying : 'transparent',
-                },
-              ]}
-            />
-          );
-        })}
+        <TempoRingProgress bpm={displayBpm} diameter={diameter} strokeWidth={strokeWidth} />
 
         <View
           style={[
@@ -229,6 +273,8 @@ export function BpmCircularSlider({
               borderRadius: thumbSize / 2,
               left: thumbLeft,
               top: thumbTop,
+              backgroundColor: thumbColor,
+              borderColor: thumbColor,
             },
           ]}
         />
@@ -237,7 +283,7 @@ export function BpmCircularSlider({
       <View
         pointerEvents="box-none"
         style={[
-          styles.centerContent,
+          styles.centerOverlay,
           {
             width: diameter,
             height: diameter,
@@ -246,7 +292,27 @@ export function BpmCircularSlider({
           },
         ]}
       >
-        {children}
+        {onCenterPress ? (
+          <Pressable
+            onPress={onCenterPress}
+            onPressIn={onCenterPressIn}
+            onPressOut={onCenterPressOut}
+            accessibilityRole="button"
+            accessibilityLabel={centerAccessibilityLabel}
+            style={[
+              styles.centerPressable,
+              {
+                width: centerPressDiameter,
+                height: centerPressDiameter,
+                borderRadius: centerPressDiameter / 2,
+              },
+            ]}
+          >
+            {children}
+          </Pressable>
+        ) : (
+          <View style={styles.centerPressable}>{children}</View>
+        )}
       </View>
     </View>
   );
@@ -260,24 +326,17 @@ const styles = StyleSheet.create({
   visualContainer: {
     position: 'absolute',
   },
-  trackRing: {
-    position: 'absolute',
-    borderColor: studioColors.border,
-    backgroundColor: 'transparent',
-  },
-  progressDot: {
-    position: 'absolute',
-  },
   thumb: {
     position: 'absolute',
-    backgroundColor: studioColors.textSecondary,
     borderWidth: 1,
-    borderColor: studioColors.border,
   },
-  centerContent: {
+  centerOverlay: {
     position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 24,
+  },
+  centerPressable: {
+    alignItems: 'stretch',
+    justifyContent: 'center',
   },
 });

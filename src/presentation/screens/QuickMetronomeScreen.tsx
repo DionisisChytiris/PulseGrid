@@ -3,13 +3,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuickMetronome } from '../hooks/useQuickMetronome';
 import { useResponsiveLayout } from '../layout/useResponsiveLayout';
 import { BeatIndicators } from '../components/metronome/BeatIndicators';
-import { BpmControl } from '../components/metronome/BpmControl';
+import { MetronomeDialSection } from '../components/metronome/MetronomeDialSection';
 import { QuickMetronomeTopBar } from '../components/metronome/QuickMetronomeTopBar';
-import { SubdivisionCycleButton } from '../components/metronome/SubdivisionCycleButton';
-import { TapTempoButton } from '../components/metronome/TapTempoButton';
 import { TapTempoHintModal } from '../components/metronome/TapTempoHintModal';
 import { TimeSignaturePicker } from '../components/metronome/TimeSignaturePicker';
-import { TransportPlayButton } from '../components/metronome/TransportPlayButton';
 import { studioColors } from '../theme';
 
 export default function QuickMetronomeScreen() {
@@ -55,38 +52,21 @@ export default function QuickMetronomeScreen() {
 
           <BeatIndicators onAccentPatternChange={onAccentPatternChange} />
 
-          <BpmControl
-            value={bpm}
+          <MetronomeDialSection
+            bpm={bpm}
             minimumValue={minBpm}
             maximumValue={maxBpm}
-            onValueChange={onBpmChange}
+            isPlaying={isPlaying}
+            denominator={timeSignature.denominator}
+            finerSubdivision={finerSubdivision}
+            subdivisionAvailability={subdivisionAvailability}
+            onBpmChange={onBpmChange}
+            onStart={onStart}
+            onStop={onStop}
+            onTapTempo={onTapTempo}
+            onTapTempoHelp={onTapTempoHelp}
+            onSubdivisionChange={onSubdivisionChange}
           />
-        </View>
-
-        <View
-          style={{
-            paddingBottom: layout.isShort ? 12 : layout.isTablet ? 24 : 20,
-          }}
-        >
-          <View style={styles.playSection}>
-            <View style={styles.tapTempoSlot} pointerEvents="box-none">
-              <TapTempoButton onPress={onTapTempo} onLongPress={onTapTempoHelp} />
-            </View>
-
-            <TransportPlayButton
-              isPlaying={isPlaying}
-              onPress={isPlaying ? onStop : onStart}
-            />
-
-            <View style={styles.subdivisionSlot} pointerEvents="box-none">
-              <SubdivisionCycleButton
-                denominator={timeSignature.denominator}
-                finerSubdivision={finerSubdivision}
-                availability={subdivisionAvailability}
-                onSubdivisionChange={onSubdivisionChange}
-              />
-            </View>
-          </View>
         </View>
       </View>
 
@@ -99,7 +79,6 @@ export default function QuickMetronomeScreen() {
             marginBottom: layout.tabletBottomLift,
           },
           !layout.isTablet && {
-            // marginHorizontal: -layout.horizontalPadding,
             paddingLeft: insets.left,
             paddingRight: insets.right,
           },
@@ -135,27 +114,7 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingBottom: 16,
-  },
-  playSection: {
-    position: 'relative',
-    width: '100%',
-    alignItems: 'center',
-  },
-  tapTempoSlot: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    justifyContent: 'center',
-  },
-  subdivisionSlot: {
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    bottom: 0,
-    justifyContent: 'center',
+    minHeight: 0,
   },
   title: {
     fontWeight: '600',
