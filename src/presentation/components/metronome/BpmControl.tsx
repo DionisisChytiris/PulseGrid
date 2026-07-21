@@ -16,6 +16,7 @@ type BpmControlProps = {
   onValueChange: (value: number) => void;
   isPlaying: boolean;
   onTransportPress: () => void;
+  onAccentPatternChange?: (pattern: boolean[]) => void;
   diameterScale?: number;
 };
 
@@ -26,6 +27,7 @@ export function BpmControl({
   onValueChange,
   isPlaying,
   onTransportPress,
+  onAccentPatternChange,
   diameterScale = BPM_DIAL_SIZE_SCALE,
 }: BpmControlProps) {
   const layout = useResponsiveLayout();
@@ -108,6 +110,7 @@ export function BpmControl({
         onCenterPressIn={handleTransportPressIn}
         onCenterPressOut={handleTransportPressOut}
         centerAccessibilityLabel={isPlaying ? 'Stop metronome' : 'Start metronome'}
+        onAccentPatternChange={onAccentPatternChange}
       >
         {centerContent}
       </BpmCircularSlider>

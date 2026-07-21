@@ -18,6 +18,7 @@ import {
 import { getTempoRingColor } from './tempoRingColors';
 import { TempoRingProgress } from './TempoRingProgress';
 import { EclipseCoronaGlow } from './EclipseCoronaGlow';
+import { ClockBeatIndicators } from './ClockBeatIndicators';
 
 type BpmCircularSliderProps = {
   value: number;
@@ -35,6 +36,7 @@ type BpmCircularSliderProps = {
   onCenterPressIn?: () => void;
   onCenterPressOut?: () => void;
   centerAccessibilityLabel?: string;
+  onAccentPatternChange?: (pattern: boolean[]) => void;
 };
 
 /** Visual rest position: thumb at the top of the ring. */
@@ -55,6 +57,7 @@ export function BpmCircularSlider({
   onCenterPressIn,
   onCenterPressOut,
   centerAccessibilityLabel,
+  onAccentPatternChange,
 }: BpmCircularSliderProps) {
   const layout = useResponsiveLayout();
   const diameter = useMemo(() => {
@@ -63,7 +66,7 @@ export function BpmCircularSlider({
   }, [diameterScale, layout]);
   const strokeWidth = layout.scale(10 * diameterScale, 0.05, 0.05);
   const thumbSize = layout.scale(12 * diameterScale, 0.05, 0.05);
-  const grabPadding = layout.scale(18 * diameterScale, 0.05, 0.05);
+  const grabPadding = layout.scale(28 * diameterScale, 0.05, 0.05);
   const centerInset = layout.scale(26 * diameterScale, 0.05, 0.05);
   const touchDiameter = diameter + grabPadding * 2;
 
@@ -280,6 +283,27 @@ export function BpmCircularSlider({
         />
       </View>
 
+      {onAccentPatternChange ? (
+        <View
+          pointerEvents="box-none"
+          style={[
+            styles.beatOverlay,
+            {
+              width: diameter,
+              height: diameter,
+              top: grabPadding,
+              left: grabPadding,
+            },
+          ]}
+        >
+          <ClockBeatIndicators
+            diameter={diameter}
+            strokeWidth={strokeWidth}
+            onAccentPatternChange={onAccentPatternChange}
+          />
+        </View>
+      ) : null}
+
       <View
         pointerEvents="box-none"
         style={[
@@ -325,6 +349,10 @@ const styles = StyleSheet.create({
   },
   visualContainer: {
     position: 'absolute',
+  },
+  beatOverlay: {
+    position: 'absolute',
+    overflow: 'visible',
   },
   thumb: {
     position: 'absolute',

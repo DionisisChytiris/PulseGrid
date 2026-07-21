@@ -2,7 +2,6 @@ import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuickMetronome } from '../hooks/useQuickMetronome';
 import { useResponsiveLayout } from '../layout/useResponsiveLayout';
-import { BeatIndicators } from '../components/metronome/BeatIndicators';
 import { MetronomeDialSection } from '../components/metronome/MetronomeDialSection';
 import { QuickMetronomeTopBar } from '../components/metronome/QuickMetronomeTopBar';
 import { TapTempoHintModal } from '../components/metronome/TapTempoHintModal';
@@ -50,8 +49,6 @@ export default function QuickMetronomeScreen() {
         <View style={[styles.content, { gap: layout.sectionGap }]}>
           <Text style={[styles.title, { fontSize: layout.scale(24) }]}>Pulse Grid</Text>
 
-          <BeatIndicators onAccentPatternChange={onAccentPatternChange} />
-
           <MetronomeDialSection
             bpm={bpm}
             minimumValue={minBpm}
@@ -66,6 +63,7 @@ export default function QuickMetronomeScreen() {
             onTapTempo={onTapTempo}
             onTapTempoHelp={onTapTempoHelp}
             onSubdivisionChange={onSubdivisionChange}
+            onAccentPatternChange={onAccentPatternChange}
           />
         </View>
       </View>

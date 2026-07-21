@@ -18,6 +18,7 @@ type MetronomeDialSectionProps = {
   onTapTempo: () => void;
   onTapTempoHelp: () => void;
   onSubdivisionChange: (subdivision: FinerSubdivisionSelection) => void;
+  onAccentPatternChange: (pattern: boolean[]) => void;
 };
 
 export function MetronomeDialSection({
@@ -34,6 +35,7 @@ export function MetronomeDialSection({
   onTapTempo,
   onTapTempoHelp,
   onSubdivisionChange,
+  onAccentPatternChange,
 }: MetronomeDialSectionProps) {
   return (
     <View style={styles.section}>
@@ -45,6 +47,7 @@ export function MetronomeDialSection({
           onValueChange={onBpmChange}
           isPlaying={isPlaying}
           onTransportPress={isPlaying ? onStop : onStart}
+          onAccentPatternChange={onAccentPatternChange}
         />
       </View>
 
