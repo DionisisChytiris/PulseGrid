@@ -5,6 +5,7 @@ final class ClickSoundPlayer {
   private static let accentPoolSize = 2
   private static let normalPoolSize = 4
   private static let subdivisionPoolSize = 12
+  private static let assetsBundleName = "NativeAudioModuleAssets"
 
   private var accentPlayers: [AVAudioPlayer] = []
   private var normalPlayers: [AVAudioPlayer] = []
@@ -128,7 +129,9 @@ final class ClickSoundPlayer {
     let player = players[index]
     index = (index + 1) % players.count
     player.currentTime = 0
-    player.play()
+    if !player.play() {
+      print("ClickSoundPlayer.play\(label)() — AVAudioPlayer.play() returned false")
+    }
   }
 
   private func activateAudioSession() {
@@ -144,7 +147,6 @@ final class ClickSoundPlayer {
 
   private func loadPlayerPool(named name: String, count: Int, volume: Float) -> [AVAudioPlayer] {
     guard let url = resourceURL(named: name) else {
-      print("ClickSoundPlayer — missing resource \(name).wav")
       return []
     }
 
@@ -167,11 +169,73 @@ final class ClickSoundPlayer {
   }
 
   private func resourceURL(named name: String) -> URL? {
-    if let url = Bundle.main.url(forResource: name, withExtension: "wav") {
-      return url
+    let filename = "\(name).wav"
+    var checkedLocations: [String] = []
+
+    for candidate in Self.resourceSearchBundles() {
+      let label = candidate.label
+      checkedLocations.append(label)
+
+      if let url = candidate.bundle.url(forResource: name, withExtension: "wav") {
+        return url
+      }
+
+      // Some packaging layouts nest files under an Assets subdirectory inside the bundle.
+      if let url = candidate.bundle.url(
+        forResource: name,
+        withExtension: "wav",
+        subdirectory: "Assets"
+      ) {
+        return url
+      }
     }
 
-    return Bundle(for: ClickSoundPlayer.self).url(forResource: name, withExtension: "wav")
+    print(
+      "ClickSoundPlayer — missing resource \(filename); checked: \(checkedLocations.joined(separator: ", "))"
+    )
+    return nil
+  }
+
+  /// Ordered lookup: CocoaPods resource bundle first, then main / class bundles.
+  private static func resourceSearchBundles() -> [(label: String, bundle: Bundle)] {
+    var results: [(label: String, bundle: Bundle)] = []
+    var seen = Set<ObjectIdentifier>()
+
+    func append(_ label: String, _ bundle: Bundle?) {
+      guard let bundle else {
+        return
+      }
+      let id = ObjectIdentifier(bundle)
+      guard !seen.contains(id) else {
+        return
+      }
+      seen.insert(id)
+      results.append((label, bundle))
+    }
+
+    let classBundle = Bundle(for: ClickSoundPlayer.self)
+
+    if let url = classBundle.url(forResource: assetsBundleName, withExtension: "bundle"),
+       let assetsBundle = Bundle(url: url) {
+      append("\(assetsBundleName).bundle via class bundle", assetsBundle)
+    }
+
+    if let url = Bundle.main.url(forResource: assetsBundleName, withExtension: "bundle"),
+       let assetsBundle = Bundle(url: url) {
+      append("\(assetsBundleName).bundle via Bundle.main", assetsBundle)
+    }
+
+    // Static-framework fallback: bundle may sit next to the class module resources.
+    if let resourceURL = classBundle.resourceURL?
+      .appendingPathComponent("\(assetsBundleName).bundle"),
+       let assetsBundle = Bundle(url: resourceURL) {
+      append("\(assetsBundleName).bundle via class resourceURL", assetsBundle)
+    }
+
+    append("Bundle.main", Bundle.main)
+    append("Bundle(for: ClickSoundPlayer.self)", classBundle)
+
+    return results
   }
 
   private static func normalResourceName(for soundId: String) -> String {

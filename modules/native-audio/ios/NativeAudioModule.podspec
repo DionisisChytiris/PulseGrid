@@ -6,8 +6,8 @@ Pod::Spec.new do |s|
   s.author         = 'PulseGrid'
   s.homepage       = 'https://docs.expo.dev/modules/'
   s.platforms      = {
-    :ios => '16.4',
-    :tvos => '16.4'
+    :ios => '15.1',
+    :tvos => '15.1'
   }
   s.source         = { git: '' }
   s.static_framework = true
@@ -19,5 +19,10 @@ Pod::Spec.new do |s|
   }
 
   s.source_files = '**/*.{h,m,mm,swift,hpp,cpp}'
-  s.resources = 'Assets/*.wav'
+
+  # Explicit resource bundle so WAVs are packaged reliably with static frameworks
+  # (s.resources alone often fails to land in Bundle.main on EAS/release builds).
+  s.resource_bundles = {
+    'NativeAudioModuleAssets' => ['Assets/*.wav']
+  }
 end
