@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   LayoutChangeEvent,
   PanResponder,
+  Platform,
   Pressable,
   StyleSheet,
   View,
@@ -83,6 +84,8 @@ export function BpmCircularSlider({
   const onValueChangeRef = useRef(onValueChange);
   const containerRef = useRef<View>(null);
   const isDraggingRef = useRef(false);
+  /** Touch fires action on press-in; skip the following onPress so we don't toggle twice. */
+  const centerActionHandledOnPressInRef = useRef(false);
 
   const [knobRotation, setKnobRotation] = useState(() => bpmToRotation(value));
 
@@ -318,9 +321,27 @@ export function BpmCircularSlider({
       >
         {onCenterPress ? (
           <Pressable
-            onPress={onCenterPress}
-            onPressIn={onCenterPressIn}
+            onPressIn={() => {
+              centerActionHandledOnPressInRef.current = true;
+              onCenterPressIn?.();
+              // iOS: let the corona state commit/paint before sync playback work.
+              if (Platform.OS === 'ios') {
+                requestAnimationFrame(() => {
+                  onCenterPress();
+                });
+                return;
+              }
+              onCenterPress();
+            }}
             onPressOut={onCenterPressOut}
+            onPress={() => {
+              if (centerActionHandledOnPressInRef.current) {
+                centerActionHandledOnPressInRef.current = false;
+                return;
+              }
+              // Accessibility / non-touch activation (no prior press-in).
+              onCenterPress();
+            }}
             accessibilityRole="button"
             accessibilityLabel={centerAccessibilityLabel}
             style={[

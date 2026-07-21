@@ -1,4 +1,4 @@
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text } from 'react-native';
 
 import { useResponsiveLayout } from '../../layout/useResponsiveLayout';
 import { studioColors } from '../../theme';
@@ -15,56 +15,46 @@ export function TapTempoButton({
   disabled = false,
 }: TapTempoButtonProps) {
   const layout = useResponsiveLayout();
-  const buttonSize = layout.scale(32, 0.05, 0.05);
+  const buttonSize = layout.scale(50, 0.05, 0.05);
 
   return (
-    <View style={styles.wrapper}>
-      <Pressable
-        onPress={onPress}
-        onLongPress={onLongPress}
-        disabled={disabled}
-        hitSlop={6}
-        accessibilityRole="button"
-        accessibilityLabel="Tap tempo"
-        accessibilityHint="Tap repeatedly to set BPM. Long press for help."
-        accessibilityState={{ disabled }}
-        style={({ pressed }) => [
-          styles.button,
-          {
-            minWidth: buttonSize,
-            height: buttonSize,
-            borderRadius: buttonSize / 2,
-            paddingHorizontal: layout.scale(8),
-          },
-          disabled && styles.buttonDisabled,
-          pressed && !disabled && styles.buttonPressed,
-        ]}
-      >
-        <Text
-          allowFontScaling={false}
-          style={[
-            styles.label,
-            { fontSize: layout.scale(11) },
-            Platform.OS === 'android' && styles.labelAndroid,
-          ]}
-        >
-          TAP
-        </Text>
-      </Pressable>
+    <Pressable
+      onPress={onPress}
+      onLongPress={onLongPress}
+      disabled={disabled}
+      hitSlop={6}
+      accessibilityRole="button"
+      accessibilityLabel="Tap tempo"
+      accessibilityHint="Tap repeatedly to set BPM. Long press for help."
+      accessibilityState={{ disabled }}
+      style={({ pressed }) => [
+        styles.button,
+        {
+          minWidth: buttonSize,
+          height: buttonSize,
+          borderRadius: buttonSize / 3,
+          paddingHorizontal: layout.scale(14),
+          paddingVertical: layout.scale(10),
+        },
+        disabled && styles.buttonDisabled,
+        pressed && !disabled && styles.buttonPressed,
+      ]}
+    >
       <Text
         allowFontScaling={false}
-        style={[styles.caption, { fontSize: layout.scale(10), marginTop: layout.scale(4) }]}
+        style={[
+          styles.label,
+          { fontSize: layout.scale(15) },
+          Platform.OS === 'android' && styles.labelAndroid,
+        ]}
       >
-        Set tempo
+        TAP
       </Text>
-    </View>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  wrapper: {
-    alignItems: 'center',
-  },
   button: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -86,10 +76,5 @@ const styles = StyleSheet.create({
   labelAndroid: {
     includeFontPadding: false,
     textAlignVertical: 'center',
-  },
-  caption: {
-    color: studioColors.textSecondary,
-    fontWeight: '500',
-    textAlign: 'center',
   },
 });

@@ -39,13 +39,13 @@ function BpmStepButton({ label, disabled, onPress, size, fontSize }: BpmStepButt
         {
           width: size,
           height: size,
-          borderRadius: size / 2,
         },
         disabled && styles.stepButtonDisabled,
       ]}
       onPress={onPress}
       disabled={disabled}
       accessibilityLabel={label === '−' ? 'Decrease BPM' : 'Increase BPM'}
+      hitSlop={6}
     >
       <Text
         allowFontScaling={false}
@@ -74,8 +74,9 @@ export function MetronomeToolbar({
   onSubdivisionChange,
 }: MetronomeToolbarProps) {
   const layout = useResponsiveLayout();
-  const stepButtonSize = layout.scale(44, 0.05, 0.05);
+  const stepButtonSize = layout.scale(40, 0.05, 0.05);
   const stepFontSize = layout.displayFontSize(26, 0.04, 0.04);
+  const stepPairGap = layout.scale(16, 0.05, 0.05);
   const atMin = bpm <= minimumValue;
   const atMax = bpm >= maximumValue;
 
@@ -88,36 +89,40 @@ export function MetronomeToolbar({
       style={[
         styles.toolbar,
         {
-          gap: layout.scale(28, 0.05, 0.05),
           paddingTop: layout.scale(12, 0.05, 0.05),
           paddingBottom: layout.scale(4, 0.05, 0.05),
         },
       ]}
     >
-      <TapTempoButton onPress={onTapTempo} onLongPress={onTapTempoHelp} />
+      <View style={styles.sideSlot}>
+        <TapTempoButton onPress={onTapTempo} onLongPress={onTapTempoHelp} />
+      </View>
 
-      <BpmStepButton
-        label="−"
-        disabled={atMin}
-        onPress={() => adjustBpm(-1)}
-        size={stepButtonSize}
-        fontSize={stepFontSize}
-      />
+      <View style={[styles.stepPair, { gap: stepPairGap }]}>
+        <BpmStepButton
+          label="−"
+          disabled={atMin}
+          onPress={() => adjustBpm(-1)}
+          size={stepButtonSize}
+          fontSize={stepFontSize}
+        />
+        <BpmStepButton
+          label="+"
+          disabled={atMax}
+          onPress={() => adjustBpm(1)}
+          size={stepButtonSize}
+          fontSize={stepFontSize}
+        />
+      </View>
 
-      <BpmStepButton
-        label="+"
-        disabled={atMax}
-        onPress={() => adjustBpm(1)}
-        size={stepButtonSize}
-        fontSize={stepFontSize}
-      />
-
-      <SubdivisionCycleButton
-        denominator={denominator}
-        finerSubdivision={finerSubdivision}
-        availability={subdivisionAvailability}
-        onSubdivisionChange={onSubdivisionChange}
-      />
+      <View style={[styles.sideSlot, styles.sideSlotEnd]}>
+        <SubdivisionCycleButton
+          denominator={denominator}
+          finerSubdivision={finerSubdivision}
+          availability={subdivisionAvailability}
+          onSubdivisionChange={onSubdivisionChange}
+        />
+      </View>
     </View>
   );
 }
@@ -126,13 +131,25 @@ const styles = StyleSheet.create({
   toolbar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     width: '100%',
   },
-  stepButton: {
-    backgroundColor: studioColors.surfaceElevated,
+  sideSlot: {
+    flex: 1,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  sideSlotEnd: {
+    alignItems: 'flex-end',
+  },
+  stepPair: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  stepButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
   },
   stepButtonDisabled: {
     opacity: 0.35,

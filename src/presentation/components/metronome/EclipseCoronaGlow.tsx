@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 
 import { studioColors } from '../../theme';
@@ -13,7 +13,6 @@ type EclipseCoronaGlowProps = {
 };
 
 const LAYER_COUNT = 14;
-const SHOW_MS = 70;
 const FADE_MS = 280;
 
 /** Soft fade reaches ~100px outside the BPM circle. */
@@ -29,29 +28,40 @@ function clamp01(value: number): number {
  * Critical: glow layers fade independently from the opaque center mask.
  * Fading the whole group would make the filled disks show through as a
  * solid colored ball during release — that must never happen.
+ *
+ * The layer tree stays mounted (hidden via opacity when idle) so press-in
+ * does not wait on mount. `useLayoutEffect` snaps glow opacity to 1 before
+ * paint so the first pressed frame is already visible.
  */
 export function EclipseCoronaGlow({ active, color, diameter, strokeWidth }: EclipseCoronaGlowProps) {
-  const [visible, setVisible] = useState(active);
-  const glowOpacity = useRef(new Animated.Value(active ? 1 : 0)).current;
+  const [fadingOut, setFadingOut] = useState(false);
+  const glowOpacity = useRef(new Animated.Value(0)).current;
+  const wasActiveRef = useRef(false);
 
-  useEffect(() => {
+  const showTree = active || fadingOut;
+
+  useLayoutEffect(() => {
     if (active) {
-      setVisible(true);
-      Animated.timing(glowOpacity, {
-        toValue: 1,
-        duration: SHOW_MS,
-        useNativeDriver: true,
-      }).start();
+      setFadingOut(false);
+      glowOpacity.stopAnimation();
+      glowOpacity.setValue(1);
+      wasActiveRef.current = true;
       return;
     }
 
+    if (!wasActiveRef.current) {
+      return;
+    }
+
+    wasActiveRef.current = false;
+    setFadingOut(true);
     Animated.timing(glowOpacity, {
       toValue: 0,
       duration: FADE_MS,
       useNativeDriver: true,
     }).start(({ finished }) => {
       if (finished) {
-        setVisible(false);
+        setFadingOut(false);
         glowOpacity.setValue(0);
       }
     });
@@ -84,10 +94,6 @@ export function EclipseCoronaGlow({ active, color, diameter, strokeWidth }: Ecli
   const maskSize = diameter + Math.max(2, strokeWidth * 0.15);
   const maskOffset = (diameter - maskSize) / 2;
 
-  if (!visible) {
-    return null;
-  }
-
   return (
     <View
       pointerEvents="none"
@@ -96,6 +102,8 @@ export function EclipseCoronaGlow({ active, color, diameter, strokeWidth }: Ecli
         {
           width: diameter,
           height: diameter,
+          // Keep the tree mounted; hide idle so the moon mask never covers the dial.
+          opacity: showTree ? 1 : 0,
         },
       ]}
     >

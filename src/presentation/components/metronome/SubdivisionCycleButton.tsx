@@ -1,4 +1,4 @@
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import {
   cycleFinerSubdivision,
@@ -8,13 +8,7 @@ import {
 import type { SubdivisionKind } from '../../../domain/valueObjects/Subdivision';
 import { useResponsiveLayout } from '../../layout/useResponsiveLayout';
 import { studioColors } from '../../theme';
-
-const SUBDIVISION_SYMBOL: Record<SubdivisionKind, string> = {
-  quarter: '♩',
-  eighth: '♪',
-  triplet: '3',
-  sixteenth: '♬',
-};
+import { SubdivisionIcon } from '../music/SubdivisionIcon';
 
 const SUBDIVISION_LABEL: Record<SubdivisionKind, string> = {
   quarter: '1/4',
@@ -37,11 +31,14 @@ export function SubdivisionCycleButton({
   onSubdivisionChange,
 }: SubdivisionCycleButtonProps) {
   const layout = useResponsiveLayout();
-  const buttonSize = layout.scale(32, 0.05, 0.05);
+  const buttonSize = layout.scale(53, 0.05, 0.05);
+  const iconSize = layout.scale(30, 0.05, 0.05);
   const disabled = availability.finerSubdivisions.length === 0;
 
   const label = finerSubdivision === null ? 'Base' : SUBDIVISION_LABEL[finerSubdivision];
-  const symbol = finerSubdivision === null ? '•' : SUBDIVISION_SYMBOL[finerSubdivision];
+  const iconColor = disabled ? studioColors.textSecondary : studioColors.textPrimary;
+  // null = base pulse; visually a quarter note, without putting "quarter" in the finer cycle.
+  const iconType = finerSubdivision ?? 'quarter';
 
   return (
     <Pressable
@@ -69,26 +66,16 @@ export function SubdivisionCycleButton({
         {
           width: buttonSize,
           height: buttonSize,
-          borderRadius: buttonSize / 2,
+          borderRadius: buttonSize / 3,
+          paddingHorizontal: layout.scale(6),
+          paddingVertical: layout.scale(4),
         },
         disabled && styles.buttonDisabled,
         pressed && !disabled && styles.buttonPressed,
       ]}
     >
       <View style={styles.content}>
-        <Text
-          style={[
-            styles.symbol,
-            { fontSize: layout.scale(15) },
-            Platform.OS === 'android' && styles.symbolAndroid,
-            disabled && styles.textDisabled,
-          ]}
-        >
-          {symbol}
-        </Text>
-        <Text style={[styles.label, { fontSize: layout.scale(9) }, disabled && styles.textDisabled]}>
-          {disabled ? 'Fine' : label}
-        </Text>
+        <SubdivisionIcon type={iconType} size={iconSize} color={iconColor} />
       </View>
     </Pressable>
   );
@@ -111,22 +98,5 @@ const styles = StyleSheet.create({
   content: {
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  symbol: {
-    color: studioColors.textPrimary,
-    fontWeight: '600',
-    lineHeight: undefined,
-  },
-  symbolAndroid: {
-    includeFontPadding: false,
-    textAlignVertical: 'center',
-  },
-  label: {
-    color: studioColors.textSecondary,
-    fontWeight: '500',
-    marginTop: 1,
-  },
-  textDisabled: {
-    color: studioColors.textSecondary,
   },
 });

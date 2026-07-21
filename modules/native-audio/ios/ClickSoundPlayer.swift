@@ -6,137 +6,394 @@ final class ClickSoundPlayer {
   private static let normalPoolSize = 4
   private static let subdivisionPoolSize = 12
   private static let assetsBundleName = "NativeAudioModuleAssets"
+  private static let logPrefix = "PulseGrid-ClickSchedule"
 
-  private var accentPlayers: [AVAudioPlayer] = []
-  private var normalPlayers: [AVAudioPlayer] = []
-  private var subdivisionPlayers: [AVAudioPlayer] = []
+  private let engine = AVAudioEngine()
+  private let timeline = AudioTimelineMapper()
+  private let lock = NSLock()
+
+  private var accentNodes: [AVAudioPlayerNode] = []
+  private var normalNodes: [AVAudioPlayerNode] = []
+  private var subdivisionNodes: [AVAudioPlayerNode] = []
 
   private var accentIndex = 0
   private var normalIndex = 0
   private var subdivisionIndex = 0
 
+  private var accentBuffer: AVAudioPCMBuffer?
+  private var normalBuffer: AVAudioPCMBuffer?
+  private var subdivisionBuffer: AVAudioPCMBuffer?
+
   private var selectedNormalSound = "classic"
   private var selectedAccentSound = "classic"
   private var selectedSubdivisionSound = "classic"
 
+  private var engineStarted = false
+
   var areReady: Bool {
-    !accentPlayers.isEmpty && !normalPlayers.isEmpty && !subdivisionPlayers.isEmpty
+    lock.lock()
+    defer { lock.unlock() }
+    return accentBuffer != nil && normalBuffer != nil && subdivisionBuffer != nil
+  }
+
+  var isTimelineCalibrated: Bool {
+    timeline.calibrated
   }
 
   func initialize() {
     activateAudioSession()
-    reloadPools()
+    lock.lock()
+    setupEngineGraphIfNeeded()
+    startEngineLocked()
+    reloadBuffersLocked()
+    lock.unlock()
+  }
+
+  func prepareForPlayback() {
+    lock.lock()
+    setupEngineGraphIfNeeded()
+    startEngineLocked()
+    if accentBuffer == nil || normalBuffer == nil || subdivisionBuffer == nil {
+      reloadBuffersLocked()
+    }
+    flushScheduledLocked()
+    timeline.calibrate(sampleRate: engine.mainMixerNode.outputFormat(forBus: 0).sampleRate)
+    lock.unlock()
+  }
+
+  func flushScheduled() {
+    lock.lock()
+    flushScheduledLocked()
+    lock.unlock()
+  }
+
+  func stopPlayback() {
+    lock.lock()
+    flushScheduledLocked()
+    lock.unlock()
   }
 
   func setNormalClickSound(_ soundId: String) {
     let nextSound = Self.normalResourceName(for: soundId)
+    lock.lock()
+    defer { lock.unlock() }
     guard nextSound != selectedNormalSound else {
       return
     }
-
     selectedNormalSound = nextSound
-    normalPlayers = loadPlayerPool(
+    normalBuffer = loadBuffer(
       named: Self.normalFileName(for: nextSound),
-      count: Self.normalPoolSize,
       volume: 0.85
     )
   }
 
   func setAccentClickSound(_ soundId: String) {
     let nextSound = Self.accentResourceName(for: soundId)
+    lock.lock()
+    defer { lock.unlock() }
     guard nextSound != selectedAccentSound else {
       return
     }
-
     selectedAccentSound = nextSound
-    accentPlayers = loadPlayerPool(
+    accentBuffer = loadBuffer(
       named: Self.accentFileName(for: nextSound),
-      count: Self.accentPoolSize,
       volume: 1.0
     )
   }
 
   func setSubdivisionClickSound(_ soundId: String) {
     let nextSound = Self.normalResourceName(for: soundId)
+    lock.lock()
+    defer { lock.unlock() }
     guard nextSound != selectedSubdivisionSound else {
       return
     }
-
     selectedSubdivisionSound = nextSound
-    subdivisionPlayers = loadPlayerPool(
+    subdivisionBuffer = loadBuffer(
       named: Self.subdivisionFileName(for: nextSound),
-      count: Self.subdivisionPoolSize,
       volume: 0.65
     )
   }
 
   func previewNormalClick() {
-    playFromPool(&normalPlayers, index: &normalIndex, label: "normal-preview")
+    scheduleImmediate(kind: .normal)
   }
 
   func previewAccentClick() {
-    playFromPool(&accentPlayers, index: &accentIndex, label: "accent-preview")
+    scheduleImmediate(kind: .accent)
   }
 
   func previewSubdivisionClick() {
-    playFromPool(&subdivisionPlayers, index: &subdivisionIndex, label: "subdivision-preview")
+    scheduleImmediate(kind: .subdivision)
   }
 
   func playAccent(scheduledDeadlineNs: UInt64) {
-    playFromPool(&accentPlayers, index: &accentIndex, label: "accent")
+    schedule(kind: .accent, deadlineNs: scheduledDeadlineNs)
   }
 
   func playNormal(scheduledDeadlineNs: UInt64) {
-    playFromPool(&normalPlayers, index: &normalIndex, label: "normal")
+    schedule(kind: .normal, deadlineNs: scheduledDeadlineNs)
   }
 
   func playSubdivision(scheduledDeadlineNs: UInt64) {
-    playFromPool(&subdivisionPlayers, index: &subdivisionIndex, label: "subdivision")
+    schedule(kind: .subdivision, deadlineNs: scheduledDeadlineNs)
   }
 
-  private func reloadPools() {
-    accentPlayers = loadPlayerPool(
+  // MARK: - Engine
+
+  private enum ClickKind {
+    case accent
+    case normal
+    case subdivision
+  }
+
+  private func setupEngineGraphIfNeeded() {
+    guard accentNodes.isEmpty else {
+      return
+    }
+
+    let format = engine.mainMixerNode.outputFormat(forBus: 0)
+    accentNodes = makeNodePool(count: Self.accentPoolSize, format: format)
+    normalNodes = makeNodePool(count: Self.normalPoolSize, format: format)
+    subdivisionNodes = makeNodePool(count: Self.subdivisionPoolSize, format: format)
+  }
+
+  private func makeNodePool(count: Int, format: AVAudioFormat) -> [AVAudioPlayerNode] {
+    var nodes: [AVAudioPlayerNode] = []
+    nodes.reserveCapacity(count)
+    for _ in 0..<count {
+      let node = AVAudioPlayerNode()
+      engine.attach(node)
+      engine.connect(node, to: engine.mainMixerNode, format: format)
+      nodes.append(node)
+    }
+    return nodes
+  }
+
+  private func startEngineLocked() {
+    if !engine.isRunning {
+      do {
+        try engine.start()
+        engineStarted = true
+      } catch {
+        engineStarted = false
+        print("\(Self.logPrefix) — engine start failed: \(error)")
+        return
+      }
+    }
+
+    for node in accentNodes + normalNodes + subdivisionNodes where !node.isPlaying {
+      node.play()
+    }
+
+    if !timeline.calibrated {
+      timeline.calibrate(sampleRate: engine.mainMixerNode.outputFormat(forBus: 0).sampleRate)
+    }
+  }
+
+  private func flushScheduledLocked() {
+    for node in accentNodes + normalNodes + subdivisionNodes {
+      node.stop()
+      node.reset()
+      if engine.isRunning {
+        node.play()
+      }
+    }
+  }
+
+  private func reloadBuffersLocked() {
+    accentBuffer = loadBuffer(
       named: Self.accentFileName(for: selectedAccentSound),
-      count: Self.accentPoolSize,
       volume: 1.0
     )
-    normalPlayers = loadPlayerPool(
+    normalBuffer = loadBuffer(
       named: Self.normalFileName(for: selectedNormalSound),
-      count: Self.normalPoolSize,
       volume: 0.85
     )
-    subdivisionPlayers = loadPlayerPool(
+    subdivisionBuffer = loadBuffer(
       named: Self.subdivisionFileName(for: selectedSubdivisionSound),
-      count: Self.subdivisionPoolSize,
       volume: 0.65
     )
 
-    if !areReady {
+    if accentBuffer == nil || normalBuffer == nil || subdivisionBuffer == nil {
       print("ClickSoundPlayer.initialize() — missing one or more click samples")
     }
   }
 
-  private func playFromPool(
-    _ players: inout [AVAudioPlayer],
-    index: inout Int,
-    label: String
-  ) {
-    guard !players.isEmpty else {
-      print("ClickSoundPlayer.play\(label)() — sample not loaded")
+  private func scheduleImmediate(kind: ClickKind) {
+    let leadNs: UInt64 = 5_000_000
+    let deadline = DispatchTime.now().uptimeNanoseconds &+ leadNs
+    schedule(kind: kind, deadlineNs: deadline)
+  }
+
+  private func schedule(kind: ClickKind, deadlineNs: UInt64) {
+    lock.lock()
+    defer { lock.unlock() }
+
+    assert(
+      timeline.calibrated,
+      "\(Self.logPrefix) — no scheduling before AudioTimelineMapper calibration"
+    )
+
+    setupEngineGraphIfNeeded()
+    startEngineLocked()
+
+    guard let buffer = buffer(for: kind) else {
+      print("\(Self.logPrefix) — dropped schedule (\(label(for: kind))) sample not loaded deadlineNs=\(deadlineNs)")
       return
     }
 
-    let player = players[index]
-    index = (index + 1) % players.count
-    player.currentTime = 0
-    if !player.play() {
-      print("ClickSoundPlayer.play\(label)() — AVAudioPlayer.play() returned false")
+    guard let when = timeline.audioTime(forDeadlineNs: deadlineNs) else {
+      print("\(Self.logPrefix) — dropped schedule (\(label(for: kind))) timeline not calibrated deadlineNs=\(deadlineNs)")
+      return
+    }
+
+    let nowHostNs = CoreHostTime.toNanos(CoreHostTime.current())
+    let scheduleHostNs = CoreHostTime.toNanos(when.hostTime)
+    let lateByNs = Int64(bitPattern: nowHostNs) - Int64(bitPattern: scheduleHostNs)
+
+    let renderAnchor = (accentNodes.first ?? normalNodes.first)?.lastRenderTime
+    let estimatedSample = timeline.debugSampleEstimate(
+      forDeadlineNs: deadlineNs,
+      renderAnchor: renderAnchor
+    )
+
+    if lateByNs > 2_000_000 {
+      print(
+        "\(Self.logPrefix) — LATE deadlineNs=\(deadlineNs) lateByMs=\(String(format: "%.3f", Double(lateByNs) / 1_000_000.0)) sample≈\(estimatedSample.map(String.init) ?? "nil") — scheduling ASAP"
+      )
+    } else {
+      print(
+        "\(Self.logPrefix) — schedule \(label(for: kind)) deadlineNs=\(deadlineNs) hostTime=\(when.hostTime) sample≈\(estimatedSample.map(String.init) ?? "nil")"
+      )
+    }
+
+    let node = nextNode(for: kind)
+    let at: AVAudioTime? = lateByNs > 2_000_000 ? nil : when
+    node.scheduleBuffer(buffer, at: at, options: [])
+    if !node.isPlaying {
+      node.play()
+    }
+  }
+
+  private func buffer(for kind: ClickKind) -> AVAudioPCMBuffer? {
+    switch kind {
+    case .accent:
+      return accentBuffer
+    case .normal:
+      return normalBuffer
+    case .subdivision:
+      return subdivisionBuffer
+    }
+  }
+
+  private func nextNode(for kind: ClickKind) -> AVAudioPlayerNode {
+    switch kind {
+    case .accent:
+      let node = accentNodes[accentIndex % accentNodes.count]
+      accentIndex = (accentIndex + 1) % accentNodes.count
+      return node
+    case .normal:
+      let node = normalNodes[normalIndex % normalNodes.count]
+      normalIndex = (normalIndex + 1) % normalNodes.count
+      return node
+    case .subdivision:
+      let node = subdivisionNodes[subdivisionIndex % subdivisionNodes.count]
+      subdivisionIndex = (subdivisionIndex + 1) % subdivisionNodes.count
+      return node
+    }
+  }
+
+  private func label(for kind: ClickKind) -> String {
+    switch kind {
+    case .accent:
+      return "accent"
+    case .normal:
+      return "normal"
+    case .subdivision:
+      return "subdivision"
+    }
+  }
+
+  // MARK: - Buffers / assets
+
+  private func loadBuffer(named name: String, volume: Float) -> AVAudioPCMBuffer? {
+    guard let url = resourceURL(named: name) else {
+      return nil
+    }
+
+    do {
+      let file = try AVAudioFile(forReading: url)
+      let format = engine.mainMixerNode.outputFormat(forBus: 0)
+      let frameCount = AVAudioFrameCount(file.length)
+      guard let sourceBuffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: frameCount) else {
+        return nil
+      }
+      try file.read(into: sourceBuffer)
+
+      let converted: AVAudioPCMBuffer
+      let needsConvert = !Self.formatsMatch(file.processingFormat, format)
+        || file.processingFormat.commonFormat != .pcmFormatFloat32
+      if !needsConvert {
+        converted = sourceBuffer
+      } else if let converter = AVAudioConverter(from: file.processingFormat, to: format) {
+        let ratio = format.sampleRate / max(file.processingFormat.sampleRate, 1)
+        let capacity = AVAudioFrameCount(Double(sourceBuffer.frameLength) * ratio) + 32
+        guard let out = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: capacity) else {
+          return nil
+        }
+        var error: NSError?
+        var provided = false
+        let inputBlock: AVAudioConverterInputBlock = { _, outStatus in
+          if provided {
+            outStatus.pointee = .noDataNow
+            return nil
+          }
+          provided = true
+          outStatus.pointee = .haveData
+          return sourceBuffer
+        }
+        converter.convert(to: out, error: &error, withInputFrom: inputBlock)
+        if let error {
+          print("ClickSoundPlayer — convert \(name).wav failed: \(error)")
+          return nil
+        }
+        converted = out
+      } else {
+        print("ClickSoundPlayer — cannot convert \(name).wav to engine format")
+        return nil
+      }
+
+      applyVolume(converted, volume: volume)
+      return converted
+    } catch {
+      print("ClickSoundPlayer — failed to load \(name).wav: \(error)")
+      return nil
+    }
+  }
+
+  private static func formatsMatch(_ a: AVAudioFormat, _ b: AVAudioFormat) -> Bool {
+    a.sampleRate == b.sampleRate
+      && a.channelCount == b.channelCount
+      && a.commonFormat == b.commonFormat
+  }
+
+  private func applyVolume(_ buffer: AVAudioPCMBuffer, volume: Float) {
+    guard volume != 1.0, let channels = buffer.floatChannelData else {
+      return
+    }
+    let frames = Int(buffer.frameLength)
+    let channelCount = Int(buffer.format.channelCount)
+    for channel in 0..<channelCount {
+      let data = channels[channel]
+      for frame in 0..<frames {
+        data[frame] *= volume
+      }
     }
   }
 
   private func activateAudioSession() {
     let session = AVAudioSession.sharedInstance()
-
     do {
       try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
       try session.setActive(true)
@@ -145,42 +402,17 @@ final class ClickSoundPlayer {
     }
   }
 
-  private func loadPlayerPool(named name: String, count: Int, volume: Float) -> [AVAudioPlayer] {
-    guard let url = resourceURL(named: name) else {
-      return []
-    }
-
-    var players: [AVAudioPlayer] = []
-    players.reserveCapacity(count)
-
-    for _ in 0..<count {
-      do {
-        let player = try AVAudioPlayer(contentsOf: url)
-        player.volume = volume
-        player.prepareToPlay()
-        players.append(player)
-      } catch {
-        print("ClickSoundPlayer — failed to load \(name).wav: \(error)")
-        return []
-      }
-    }
-
-    return players
-  }
-
   private func resourceURL(named name: String) -> URL? {
     let filename = "\(name).wav"
     var checkedLocations: [String] = []
 
     for candidate in Self.resourceSearchBundles() {
-      let label = candidate.label
-      checkedLocations.append(label)
+      checkedLocations.append(candidate.label)
 
       if let url = candidate.bundle.url(forResource: name, withExtension: "wav") {
         return url
       }
 
-      // Some packaging layouts nest files under an Assets subdirectory inside the bundle.
       if let url = candidate.bundle.url(
         forResource: name,
         withExtension: "wav",
@@ -196,7 +428,6 @@ final class ClickSoundPlayer {
     return nil
   }
 
-  /// Ordered lookup: CocoaPods resource bundle first, then main / class bundles.
   private static func resourceSearchBundles() -> [(label: String, bundle: Bundle)] {
     var results: [(label: String, bundle: Bundle)] = []
     var seen = Set<ObjectIdentifier>()
@@ -225,7 +456,6 @@ final class ClickSoundPlayer {
       append("\(assetsBundleName).bundle via Bundle.main", assetsBundle)
     }
 
-    // Static-framework fallback: bundle may sit next to the class module resources.
     if let resourceURL = classBundle.resourceURL?
       .appendingPathComponent("\(assetsBundleName).bundle"),
        let assetsBundle = Bundle(url: resourceURL) {

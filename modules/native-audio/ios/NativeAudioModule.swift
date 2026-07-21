@@ -26,6 +26,8 @@ public class NativeAudioModule: Module {
       )
       let ticksPerBeat = self.readTicksPerBeat(options["subdivision"])
 
+      // Prepare/calibrate happens inside MetronomeEngine.start (preparing phase)
+      // before the future anchor and first lookahead publish.
       self.metronomeEngine.start(
         bpm: bpm,
         beatsPerMeasure: beatsPerMeasure,
@@ -36,6 +38,7 @@ public class NativeAudioModule: Module {
 
     Function("stop") {
       self.metronomeEngine.stop()
+      self.clickSoundPlayer.flushScheduled()
     }
 
     Function("setTempo") { (bpm: Double) in
