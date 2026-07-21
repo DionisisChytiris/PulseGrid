@@ -1,10 +1,11 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 
 import { useResponsiveLayout } from '../../layout/useResponsiveLayout';
 import { studioColors } from '../../theme';
 import { BpmCircularSlider } from './BpmCircularSlider';
 import { DialTransportIcon } from './DialTransportIcon';
+import { useTransportBpmHoldRamp } from './useTransportBpmHoldRamp';
 
 /** ~25% larger ring for Quick Metronome hero dial. */
 export const BPM_DIAL_SIZE_SCALE = 1.25;
@@ -33,6 +34,15 @@ export function BpmControl({
   const layout = useResponsiveLayout();
   const [coronaActive, setCoronaActive] = useState(false);
   const [coronaColor, setCoronaColor] = useState('#00FF66');
+  const isDialDraggingRef = useRef(false);
+
+  const { beginHoldRamp, endHoldRamp } = useTransportBpmHoldRamp({
+    bpm: value,
+    minimumValue,
+    maximumValue,
+    onValueChange,
+    isDialDraggingRef,
+  });
 
   const metrics = useMemo(() => {
     const bpmFontSize = layout.displayFontSize(54 * diameterScale, 0.09, 0.11);
@@ -90,10 +100,15 @@ export function BpmControl({
     // but the effect itself only exists while pressed.
     setCoronaColor(isPlaying ? '#C44DFF' : '#00FF66');
     setCoronaActive(true);
+
+    // Direction fixed at press-in (before transport toggles playing state).
+    // Play (!isPlaying) → ramp up; Stop (isPlaying) → ramp down.
+    beginHoldRamp(isPlaying ? -1 : 1);
   };
 
   const handleTransportPressOut = () => {
     setCoronaActive(false);
+    endHoldRamp();
   };
 
   return (
@@ -111,6 +126,9 @@ export function BpmControl({
         onCenterPressOut={handleTransportPressOut}
         centerAccessibilityLabel={isPlaying ? 'Stop metronome' : 'Start metronome'}
         onAccentPatternChange={onAccentPatternChange}
+        onDialDraggingChange={(dragging) => {
+          isDialDraggingRef.current = dragging;
+        }}
       >
         {centerContent}
       </BpmCircularSlider>

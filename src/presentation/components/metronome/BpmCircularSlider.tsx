@@ -38,6 +38,8 @@ type BpmCircularSliderProps = {
   onCenterPressOut?: () => void;
   centerAccessibilityLabel?: string;
   onAccentPatternChange?: (pattern: boolean[]) => void;
+  /** Notifies when the tempo ring pan is active (for hold-ramp conflict avoidance). */
+  onDialDraggingChange?: (dragging: boolean) => void;
 };
 
 /** Visual rest position: thumb at the top of the ring. */
@@ -59,6 +61,7 @@ export function BpmCircularSlider({
   onCenterPressOut,
   centerAccessibilityLabel,
   onAccentPatternChange,
+  onDialDraggingChange,
 }: BpmCircularSliderProps) {
   const layout = useResponsiveLayout();
   const diameter = useMemo(() => {
@@ -82,6 +85,7 @@ export function BpmCircularSlider({
   const lastEmittedBpmRef = useRef(Math.round(value));
   const previousAngleRef = useRef<number | null>(null);
   const onValueChangeRef = useRef(onValueChange);
+  const onDialDraggingChangeRef = useRef(onDialDraggingChange);
   const containerRef = useRef<View>(null);
   const isDraggingRef = useRef(false);
   /** Touch fires action on press-in; skip the following onPress so we don't toggle twice. */
@@ -95,6 +99,7 @@ export function BpmCircularSlider({
   minimumValueRef.current = minimumValue;
   maximumValueRef.current = maximumValue;
   onValueChangeRef.current = onValueChange;
+  onDialDraggingChangeRef.current = onDialDraggingChange;
 
   // Sync knob position from external BPM changes (+/-, text input, tap tempo).
   useEffect(() => {
@@ -200,6 +205,7 @@ export function BpmCircularSlider({
       onPanResponderGrant: (event) => {
         measureCenter();
         isDraggingRef.current = true;
+        onDialDraggingChangeRef.current?.(true);
         previousAngleRef.current = touchAngle(
           event.nativeEvent.pageX,
           event.nativeEvent.pageY,
@@ -211,10 +217,12 @@ export function BpmCircularSlider({
       onPanResponderRelease: () => {
         previousAngleRef.current = null;
         isDraggingRef.current = false;
+        onDialDraggingChangeRef.current?.(false);
       },
       onPanResponderTerminate: () => {
         previousAngleRef.current = null;
         isDraggingRef.current = false;
+        onDialDraggingChangeRef.current?.(false);
       },
     }),
   ).current;
