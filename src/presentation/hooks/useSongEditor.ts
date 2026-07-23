@@ -13,6 +13,7 @@ import { createMeter, formatMeter } from '../../domain/music/Meter';
 import type { Song } from '../../domain/music/Song';
 import { songRepository } from '../../domain/music/storage';
 import {
+  setSegmentAccentPattern,
   setSegmentAccentPreset,
   setSegmentBarCount,
   setSegmentBpmOverride,
@@ -85,7 +86,8 @@ export function useSongEditor(songId: string) {
     saving,
     error,
     setSongName: (name: string) => applyAndSave((current) => updateSongName(current, name)),
-    addBar: () => applyAndSave((current) => addBarToSong(current)),
+    addBar: (meter?: Parameters<typeof addBarToSong>[1]) =>
+      applyAndSave((current) => addBarToSong(current, meter)),
     deleteBar: (barId: string) => applyAndSave((current) => deleteBarFromSong(current, barId)),
     moveBarUp: (barId: string) => applyAndSave((current) => moveBarInSong(current, barId, 'up')),
     moveBarDown: (barId: string) => applyAndSave((current) => moveBarInSong(current, barId, 'down')),
@@ -121,6 +123,8 @@ export function useSongEditor(songId: string) {
       applyAndSave((current) => setSegmentBpmOverride(current, segment, bpm)),
     setSegmentAccent: (segment: TimelineSegment, presetId: string) =>
       applyAndSave((current) => setSegmentAccentPreset(current, segment, presetId)),
+    setSegmentAccentPattern: (segment: TimelineSegment, pattern: readonly boolean[]) =>
+      applyAndSave((current) => setSegmentAccentPattern(current, segment, pattern)),
   };
 }
 

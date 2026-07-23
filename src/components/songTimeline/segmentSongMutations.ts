@@ -168,3 +168,20 @@ export function setSegmentAccentPreset(
     accentPattern: accentForPreset(presetId, bar.meter.numerator),
   }));
 }
+
+/**
+ * Apply a flat accent flag array to every bar in the segment.
+ * Length is padded/truncated to each bar's meter numerator.
+ */
+export function setSegmentAccentPattern(
+  song: Song,
+  segment: TimelineSegment,
+  steps: readonly boolean[],
+): Song {
+  return mapBarInSegment(song, segment, (bar) => ({
+    ...bar,
+    accentPattern: createAccentPatternSteps(
+      Array.from({ length: bar.meter.numerator }, (_, beatIndex) => steps[beatIndex] ?? false),
+    ),
+  }));
+}

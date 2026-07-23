@@ -20,6 +20,10 @@ type Props = {
   denominator: number;
   isActive?: boolean;
   isPast?: boolean;
+  /** Song playback running — drives LED resting/current appearance. */
+  isPlaying?: boolean;
+  /** 0-based beat in the active bar (ignored when this bar is not active). */
+  currentBeatIndex?: number;
 };
 
 /**
@@ -37,10 +41,13 @@ export const BarPreview = memo(function BarPreview({
   denominator,
   isActive = false,
   isPast = false,
+  isPlaying = false,
+  currentBeatIndex = -1,
 }: Props) {
   const pulseCount = Math.max(1, beats.length);
   const width = barCellWidth(pulseCount, denominator);
   const markerSize = pulseMarkerSize(denominator);
+  const barPlaying = isPlaying && isActive;
 
   const gridLineOffsets = useMemo(() => {
     const offsets: number[] = [];
@@ -87,6 +94,8 @@ export const BarPreview = memo(function BarPreview({
               <BeatAccentIndicator
                 accented={beat.symbol === 'accent'}
                 size={markerSize}
+                isPlaying={barPlaying}
+                isCurrentBeat={barPlaying && index === currentBeatIndex}
               />
             </View>
           );

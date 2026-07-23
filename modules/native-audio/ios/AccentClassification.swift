@@ -78,6 +78,18 @@ enum AccentClassification {
     return ticksPerBeat <= 1 ? .normal : .subdivision
   }
 
+  /// Song timeline: accent comes from the compiled event, not the session accentPattern.
+  static func resolveClickSoundKindFromTickAccent(
+    isAccent: Bool,
+    subdivisionIndex: Int
+  ) -> ClickSoundKind {
+    if isAccent {
+      return .beatAccent
+    }
+
+    return subdivisionIndex > 0 ? .subdivision : .normal
+  }
+
   static func resolveBeatAccent(beatIndexInBar: Int, accentPattern: [Bool]) -> Bool {
     if accentPattern.isEmpty {
       return false

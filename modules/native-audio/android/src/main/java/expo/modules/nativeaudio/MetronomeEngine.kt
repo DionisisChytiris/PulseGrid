@@ -582,15 +582,25 @@ internal class MetronomeEngine(
   }
 
   private fun enqueueAudioForTick(snapshot: TickSnapshot) {
-    val soundKind = AccentClassification.resolveClickSoundKind(
-      beatIndexInBar = snapshot.beatIndexInBar,
-      subdivisionIndex = snapshot.subdivisionIndex,
-      accentPattern = accentPattern,
-      ticksPerBeat = ticksPerBeat,
-      subdivisionAccentMode = subdivisionAccentMode,
-      subdivisionAccentEveryNth = subdivisionAccentEveryNth,
-      subdivisionAccentPattern = subdivisionAccentPattern,
-    )
+    // Song timeline: use compiled event accent on the snapshot.
+    // Quick Metronome: resolve from the live session accentPattern (unchanged).
+    val soundKind =
+      if (playbackMode == PlaybackMode.SONG_TIMELINE) {
+        AccentClassification.resolveClickSoundKindFromTickAccent(
+          isAccent = snapshot.isAccent,
+          subdivisionIndex = snapshot.subdivisionIndex,
+        )
+      } else {
+        AccentClassification.resolveClickSoundKind(
+          beatIndexInBar = snapshot.beatIndexInBar,
+          subdivisionIndex = snapshot.subdivisionIndex,
+          accentPattern = accentPattern,
+          ticksPerBeat = ticksPerBeat,
+          subdivisionAccentMode = subdivisionAccentMode,
+          subdivisionAccentEveryNth = subdivisionAccentEveryNth,
+          subdivisionAccentPattern = subdivisionAccentPattern,
+        )
+      }
 
     when (soundKind) {
       ClickSoundKind.BEAT_ACCENT -> clickSoundPlayer?.playAccent(snapshot.scheduledDeadlineNs)

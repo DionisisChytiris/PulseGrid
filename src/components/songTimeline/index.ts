@@ -5,6 +5,7 @@ export { SongTimelineView } from './SongTimelineView';
 export { TimelinePlaybackPanel } from './TimelinePlaybackPanel';
 export { TimelineSegmentRow } from './TimelineSegmentRow';
 export {
+  setSegmentAccentPattern,
   setSegmentAccentPreset,
   setSegmentBarCount,
   setSegmentBpmOverride,

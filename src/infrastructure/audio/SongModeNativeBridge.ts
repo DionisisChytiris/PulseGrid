@@ -140,6 +140,7 @@ export function startSongModeNativePlayback(
   NativeAudioModule.start({
     bpm: firstSnapshot?.bpm ?? firstEvent?.bpm ?? 120,
     beatsPerMeasure: firstSnapshot?.beatsPerMeasure ?? firstEvent?.meter.numerator ?? 4,
+    // Stub only — song click accents come from timelineEvents[].accent on native.
     accentPattern: [true],
     subdivision: 'quarter',
     playbackMode: PlaybackMode.SONG_TIMELINE,

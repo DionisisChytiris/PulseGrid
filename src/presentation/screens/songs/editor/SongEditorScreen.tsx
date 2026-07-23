@@ -16,7 +16,7 @@ import { createSong } from '../../../../domain/music/Song';
 import { CustomKeyboard } from '../../../components/CustomKeyboard';
 import { SongSignatureTimeline } from '../../../components/songSignatureTimeline';
 import { useEditorCustomKeyboard } from '../../../hooks/useEditorCustomKeyboard';
-import { meterOptions, useSongEditor } from '../../../hooks/useSongEditor';
+import { useSongEditor } from '../../../hooks/useSongEditor';
 import { useSongEditorLandscapeLock } from '../../../hooks/useSongEditorLandscapeLock';
 import { useSongPlayback } from '../../../hooks/useSongPlayback';
 import { useTimelinePlaybackViewModels } from '../../../hooks/useTimelinePlaybackViewModels';
@@ -40,11 +40,10 @@ export default function SongEditorScreen({ navigation, route }: Props) {
     setSegmentBarCount,
     setSegmentMeter,
     setSegmentBpmOverride,
-    setSegmentAccent,
+    setSegmentAccentPattern,
   } = useSongEditor(songId);
 
   const playback = useSongPlayback();
-  const meterChoices = meterOptions();
   const keyboard = useEditorCustomKeyboard();
   const placeholderSong = useMemo(
     () => createSong({ id: 'loading', name: '', sections: [] }),
@@ -154,7 +153,6 @@ export default function SongEditorScreen({ navigation, route }: Props) {
         <SongSignatureTimeline
           song={song}
           segments={timeline.segments}
-          meterOptions={meterChoices}
           isTimelineActive={timeline.isTimelineActive}
           isPlaying={playback.isPlaying}
           currentBarIndex={playback.currentBarIndex}
@@ -164,17 +162,8 @@ export default function SongEditorScreen({ navigation, route }: Props) {
           onSegmentBarCountChange={setSegmentBarCount}
           onSegmentMeterChange={setSegmentMeter}
           onSegmentBpmOverrideChange={setSegmentBpmOverride}
-          onSegmentAccentChange={setSegmentAccent}
+          onSegmentAccentPatternChange={setSegmentAccentPattern}
           onAddBar={addBar}
-          meterKeyboard={{
-            active: keyboard.activeField === 'segmentMeter',
-            value: keyboard.activeField === 'segmentMeter' ? keyboard.value : '',
-            onChangeText: keyboard.setValue,
-            onFocus: (currentValue) =>
-              keyboard.focusField('segmentMeter', currentValue, 'numbers'),
-            onDone: () => keyboard.dismiss(),
-            onRegister: (ref) => keyboard.registerInput('segmentMeter', ref),
-          }}
         />
       </View>
 

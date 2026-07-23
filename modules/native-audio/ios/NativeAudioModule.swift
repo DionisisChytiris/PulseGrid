@@ -25,6 +25,11 @@ public class NativeAudioModule: Module {
         beatsPerMeasure: beatsPerMeasure
       )
       let ticksPerBeat = self.readTicksPerBeat(options["subdivision"])
+      let playbackMode = options["playbackMode"] as? String
+      let timelineEvents: [TimelinePlaybackEvent] =
+        playbackMode == "song_timeline"
+          ? self.readTimelineEvents(options["timelineEvents"])
+          : []
 
       // Prepare/calibrate happens inside MetronomeEngine.start (preparing phase)
       // before the future anchor and first lookahead publish.
@@ -32,7 +37,8 @@ public class NativeAudioModule: Module {
         bpm: bpm,
         beatsPerMeasure: beatsPerMeasure,
         accentPattern: accentPattern,
-        ticksPerBeat: ticksPerBeat
+        ticksPerBeat: ticksPerBeat,
+        timelineEvents: timelineEvents
       )
     }
 
@@ -125,6 +131,62 @@ public class NativeAudioModule: Module {
     default:
       return 1
     }
+  }
+
+  private func readTimelineEvents(_ value: Any?) -> [TimelinePlaybackEvent] {
+    guard let rawEvents = value as? [Any] else {
+      return []
+    }
+
+    return rawEvents.compactMap { entry in
+      guard let map = entry as? [String: Any] else {
+        return nil
+      }
+
+      let sequence = Self.readUInt64(map["sequence"]) ?? 0
+      let bpm = max(1, Self.readDouble(map["bpm"]) ?? 120)
+      let accent = map["accent"] as? Bool ?? false
+      let subdivisionIndex = Self.readInt(map["subdivisionIndex"]) ?? 0
+      let beatIndexInBar = Self.readInt(map["beatIndexInBar"]) ?? 0
+      let beatsPerMeasure = max(1, Self.readInt(map["beatsPerMeasure"]) ?? 4)
+      let barId = map["barId"] as? String ?? ""
+      let sectionId = map["sectionId"] as? String ?? ""
+
+      return TimelinePlaybackEvent(
+        sequence: sequence,
+        bpm: bpm,
+        accent: accent,
+        subdivisionIndex: subdivisionIndex,
+        beatIndexInBar: beatIndexInBar,
+        beatsPerMeasure: beatsPerMeasure,
+        barId: barId,
+        sectionId: sectionId
+      )
+    }
+  }
+
+  private static func readDouble(_ value: Any?) -> Double? {
+    if let number = value as? NSNumber {
+      return number.doubleValue
+    }
+    return value as? Double
+  }
+
+  private static func readInt(_ value: Any?) -> Int? {
+    if let number = value as? NSNumber {
+      return number.intValue
+    }
+    return value as? Int
+  }
+
+  private static func readUInt64(_ value: Any?) -> UInt64? {
+    if let number = value as? NSNumber {
+      return number.uint64Value
+    }
+    if let intValue = value as? Int {
+      return UInt64(intValue)
+    }
+    return value as? UInt64
   }
 
   private func readAccentPattern(_ value: Any?, beatsPerMeasure: Int) -> [Bool] {

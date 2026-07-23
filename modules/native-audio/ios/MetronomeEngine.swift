@@ -37,6 +37,11 @@ final class MetronomeEngine {
   private var subdivisionAccentPattern: [Bool] = []
   private var anchorTimeNs: UInt64 = 0
 
+  /// Precompiled song timeline (empty = Quick Metronome).
+  private var timelineEvents: [TimelinePlaybackEvent] = []
+  /// Cumulative deadline offsets for [timelineEvents] (length = events.count + 1).
+  private var timelineDeadlineOffsetNs: [UInt64] = []
+
   /// Next subdivision-tick sequence to emit via onTick (UI only).
   private var nextUiSequence: UInt64 = 0
 
@@ -70,7 +75,13 @@ final class MetronomeEngine {
     self.onTick = onTick
   }
 
-  func start(bpm: Double, beatsPerMeasure: Int, accentPattern: [Bool], ticksPerBeat: Int) {
+  func start(
+    bpm: Double,
+    beatsPerMeasure: Int,
+    accentPattern: [Bool],
+    ticksPerBeat: Int,
+    timelineEvents: [TimelinePlaybackEvent] = []
+  ) {
     // idle → preparing
     stateLock.lock()
     haltLoopLocked()
@@ -79,6 +90,8 @@ final class MetronomeEngine {
     self.beatsPerMeasure = max(1, beatsPerMeasure)
     self.ticksPerBeat = normalizeTicksPerBeat(ticksPerBeat)
     self.accentPattern = accentPattern.isEmpty ? [true] : accentPattern
+    self.timelineEvents = timelineEvents
+    self.timelineDeadlineOffsetNs = Self.buildDeadlineOffsets(timelineEvents)
     nextUiSequence = 0
     lastPublishedSequence = -1
     scheduledAudioSequences.removeAll(keepingCapacity: true)
@@ -90,7 +103,10 @@ final class MetronomeEngine {
     generation = activeGeneration
     stateLock.unlock()
 
-    print("\(Self.logPrefix) — phase=preparing generation=\(activeGeneration)")
+    let modeLabel = timelineEvents.isEmpty ? "QUICK_METRONOME" : "SONG_TIMELINE"
+    print(
+      "\(Self.logPrefix) — phase=preparing generation=\(activeGeneration) mode=\(modeLabel) events=\(timelineEvents.count)"
+    )
 
     // Preparing: engine + calibrate only — no publish, no UI.
     clickSoundPlayer?.prepareForPlayback()
@@ -183,6 +199,12 @@ final class MetronomeEngine {
   private func applyLiveMusicalMutation(bpm newBpm: Double?, ticksPerBeat newTicks: Int?) {
     stateLock.lock()
 
+    // Song timeline accents/timing come from compiled events — ignore live QM mutations.
+    if !timelineEvents.isEmpty {
+      stateLock.unlock()
+      return
+    }
+
     var changed = false
     if let newBpm, newBpm != bpm {
       bpm = newBpm
@@ -222,6 +244,8 @@ final class MetronomeEngine {
     lastPublishedSequence = -1
     scheduledAudioSequences.removeAll(keepingCapacity: true)
     anchorTimeNs = 0
+    timelineEvents = []
+    timelineDeadlineOffsetNs = []
   }
 
   // MARK: - UI loop (independent of audio publication)
@@ -258,6 +282,14 @@ final class MetronomeEngine {
         now >= deadlineNs,
         "\(Self.logPrefix) — UI tick \(sequence) before deadline (now=\(now) deadline=\(deadlineNs))"
       )
+
+      // Song timeline finished — stop the loop (finite event stream).
+      if !timelineEvents.isEmpty, Int(sequence) >= timelineEvents.count {
+        haltLoopLocked()
+        stateLock.unlock()
+        print("\(Self.logPrefix) — song timeline complete sequence=\(sequence)")
+        return
+      }
 
       let timestampMs = Double(now &- anchorTimeNs) / 1_000_000.0
       let snapshot = snapshotForSequenceLocked(sequence, timestampMs: timestampMs)
@@ -334,6 +366,25 @@ final class MetronomeEngine {
 
   /// Caller must hold stateLock.
   private func snapshotForSequenceLocked(_ sequence: UInt64, timestampMs: Double) -> TickSnapshot? {
+    if !timelineEvents.isEmpty {
+      let index = Int(sequence)
+      guard index >= 0, index < timelineEvents.count else {
+        return nil
+      }
+
+      let event = timelineEvents[index]
+      return TickSnapshot(
+        sequence: sequence,
+        beatIndexInBar: event.beatIndexInBar,
+        beatNumber: event.beatIndexInBar + 1,
+        beatsPerMeasure: event.beatsPerMeasure,
+        subdivisionIndex: event.subdivisionIndex,
+        isAccent: event.accent,
+        timestampMs: timestampMs,
+        scheduledDeadlineNs: deadlineForSequenceLocked(sequence)
+      )
+    }
+
     let subdivisionIndex = Int(sequence % UInt64(ticksPerBeat))
     let beatIndexInBar = Int((sequence / UInt64(ticksPerBeat)) % UInt64(beatsPerMeasure))
     let beatNumber = beatIndexInBar + 1
@@ -362,7 +413,39 @@ final class MetronomeEngine {
 
   /// Caller must hold stateLock.
   private func deadlineForSequenceLocked(_ sequence: UInt64) -> UInt64 {
-    anchorTimeNs &+ tickOffsetNs(sequence, bpm, ticksPerBeat)
+    if !timelineEvents.isEmpty {
+      let index = Int(sequence)
+      let offset: UInt64
+      if index < 0 {
+        offset = 0
+      } else if index >= timelineDeadlineOffsetNs.count {
+        offset = timelineDeadlineOffsetNs.last ?? 0
+      } else {
+        offset = timelineDeadlineOffsetNs[index]
+      }
+      return anchorTimeNs &+ offset
+    }
+
+    return anchorTimeNs &+ tickOffsetNs(sequence, bpm, ticksPerBeat)
+  }
+
+  private static func buildDeadlineOffsets(_ events: [TimelinePlaybackEvent]) -> [UInt64] {
+    guard !events.isEmpty else {
+      return []
+    }
+
+    var offsets = [UInt64](repeating: 0, count: events.count + 1)
+    var running: UInt64 = 0
+
+    for index in events.indices {
+      offsets[index] = running
+      let bpm = max(1, events[index].bpm)
+      let beatDurationNs = UInt64(max(1, (60_000_000_000.0 / bpm).rounded()))
+      running &+= beatDurationNs
+    }
+
+    offsets[events.count] = running
+    return offsets
   }
 
   /// Caller must hold stateLock.
@@ -395,6 +478,7 @@ final class MetronomeEngine {
     let mode = subdivisionAccentMode
     let everyNth = subdivisionAccentEveryNth
     let subPattern = subdivisionAccentPattern
+    let songTimeline = !timelineEvents.isEmpty
 
     if stillActive {
       for snapshot in snapshots {
@@ -419,16 +503,24 @@ final class MetronomeEngine {
     }
 
     for snapshot in snapshots {
-      playClickForTick(
-        beatIndexInBar: snapshot.beatIndexInBar,
-        subdivisionIndex: snapshot.subdivisionIndex,
-        accentPattern: pattern,
-        ticksPerBeat: ticks,
-        subdivisionAccentMode: mode,
-        subdivisionAccentEveryNth: everyNth,
-        subdivisionAccentPattern: subPattern,
-        scheduledDeadlineNs: snapshot.scheduledDeadlineNs
-      )
+      if songTimeline {
+        playClickForSongTick(
+          isAccent: snapshot.isAccent,
+          subdivisionIndex: snapshot.subdivisionIndex,
+          scheduledDeadlineNs: snapshot.scheduledDeadlineNs
+        )
+      } else {
+        playClickForTick(
+          beatIndexInBar: snapshot.beatIndexInBar,
+          subdivisionIndex: snapshot.subdivisionIndex,
+          accentPattern: pattern,
+          ticksPerBeat: ticks,
+          subdivisionAccentMode: mode,
+          subdivisionAccentEveryNth: everyNth,
+          subdivisionAccentPattern: subPattern,
+          scheduledDeadlineNs: snapshot.scheduledDeadlineNs
+        )
+      }
     }
   }
 
@@ -469,6 +561,26 @@ final class MetronomeEngine {
         let sleepNs = min(remaining &- spinThresholdNs, maxSleepChunkNs)
         usleep(useconds_t(sleepNs / 1_000))
       }
+    }
+  }
+
+  private func playClickForSongTick(
+    isAccent: Bool,
+    subdivisionIndex: Int,
+    scheduledDeadlineNs: UInt64
+  ) {
+    switch AccentClassification.resolveClickSoundKindFromTickAccent(
+      isAccent: isAccent,
+      subdivisionIndex: subdivisionIndex
+    ) {
+    case .beatAccent:
+      clickSoundPlayer?.playAccent(scheduledDeadlineNs: scheduledDeadlineNs)
+    case .subdivisionAccent:
+      clickSoundPlayer?.playNormal(scheduledDeadlineNs: scheduledDeadlineNs)
+    case .normal:
+      clickSoundPlayer?.playNormal(scheduledDeadlineNs: scheduledDeadlineNs)
+    case .subdivision:
+      clickSoundPlayer?.playSubdivision(scheduledDeadlineNs: scheduledDeadlineNs)
     }
   }
 

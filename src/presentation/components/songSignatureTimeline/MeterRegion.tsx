@@ -15,6 +15,10 @@ type Props = {
   segment: TimelineSegmentViewModel;
   onPress?: (segmentId: string) => void;
   onLayout?: (segmentId: string, x: number, width: number) => void;
+  /** Song playback running — pulse LEDs follow the playhead beat. */
+  isPlaying?: boolean;
+  /** 0-based beat index within the active bar. */
+  currentBeatIndex?: number;
 };
 
 /**
@@ -29,10 +33,13 @@ export const MeterRegion = memo(function MeterRegion({
   segment,
   onPress,
   onLayout,
+  isPlaying = false,
+  currentBeatIndex = -1,
 }: Props) {
   const beatCount = Math.max(1, segment.accentPreview.length);
   const denominator = parseMeterDenominator(segment.meter);
   const width = meterRegionWidth(segment.numberOfBars, beatCount, denominator);
+  const regionPlaying = isPlaying && segment.isActive;
 
   return (
     <Pressable
@@ -59,6 +66,8 @@ export const MeterRegion = memo(function MeterRegion({
             denominator={denominator}
             isActive={indicator.isActive}
             isPast={indicator.isPast}
+            isPlaying={regionPlaying}
+            currentBeatIndex={currentBeatIndex}
           />
         ))}
       </View>

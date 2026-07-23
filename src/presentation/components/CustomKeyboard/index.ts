@@ -1,4 +1,8 @@
 export { CustomKeyboard, type CustomKeyboardProps } from './CustomKeyboard';
+export {
+  estimateCustomKeyboardBottomHeight,
+  estimateCustomKeyboardRightWidth,
+} from './keyboardSize';
 export { KeyboardKey } from './KeyboardKey';
 export { KeyboardRow } from './KeyboardRow';
 export { useShiftState } from './useShiftState';

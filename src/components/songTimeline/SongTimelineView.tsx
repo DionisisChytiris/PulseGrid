@@ -27,39 +27,32 @@ import type { Song } from '../../domain/music/Song';
 type Props = {
   song: Song;
   segments: readonly TimelineSegmentViewModel[];
-  meterOptions: readonly string[];
   isTimelineActive: boolean;
   currentBarIndex: number;
   onSegmentBarCountChange: (segment: TimelineSegment, count: number) => void;
   onSegmentMeterChange: (segment: TimelineSegment, meterLabel: string) => void;
   onSegmentBpmOverrideChange: (segment: TimelineSegment, bpm: number | null) => void;
-  onSegmentAccentChange: (segment: TimelineSegment, presetId: string) => void;
+  onSegmentAccentPatternChange: (segment: TimelineSegment, pattern: boolean[]) => void;
 };
 
 export function SongTimelineView({
   song,
   segments,
-  meterOptions,
   isTimelineActive,
   currentBarIndex,
   onSegmentBarCountChange,
   onSegmentMeterChange,
   onSegmentBpmOverrideChange,
-  onSegmentAccentChange,
+  onSegmentAccentPatternChange,
 }: Props) {
   const listRef = useRef<FlatList<TimelineSegmentViewModel>>(null);
   const segmentLayouts = useRef(new Map<string, { x: number; width: number }>());
   const autoFollowSuspendedUntil = useRef(0);
   const [viewportWidth, setViewportWidth] = useState(0);
-  const [editingSegmentId, setEditingSegmentId] = useState<string | null>(null);
+  const [segmentEditorVisible, setSegmentEditorVisible] = useState(false);
+  const [focusSegmentId, setFocusSegmentId] = useState<string | null>(null);
 
   const domainSegments = useMemo(() => buildTimelineSegments(song), [song]);
-  const editingDomainSegment =
-    editingSegmentId === null ? null : findDomainSegmentById(song, editingSegmentId);
-  const editingViewModel =
-    editingSegmentId === null
-      ? null
-      : segments.find((segment) => segment.id === editingSegmentId) ?? null;
 
   useTimelineAutoScroll({
     listRef,
@@ -113,7 +106,10 @@ export function SongTimelineView({
           renderItem={({ item }) => (
             <TimelineSegmentRow
               segment={item}
-              onPress={setEditingSegmentId}
+              onPress={(segmentId) => {
+                setFocusSegmentId(segmentId);
+                setSegmentEditorVisible(true);
+              }}
               onLayout={(segmentId, x, width) => {
                 segmentLayouts.current.set(segmentId, { x, width });
               }}
@@ -134,28 +130,35 @@ export function SongTimelineView({
       </View>
 
       <SegmentEditBottomSheet
-        visible={editingDomainSegment !== null && editingViewModel !== null}
-        segment={editingViewModel}
-        meterOptions={meterOptions}
-        onClose={() => setEditingSegmentId(null)}
-        onBarCountChange={(count) => {
-          if (editingDomainSegment !== null) {
-            onSegmentBarCountChange(editingDomainSegment, count);
+        visible={segmentEditorVisible}
+        segments={segments}
+        focusSegmentId={focusSegmentId}
+        onClose={() => {
+          setSegmentEditorVisible(false);
+          setFocusSegmentId(null);
+        }}
+        onBarCountChange={(segmentId, count) => {
+          const domain = findDomainSegmentById(song, segmentId);
+          if (domain !== null) {
+            onSegmentBarCountChange(domain, count);
           }
         }}
-        onMeterChange={(meter) => {
-          if (editingDomainSegment !== null) {
-            onSegmentMeterChange(editingDomainSegment, meter);
+        onMeterChange={(segmentId, meter) => {
+          const domain = findDomainSegmentById(song, segmentId);
+          if (domain !== null) {
+            onSegmentMeterChange(domain, meter);
           }
         }}
-        onBpmOverrideChange={(bpm) => {
-          if (editingDomainSegment !== null) {
-            onSegmentBpmOverrideChange(editingDomainSegment, bpm);
+        onBpmOverrideChange={(segmentId, bpm) => {
+          const domain = findDomainSegmentById(song, segmentId);
+          if (domain !== null) {
+            onSegmentBpmOverrideChange(domain, bpm);
           }
         }}
-        onAccentChange={(presetId) => {
-          if (editingDomainSegment !== null) {
-            onSegmentAccentChange(editingDomainSegment, presetId);
+        onAccentPatternChange={(segmentId, pattern) => {
+          const domain = findDomainSegmentById(song, segmentId);
+          if (domain !== null) {
+            onSegmentAccentPatternChange(domain, pattern);
           }
         }}
       />

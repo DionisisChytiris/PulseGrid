@@ -1,3 +1,5 @@
+export { NewBarMeterDialog } from './NewBarMeterDialog';
+export { SegmentEditorRow } from './SegmentEditorRow';
 export { BarPreview } from './BarPreview';
 export { BeatAccentIndicator } from './BeatAccentIndicator';
 export { MeterRegion } from './MeterRegion';

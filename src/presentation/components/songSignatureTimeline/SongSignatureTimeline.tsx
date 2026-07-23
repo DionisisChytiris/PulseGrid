@@ -12,6 +12,7 @@ import {
 import { SegmentEditBottomSheet } from '../../../components/songTimeline/SegmentEditBottomSheet';
 import { AUTO_FOLLOW_SUSPEND_MS } from '../../../components/songTimeline/timelineConstants';
 import type { TimelineSegment } from '../../../components/songTimeline/types';
+import type { Meter } from '../../../domain/music/Meter';
 import type { Song } from '../../../domain/music/Song';
 import { pulseDurationMsFromDisplayBpm } from '../../../domain/metronome/PulseGridSettings';
 import { findDomainSegmentById } from '../../viewModels/buildTimelineSegmentViewModels';
@@ -19,6 +20,7 @@ import type { TimelineSegmentViewModel } from '../../viewModels/TimelineSegmentV
 import { studioColors } from '../../theme';
 
 import { MeterRegion } from './MeterRegion';
+import { NewBarMeterDialog } from './NewBarMeterDialog';
 import {
   BAR_CELL_PADDING_V,
   REGION_GAP,
@@ -31,7 +33,6 @@ import {
 type Props = {
   song: Song;
   segments: readonly TimelineSegmentViewModel[];
-  meterOptions: readonly string[];
   isTimelineActive: boolean;
   isPlaying: boolean;
   currentBarIndex: number;
@@ -41,16 +42,8 @@ type Props = {
   onSegmentBarCountChange: (segment: TimelineSegment, count: number) => void;
   onSegmentMeterChange: (segment: TimelineSegment, meterLabel: string) => void;
   onSegmentBpmOverrideChange: (segment: TimelineSegment, bpm: number | null) => void;
-  onSegmentAccentChange: (segment: TimelineSegment, presetId: string) => void;
-  onAddBar: () => void;
-  meterKeyboard?: {
-    active: boolean;
-    value: string;
-    onChangeText: (value: string) => void;
-    onFocus: (currentValue: string) => void;
-    onDone: () => void;
-    onRegister?: (ref: import('react-native').TextInput | null) => void;
-  };
+  onSegmentAccentPatternChange: (segment: TimelineSegment, pattern: boolean[]) => void;
+  onAddBar: (meter: Meter) => void;
 };
 
 type PlaybackCursor = {
@@ -116,7 +109,6 @@ function pulseDurationMs(bpm: number | null, meterLabel: string): number {
 export function SongSignatureTimeline({
   song,
   segments,
-  meterOptions,
   isTimelineActive,
   isPlaying,
   currentBarIndex,
@@ -126,9 +118,8 @@ export function SongSignatureTimeline({
   onSegmentBarCountChange,
   onSegmentMeterChange,
   onSegmentBpmOverrideChange,
-  onSegmentAccentChange,
+  onSegmentAccentPatternChange,
   onAddBar,
-  meterKeyboard,
 }: Props) {
   const listRef = useRef<FlatList<TimelineSegmentViewModel>>(null);
   const autoFollowSuspendedUntil = useRef(0);
@@ -145,16 +136,11 @@ export function SongSignatureTimeline({
   const wasPlayingRef = useRef(false);
   const lastTickKeyRef = useRef<string | null>(null);
   const [viewportWidth, setViewportWidth] = useState(0);
-  const [editingSegmentId, setEditingSegmentId] = useState<string | null>(null);
+  const [segmentEditorVisible, setSegmentEditorVisible] = useState(false);
+  const [focusSegmentId, setFocusSegmentId] = useState<string | null>(null);
+  const [newBarDialogVisible, setNewBarDialogVisible] = useState(false);
 
   segmentsRef.current = segments;
-
-  const editingDomainSegment =
-    editingSegmentId === null ? null : findDomainSegmentById(song, editingSegmentId);
-  const editingViewModel =
-    editingSegmentId === null
-      ? null
-      : (segments.find((segment) => segment.id === editingSegmentId) ?? null);
 
   const scrollToPlaybackPosition = useCallback((animated: boolean) => {
     const cursor = playbackCursorRef.current;
@@ -297,7 +283,8 @@ export function SongSignatureTimeline({
       autoFollowSuspendedUntil.current = Date.now() + AUTO_FOLLOW_SUSPEND_MS;
       const targetOffset = playbackScrollOffset(segments, segment.startBar - 1, 0);
       listRef.current?.scrollToOffset({ offset: targetOffset, animated: true });
-      setEditingSegmentId(segment.id);
+      setFocusSegmentId(segment.id);
+      setSegmentEditorVisible(true);
     },
     [segments],
   );
@@ -322,7 +309,7 @@ export function SongSignatureTimeline({
       <View style={styles.addBarTrack}>
         <Pressable
           style={styles.addBarButton}
-          onPress={onAddBar}
+          onPress={() => setNewBarDialogVisible(true)}
           accessibilityRole="button"
           accessibilityLabel="Add bar"
         >
@@ -351,6 +338,8 @@ export function SongSignatureTimeline({
               <MeterRegion
                 segment={item}
                 onPress={() => openSegment(item)}
+                isPlaying={isTimelineActive && isPlaying}
+                currentBeatIndex={currentBeatIndex}
               />
             </View>
           )}
@@ -371,7 +360,7 @@ export function SongSignatureTimeline({
               paddingRight: viewportWidth / 2,
             },
           ]}
-          extraData={`${currentBarIndex}-${isTimelineActive}`}
+          extraData={`${currentBarIndex}-${currentBeatIndex}-${isPlaying}-${isTimelineActive}`}
           windowSize={5}
           initialNumToRender={6}
           maxToRenderPerBatch={8}
@@ -387,34 +376,45 @@ export function SongSignatureTimeline({
       </View>
 
       <SegmentEditBottomSheet
-        visible={editingDomainSegment !== null && editingViewModel !== null}
-        segment={editingViewModel}
-        meterOptions={meterOptions}
+        visible={segmentEditorVisible}
+        segments={segments}
+        focusSegmentId={focusSegmentId}
         onClose={() => {
-          meterKeyboard?.onDone();
-          setEditingSegmentId(null);
+          setSegmentEditorVisible(false);
+          setFocusSegmentId(null);
         }}
-        onBarCountChange={(count) => {
-          if (editingDomainSegment !== null) {
-            onSegmentBarCountChange(editingDomainSegment, count);
+        onBarCountChange={(segmentId, count) => {
+          const domain = findDomainSegmentById(song, segmentId);
+          if (domain !== null) {
+            onSegmentBarCountChange(domain, count);
           }
         }}
-        onMeterChange={(meter) => {
-          if (editingDomainSegment !== null) {
-            onSegmentMeterChange(editingDomainSegment, meter);
+        onMeterChange={(segmentId, meter) => {
+          const domain = findDomainSegmentById(song, segmentId);
+          if (domain !== null) {
+            onSegmentMeterChange(domain, meter);
           }
         }}
-        onBpmOverrideChange={(bpm) => {
-          if (editingDomainSegment !== null) {
-            onSegmentBpmOverrideChange(editingDomainSegment, bpm);
+        onBpmOverrideChange={(segmentId, bpm) => {
+          const domain = findDomainSegmentById(song, segmentId);
+          if (domain !== null) {
+            onSegmentBpmOverrideChange(domain, bpm);
           }
         }}
-        onAccentChange={(presetId) => {
-          if (editingDomainSegment !== null) {
-            onSegmentAccentChange(editingDomainSegment, presetId);
+        onAccentPatternChange={(segmentId, pattern) => {
+          const domain = findDomainSegmentById(song, segmentId);
+          if (domain !== null) {
+            onSegmentAccentPatternChange(domain, pattern);
           }
         }}
-        meterKeyboard={meterKeyboard}
+      />
+      <NewBarMeterDialog
+        visible={newBarDialogVisible}
+        onCancel={() => setNewBarDialogVisible(false)}
+        onConfirm={(meter) => {
+          setNewBarDialogVisible(false);
+          onAddBar(meter);
+        }}
       />
     </View>
   );

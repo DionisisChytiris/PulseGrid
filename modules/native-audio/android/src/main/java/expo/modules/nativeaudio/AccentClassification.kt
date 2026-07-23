@@ -82,6 +82,29 @@ internal object AccentClassification {
     }
   }
 
+  /**
+   * Song timeline clicks: accent strength comes from the compiled event (`isAccent`),
+   * not from the session accentPattern stub used for Quick Metronome.
+   */
+  fun resolveClickSoundKindFromTickAccent(
+    isAccent: Boolean,
+    subdivisionIndex: Int,
+  ): ClickSoundKind {
+    if (isAccent && subdivisionIndex == 0) {
+      return ClickSoundKind.BEAT_ACCENT
+    }
+
+    if (isAccent) {
+      return ClickSoundKind.BEAT_ACCENT
+    }
+
+    return if (subdivisionIndex > 0) {
+      ClickSoundKind.SUBDIVISION
+    } else {
+      ClickSoundKind.NORMAL
+    }
+  }
+
   fun resolveBeatAccent(beatIndexInBar: Int, accentPattern: BooleanArray): Boolean {
     if (accentPattern.isEmpty()) {
       return false

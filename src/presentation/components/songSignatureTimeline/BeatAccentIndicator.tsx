@@ -1,48 +1,52 @@
 import { memo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
-import { studioColors } from '../../theme';
+import { beatLedAppearance } from '../metronome/beatLedAppearance';
 
 type Props = {
   /** Strong/accented beat when true; weak/normal when false. */
   accented: boolean;
   size?: number;
+  /** When true, use Quick Metronome LED playing/idle appearance. */
+  isPlaying?: boolean;
+  /** Highlight this pulse as the current song-playback beat. */
+  isCurrentBeat?: boolean;
 };
 
-/** Single beat glyph: filled ● for accent, open ○ for normal. */
+/**
+ * Signature-track pulse glyph.
+ * Idle: accent ● / normal ○. Playing: same LED rules as Quick Metronome.
+ */
 export const BeatAccentIndicator = memo(function BeatAccentIndicator({
   accented,
   size = 18,
+  isPlaying = false,
+  isCurrentBeat = false,
 }: Props) {
-  const radius = size / 2;
+  const borderWidth = Math.max(1, Math.round(size * 0.12));
+  const appearance = beatLedAppearance(isPlaying, isCurrentBeat, accented, borderWidth);
 
   return (
     <View
-      style={[
-        styles.base,
-        {
-          width: size,
-          height: size,
-          borderRadius: radius,
-        },
-        accented ? styles.accented : styles.normal,
-      ]}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: appearance.backgroundColor,
+        borderColor: appearance.borderColor,
+        borderWidth: appearance.borderWidth,
+        opacity: appearance.opacity,
+      }}
       accessibilityRole="image"
-      accessibilityLabel={accented ? 'Accented beat' : 'Normal beat'}
+      accessibilityLabel={
+        isPlaying && isCurrentBeat
+          ? accented
+            ? 'Current accented beat'
+            : 'Current beat'
+          : accented
+            ? 'Accented beat'
+            : 'Normal beat'
+      }
     />
   );
-});
-
-const styles = StyleSheet.create({
-  base: {
-    borderWidth: 2,
-  },
-  accented: {
-    backgroundColor: studioColors.beatAccent,
-    borderColor: studioColors.beatAccent,
-  },
-  normal: {
-    backgroundColor: 'transparent',
-    borderColor: studioColors.beatInactive,
-  },
 });

@@ -1,351 +1,458 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Modal,
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
-  TextInput,
   useWindowDimensions,
   View,
+  type TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { CustomKeyboard } from '../../presentation/components/CustomKeyboard';
+import {
+  CustomKeyboard,
+  estimateCustomKeyboardBottomHeight,
+  estimateCustomKeyboardRightWidth,
+  resolvePlacement,
+} from '../../presentation/components/CustomKeyboard';
+import {
+  SegmentEditorRow,
+  type SegmentEditorActiveField,
+} from '../../presentation/components/songSignatureTimeline/SegmentEditorRow';
+import {
+  clampBarCount,
+  clampNumerator,
+  normalizeDenominator,
+  parseBarCountText,
+  parseNumeratorText,
+  sanitizeBarCountInput,
+  sanitizeNumeratorInput,
+  type MeterDenominator,
+} from '../../presentation/components/songSignatureTimeline/meterPickerValidation';
 import type { TimelineSegmentViewModel } from '../../presentation/viewModels/TimelineSegmentViewModel';
 import { studioColors } from '../../presentation/theme';
 
-import { AccentBeatPreview } from './AccentBeatPreview';
-
+/** @deprecated Preset chips removed — kept for any external imports. */
 export const ACCENT_PRESET_OPTIONS = [
   { id: 'downbeat', label: 'Downbeat (▲ ○ ○ ○)' },
   { id: 'all', label: 'All beats (▲ ▲ ▲ ▲)' },
   { id: 'grouped-322', label: '7/8 grouped (▲ ○ ▲ ○ ▲ ○ ○)' },
 ] as const;
 
-type CustomMeterKeyboardProps = {
-  active: boolean;
-  value: string;
-  onChangeText: (value: string) => void;
-  onFocus: (currentValue: string) => void;
-  onDone: () => void;
-  onRegister?: (ref: TextInput | null) => void;
-};
-
 type Props = {
   visible: boolean;
-  segment: TimelineSegmentViewModel | null;
-  meterOptions: readonly string[];
+  segments: readonly TimelineSegmentViewModel[];
+  /** Scroll this segment into view when the sheet opens (tapped region). */
+  focusSegmentId?: string | null;
   onClose: () => void;
-  onBarCountChange: (count: number) => void;
-  onMeterChange: (meterLabel: string) => void;
-  onBpmOverrideChange: (bpm: number | null) => void;
-  onAccentChange: (presetId: string) => void;
-  /** Optional CustomKeyboard binding for the time-signature field. */
-  meterKeyboard?: CustomMeterKeyboardProps;
+  onBarCountChange: (segmentId: string, count: number) => void;
+  onMeterChange: (segmentId: string, meterLabel: string) => void;
+  onAccentPatternChange: (segmentId: string, pattern: boolean[]) => void;
+  /** Reserved for a future BPM-override row. */
+  onBpmOverrideChange?: (segmentId: string, bpm: number | null) => void;
 };
 
+type ActiveEdit = SegmentEditorActiveField & { text: string };
+
+function meterNumerator(meterLabel: string): number {
+  const numerator = Number(meterLabel.split('/')[0]);
+  return Number.isInteger(numerator) ? clampNumerator(numerator) : 4;
+}
+
+function meterDenominator(meterLabel: string): MeterDenominator {
+  const denominator = Number(meterLabel.split('/')[1]);
+  return normalizeDenominator(Number.isInteger(denominator) ? denominator : 4);
+}
+
 /**
- * Large landscape-friendly editor for a timeline meter region.
- * Modal UI only — does not affect playback or timeline rendering.
+ * Primary song-structure editor: scrollable list of inline segment rows.
+ * CustomKeyboard docks below/beside the sheet; sheet height shrinks to stay visible.
  */
 export function SegmentEditBottomSheet({
   visible,
-  segment,
-  meterOptions,
+  segments,
+  focusSegmentId = null,
   onClose,
   onBarCountChange,
   onMeterChange,
-  onBpmOverrideChange,
-  onAccentChange,
-  meterKeyboard,
+  onAccentPatternChange,
 }: Props) {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const landscape = width > height;
-  const keyboardOpen = meterKeyboard?.active === true;
+  const placement = resolvePlacement('auto', width, height);
 
-  if (segment === null) {
-    return null;
-  }
+  const scrollRef = useRef<ScrollView>(null);
+  const rowLayouts = useRef(new Map<string, { y: number; height: number }>());
+  const numeratorRefs = useRef(new Map<string, TextInput | null>());
+  const barCountRefs = useRef(new Map<string, TextInput | null>());
+
+  const [activeEdit, setActiveEdit] = useState<ActiveEdit | null>(null);
+  const activeEditRef = useRef<ActiveEdit | null>(null);
+  activeEditRef.current = activeEdit;
+
+  const [expandedSegmentId, setExpandedSegmentId] = useState<string | null>(null);
+
+  const keyboardOpen = activeEdit !== null;
+  const bottomKeyboardHeight =
+    keyboardOpen && placement === 'bottom'
+      ? estimateCustomKeyboardBottomHeight(insets.bottom)
+      : 0;
+  const rightKeyboardWidth =
+    keyboardOpen && placement === 'right' ? estimateCustomKeyboardRightWidth(width) : 0;
+
+  const defaultSheetHeight = Math.round(height * 0.78);
+  const sheetHeight =
+    keyboardOpen && placement === 'bottom'
+      ? Math.max(Math.round(height * 0.4), height - bottomKeyboardHeight)
+      : defaultSheetHeight;
 
   const panelMaxWidth = landscape
-    ? Math.min(640, width * (keyboardOpen ? 0.5 : 0.92))
+    ? Math.min(720, width - rightKeyboardWidth - 24)
     : width;
-  const panelMaxHeight = landscape
-    ? height - insets.top - insets.bottom - 24
-    : keyboardOpen
-      ? height * 0.5
-      : height * 0.88;
+
+  const segmentIdsKey = useMemo(
+    () => segments.map((segment) => segment.id).join('|'),
+    [segments],
+  );
+
+  // Drop keyboard focus if the active segment disappeared after a merge/split.
+  useEffect(() => {
+    if (activeEdit === null) {
+      return;
+    }
+    if (!segments.some((segment) => segment.id === activeEdit.segmentId)) {
+      setActiveEdit(null);
+    }
+  }, [activeEdit, segments]);
+
+  // Keep at most one expanded row; clear if that segment vanished.
+  useEffect(() => {
+    if (expandedSegmentId === null) {
+      return;
+    }
+    if (!segments.some((segment) => segment.id === expandedSegmentId)) {
+      setExpandedSegmentId(null);
+    }
+  }, [expandedSegmentId, segments]);
+
+  useEffect(() => {
+    if (!visible) {
+      setActiveEdit(null);
+      setExpandedSegmentId(null);
+      rowLayouts.current.clear();
+      return;
+    }
+    if (focusSegmentId !== null) {
+      setExpandedSegmentId(focusSegmentId);
+    }
+  }, [visible, focusSegmentId]);
+
+  const scrollRowIntoView = useCallback(
+    (segmentId: string) => {
+      const layout = rowLayouts.current.get(segmentId);
+      if (layout === undefined) {
+        return;
+      }
+      scrollRef.current?.scrollTo({
+        y: Math.max(0, layout.y - 8),
+        animated: true,
+      });
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!visible || focusSegmentId === null) {
+      return;
+    }
+    const handle = requestAnimationFrame(() => {
+      scrollRowIntoView(focusSegmentId);
+    });
+    return () => cancelAnimationFrame(handle);
+  }, [visible, focusSegmentId, segmentIdsKey, scrollRowIntoView]);
+
+  useEffect(() => {
+    if (expandedSegmentId === null) {
+      return;
+    }
+    const handle = requestAnimationFrame(() => {
+      scrollRowIntoView(expandedSegmentId);
+    });
+    return () => cancelAnimationFrame(handle);
+  }, [expandedSegmentId, sheetHeight, scrollRowIntoView]);
+
+  const blurActiveInput = useCallback((edit: ActiveEdit | null) => {
+    if (edit === null) {
+      return;
+    }
+    const map = edit.kind === 'numerator' ? numeratorRefs : barCountRefs;
+    requestAnimationFrame(() => {
+      map.current.get(edit.segmentId)?.blur();
+    });
+  }, []);
+
+  const commitEdit = useCallback(
+    (current: ActiveEdit) => {
+      const segment = segments.find((item) => item.id === current.segmentId);
+      if (segment === undefined) {
+        return;
+      }
+
+      if (current.kind === 'numerator') {
+        const numerator = parseNumeratorText(current.text) ?? meterNumerator(segment.meter);
+        const denominator = meterDenominator(segment.meter);
+        onMeterChange(segment.id, `${numerator}/${denominator}`);
+        return;
+      }
+
+      const count = parseBarCountText(current.text) ?? clampBarCount(segment.numberOfBars);
+      onBarCountChange(segment.id, count);
+    },
+    [onBarCountChange, onMeterChange, segments],
+  );
+
+  const finalizeActiveEdit = useCallback(() => {
+    const current = activeEditRef.current;
+    if (current === null) {
+      return;
+    }
+    commitEdit(current);
+    blurActiveInput(current);
+    setActiveEdit(null);
+  }, [blurActiveInput, commitEdit]);
 
   const handleClose = () => {
-    if (meterKeyboard?.active) {
-      meterKeyboard.onDone();
-    }
+    finalizeActiveEdit();
     onClose();
   };
 
+  const handleToggleExpand = useCallback(
+    (segmentId: string) => {
+      setExpandedSegmentId((current) => {
+        if (current === segmentId) {
+          const edit = activeEditRef.current;
+          if (edit !== null && edit.segmentId === segmentId) {
+            commitEdit(edit);
+            blurActiveInput(edit);
+            setActiveEdit(null);
+          }
+          return null;
+        }
+
+        const edit = activeEditRef.current;
+        if (edit !== null && edit.segmentId !== segmentId) {
+          commitEdit(edit);
+          blurActiveInput(edit);
+          setActiveEdit(null);
+        }
+        return segmentId;
+      });
+    },
+    [blurActiveInput, commitEdit],
+  );
+
+  const handleKeyboardChange = (text: string) => {
+    setActiveEdit((current) => {
+      if (current === null) {
+        return current;
+      }
+
+      if (current.kind === 'numerator') {
+        const nextText = sanitizeNumeratorInput(text);
+        const parsed = parseNumeratorText(nextText);
+        if (parsed !== null) {
+          const segment = segments.find((item) => item.id === current.segmentId);
+          if (segment !== undefined) {
+            const denominator = meterDenominator(segment.meter);
+            onMeterChange(segment.id, `${parsed}/${denominator}`);
+          }
+        }
+        return { ...current, text: nextText };
+      }
+
+      const nextText = sanitizeBarCountInput(text);
+      const parsed = parseBarCountText(nextText);
+      if (parsed !== null) {
+        onBarCountChange(current.segmentId, parsed);
+      }
+      return { ...current, text: nextText };
+    });
+  };
+
+  const displayNumerator = (segment: TimelineSegmentViewModel): string => {
+    if (
+      activeEdit?.segmentId === segment.id &&
+      activeEdit.kind === 'numerator'
+    ) {
+      return activeEdit.text;
+    }
+    return String(meterNumerator(segment.meter));
+  };
+
+  const displayBarCount = (segment: TimelineSegmentViewModel): string => {
+    if (
+      activeEdit?.segmentId === segment.id &&
+      activeEdit.kind === 'barCount'
+    ) {
+      return activeEdit.text;
+    }
+    return String(segment.numberOfBars);
+  };
+
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={handleClose}
+      // RN Modal defaults to portrait-only on iOS — keep Song Editor landscape lock.
+      supportedOrientations={['landscape', 'landscape-left', 'landscape-right']}
+    >
       <View style={styles.modalRoot}>
         <Pressable style={styles.backdrop} onPress={handleClose} accessibilityLabel="Dismiss" />
+
         <View
           style={[
             styles.panel,
             landscape ? styles.panelLandscape : styles.panelPortrait,
             {
+              height: sheetHeight,
               maxWidth: panelMaxWidth,
-              maxHeight: panelMaxHeight,
-              marginRight: landscape && keyboardOpen ? width * 0.45 : 0,
-              paddingBottom: Math.max(insets.bottom, 16) + 8,
-              paddingLeft: Math.max(insets.left, 20),
-              paddingRight: Math.max(insets.right, 20),
+              width: '100%',
+              marginRight: rightKeyboardWidth > 0 ? rightKeyboardWidth : 0,
+              paddingBottom: keyboardOpen && placement === 'bottom' ? 8 : Math.max(insets.bottom, 12),
+              paddingLeft: Math.max(insets.left, 16),
+              paddingRight: Math.max(insets.right, 16),
             },
           ]}
         >
           {!landscape ? <View style={styles.handle} /> : null}
-          <Text style={styles.title}>Edit Segment</Text>
-          <Text style={styles.subtitle}>
-            {segment.meter} ·{' '}
-            {segment.startBar === segment.endBar
-              ? `Bar ${segment.startBar}`
-              : `Bars ${segment.startBar}–${segment.endBar}`}
-          </Text>
+
+          <View style={styles.header}>
+            <Text style={styles.title}>Edit Segment</Text>
+            <Pressable
+              onPress={handleClose}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Done"
+              style={({ pressed }) => [styles.doneButton, pressed && styles.donePressed]}
+            >
+              <Text style={styles.doneText}>Done</Text>
+            </Pressable>
+          </View>
 
           <ScrollView
-            style={styles.body}
-            contentContainerStyle={styles.bodyContent}
+            ref={scrollRef}
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
+            showsVerticalScrollIndicator
           >
-            <SegmentEditorFields
-              segment={segment}
-              meterOptions={meterOptions}
-              onBarCountChange={onBarCountChange}
-              onMeterChange={onMeterChange}
-              onBpmOverrideChange={onBpmOverrideChange}
-              onAccentChange={onAccentChange}
-              meterKeyboard={meterKeyboard}
-            />
+            {segments.map((segment) => (
+              <SegmentEditorRow
+                key={segment.id}
+                segment={segment}
+                expanded={expandedSegmentId === segment.id}
+                numeratorText={displayNumerator(segment)}
+                barCountText={displayBarCount(segment)}
+                activeField={activeEdit}
+                onToggleExpand={() => {
+                  handleToggleExpand(segment.id);
+                }}
+                onNumeratorFocus={() => {
+                  const previous = activeEditRef.current;
+                  if (
+                    previous !== null &&
+                    (previous.segmentId !== segment.id || previous.kind !== 'numerator')
+                  ) {
+                    commitEdit(previous);
+                    blurActiveInput(previous);
+                  }
+                  setActiveEdit({
+                    segmentId: segment.id,
+                    kind: 'numerator',
+                    text: String(meterNumerator(segment.meter)),
+                  });
+                }}
+                onBarCountFocus={() => {
+                  const previous = activeEditRef.current;
+                  if (
+                    previous !== null &&
+                    (previous.segmentId !== segment.id || previous.kind !== 'barCount')
+                  ) {
+                    commitEdit(previous);
+                    blurActiveInput(previous);
+                  }
+                  setActiveEdit({
+                    segmentId: segment.id,
+                    kind: 'barCount',
+                    text: String(segment.numberOfBars),
+                  });
+                }}
+                onDenominatorChange={(denominator) => {
+                  const numerator =
+                    activeEdit?.segmentId === segment.id && activeEdit.kind === 'numerator'
+                      ? parseNumeratorText(activeEdit.text) ?? meterNumerator(segment.meter)
+                      : meterNumerator(segment.meter);
+                  onMeterChange(segment.id, `${numerator}/${denominator}`);
+                }}
+                onAccentPatternChange={(pattern) => {
+                  onAccentPatternChange(segment.id, pattern);
+                }}
+                onRegisterNumeratorInput={(ref) => {
+                  numeratorRefs.current.set(segment.id, ref);
+                }}
+                onRegisterBarCountInput={(ref) => {
+                  barCountRefs.current.set(segment.id, ref);
+                }}
+                onLayoutY={(y, rowHeight) => {
+                  rowLayouts.current.set(segment.id, { y, height: rowHeight });
+                }}
+              />
+            ))}
           </ScrollView>
-
-          <Pressable style={styles.doneButton} onPress={handleClose}>
-            <Text style={styles.doneButtonText}>Done</Text>
-          </Pressable>
         </View>
 
-        {meterKeyboard !== undefined ? (
-          <CustomKeyboard
-            visible={meterKeyboard.active}
-            value={meterKeyboard.value}
-            onChangeText={meterKeyboard.onChangeText}
-            onDone={() => {
-              const next = meterKeyboard.value.trim();
-              if (/^\d+\/\d+$/.test(next)) {
-                onMeterChange(next);
-              }
-              meterKeyboard.onDone();
-            }}
-            placement="auto"
-            initialMode="numbers"
-          />
-        ) : null}
+        <CustomKeyboard
+          visible={keyboardOpen}
+          value={activeEdit?.text ?? ''}
+          onChangeText={handleKeyboardChange}
+          onDone={finalizeActiveEdit}
+          placement="auto"
+          initialMode="numbers"
+        />
       </View>
     </Modal>
-  );
-}
-
-function SegmentEditorFields({
-  segment,
-  meterOptions,
-  onBarCountChange,
-  onMeterChange,
-  onBpmOverrideChange,
-  onAccentChange,
-  meterKeyboard,
-}: {
-  segment: TimelineSegmentViewModel;
-  meterOptions: readonly string[];
-  onBarCountChange: (count: number) => void;
-  onMeterChange: (meterLabel: string) => void;
-  onBpmOverrideChange: (bpm: number | null) => void;
-  onAccentChange: (presetId: string) => void;
-  meterKeyboard?: CustomMeterKeyboardProps;
-}) {
-  const meterInputRef = useRef<TextInput>(null);
-  const [barCountText, setBarCountText] = useState(String(segment.numberOfBars));
-  const [bpmEnabled, setBpmEnabled] = useState(segment.bpmOverride !== null);
-  const [bpmText, setBpmText] = useState(
-    segment.bpmOverride !== null ? String(segment.bpmOverride) : '',
-  );
-  const [localMeter, setLocalMeter] = useState(segment.meter);
-
-  useEffect(() => {
-    setBarCountText(String(segment.numberOfBars));
-    setBpmEnabled(segment.bpmOverride !== null);
-    setBpmText(segment.bpmOverride !== null ? String(segment.bpmOverride) : '');
-    setLocalMeter(segment.meter);
-  }, [segment.bpmOverride, segment.meter, segment.numberOfBars]);
-
-  useEffect(() => {
-    if (meterKeyboard?.active !== true) {
-      meterInputRef.current?.blur();
-    }
-  }, [meterKeyboard?.active]);
-
-  const meterValue =
-    meterKeyboard?.active === true ? meterKeyboard.value : localMeter;
-
-  return (
-    <>
-      <Text style={styles.label}>Bars in segment</Text>
-      <TextInput
-        style={styles.input}
-        keyboardType="number-pad"
-        value={barCountText}
-        placeholderTextColor={studioColors.textMuted}
-        disableFullscreenUI
-        onChangeText={setBarCountText}
-        onEndEditing={() => {
-          const parsed = Number(barCountText);
-          if (Number.isInteger(parsed) && parsed > 0) {
-            onBarCountChange(parsed);
-          } else {
-            setBarCountText(String(segment.numberOfBars));
-          }
-        }}
-      />
-
-      <Text style={styles.label}>Time signature</Text>
-      <TextInput
-        ref={(ref) => {
-          meterInputRef.current = ref;
-          meterKeyboard?.onRegister?.(ref);
-        }}
-        style={[styles.input, meterKeyboard?.active === true && styles.inputFocused]}
-        value={meterValue}
-        placeholder="e.g. 7/8"
-        placeholderTextColor={studioColors.textMuted}
-        showSoftInputOnFocus={false}
-        caretHidden={meterKeyboard?.active !== true}
-        disableFullscreenUI
-        onFocus={() => {
-          meterKeyboard?.onFocus(localMeter);
-        }}
-        onChangeText={(text) => {
-          setLocalMeter(text);
-          if (meterKeyboard?.active) {
-            meterKeyboard.onChangeText(text);
-          }
-        }}
-      />
-      <View style={styles.chipRow}>
-        {meterOptions.map((meter) => (
-          <Pressable
-            key={meter}
-            style={[styles.chip, meter === meterValue && styles.chipSelected]}
-            onPress={() => {
-              setLocalMeter(meter);
-              onMeterChange(meter);
-              if (meterKeyboard?.active) {
-                meterKeyboard.onChangeText(meter);
-              }
-            }}
-          >
-            <Text style={[styles.chipText, meter === meterValue && styles.chipTextSelected]}>
-              {meter}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-
-      <View style={styles.switchRow}>
-        <Text style={styles.labelInline}>BPM override (metadata)</Text>
-        <Switch
-          value={bpmEnabled}
-          trackColor={{ false: studioColors.border, true: studioColors.accent }}
-          thumbColor="#FFFFFF"
-          onValueChange={(enabled) => {
-            setBpmEnabled(enabled);
-            if (!enabled) {
-              setBpmText('');
-              onBpmOverrideChange(null);
-            }
-          }}
-        />
-      </View>
-
-      {bpmEnabled ? (
-        <TextInput
-          style={styles.input}
-          keyboardType="numeric"
-          placeholder="e.g. 140"
-          placeholderTextColor={studioColors.textMuted}
-          value={bpmText}
-          disableFullscreenUI
-          onChangeText={setBpmText}
-          onEndEditing={() => {
-            const trimmed = bpmText.trim();
-            if (trimmed.length === 0) {
-              onBpmOverrideChange(null);
-              return;
-            }
-
-            const bpm = Number(trimmed);
-            if (Number.isFinite(bpm) && bpm > 0) {
-              onBpmOverrideChange(bpm);
-            }
-          }}
-        />
-      ) : (
-        <Text style={styles.hint}>Inherits global song tempo during playback</Text>
-      )}
-
-      <Text style={styles.label}>Accent pattern</Text>
-      <AccentBeatPreview beats={segment.accentPreview} />
-      <View style={styles.chipRow}>
-        {ACCENT_PRESET_OPTIONS.map((preset) => (
-          <Pressable
-            key={preset.id}
-            style={styles.chip}
-            onPress={() => onAccentChange(preset.id)}
-          >
-            <Text style={styles.chipText}>{preset.label}</Text>
-          </Pressable>
-        ))}
-      </View>
-    </>
   );
 }
 
 const styles = StyleSheet.create({
   modalRoot: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
     alignItems: 'center',
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: studioColors.overlay,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
   },
   panel: {
-    width: '100%',
-    backgroundColor: studioColors.surfaceElevated,
+    backgroundColor: studioColors.surface,
     borderColor: studioColors.border,
-    paddingTop: 16,
-    zIndex: 1,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingTop: 10,
+    zIndex: 2,
   },
   panelPortrait: {
-    marginTop: 'auto',
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
-    borderTopWidth: 1,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
   },
   panelLandscape: {
     borderRadius: 16,
-    borderWidth: 1,
-    minHeight: 320,
+    marginBottom: 12,
     alignSelf: 'center',
   },
   handle: {
@@ -354,66 +461,37 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
     backgroundColor: studioColors.border,
-    marginBottom: 12,
+    marginBottom: 4,
   },
-  title: { fontSize: 22, fontWeight: '700', color: studioColors.textPrimary },
-  subtitle: { fontSize: 14, color: studioColors.textSecondary, marginTop: 4, marginBottom: 8 },
-  body: { flexGrow: 0, flexShrink: 1 },
-  bodyContent: { paddingBottom: 8 },
-  label: {
-    fontSize: 14,
-    color: studioColors.textSecondary,
-    marginBottom: 8,
-    marginTop: 14,
-    fontWeight: '600',
-  },
-  labelInline: {
-    fontSize: 14,
-    color: studioColors.textSecondary,
-    fontWeight: '600',
-    flex: 1,
-    marginRight: 12,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: studioColors.border,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    minHeight: 52,
-    fontSize: 18,
-    color: studioColors.textPrimary,
-    backgroundColor: studioColors.surface,
-  },
-  inputFocused: {
-    borderColor: studioColors.accent,
-  },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 },
-  chip: {
-    borderWidth: 1,
-    borderColor: studioColors.border,
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: studioColors.surface,
-  },
-  chipSelected: { backgroundColor: studioColors.accent, borderColor: studioColors.accent },
-  chipText: { fontSize: 14, color: studioColors.textPrimary, fontWeight: '600' },
-  chipTextSelected: { color: '#fff' },
-  switchRow: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 14,
+    minHeight: 36,
     marginBottom: 4,
   },
-  hint: { fontSize: 13, color: studioColors.textMuted, fontStyle: 'italic', marginTop: 6 },
-  doneButton: {
-    marginTop: 16,
-    backgroundColor: studioColors.accent,
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
+  title: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: studioColors.textPrimary,
   },
-  doneButtonText: { color: '#fff', fontWeight: '700', fontSize: 17 },
+  doneButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+  },
+  donePressed: {
+    opacity: 0.65,
+  },
+  doneText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: studioColors.accent,
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 8,
+    flexGrow: 1,
+  },
 });
