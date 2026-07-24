@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   Pressable,
@@ -21,6 +21,7 @@ import { studioColors } from '../../theme';
 
 import { MeterRegion } from './MeterRegion';
 import { NewBarMeterDialog } from './NewBarMeterDialog';
+import { overviewTempoMarkings } from './overviewTempoMarkings';
 import {
   BAR_CELL_PADDING_V,
   REGION_GAP,
@@ -43,6 +44,7 @@ type Props = {
   onSegmentMeterChange: (segment: TimelineSegment, meterLabel: string) => void;
   onSegmentBpmOverrideChange: (segment: TimelineSegment, bpm: number | null) => void;
   onSegmentAccentPatternChange: (segment: TimelineSegment, pattern: boolean[]) => void;
+  onSongDefaultBpmChange: (bpm: number) => void;
   onAddBar: (meter: Meter) => void;
 };
 
@@ -53,6 +55,8 @@ type PlaybackCursor = {
   tickReceivedAt: number;
   isPlaying: boolean;
 };
+
+type TempoEditFocus = 'song' | 'segment' | null;
 
 function segmentStride(segment: TimelineSegmentViewModel): number {
   const denominator = parseMeterDenominator(segment.meter);
@@ -119,6 +123,7 @@ export function SongSignatureTimeline({
   onSegmentMeterChange,
   onSegmentBpmOverrideChange,
   onSegmentAccentPatternChange,
+  onSongDefaultBpmChange,
   onAddBar,
 }: Props) {
   const listRef = useRef<FlatList<TimelineSegmentViewModel>>(null);
@@ -138,7 +143,13 @@ export function SongSignatureTimeline({
   const [viewportWidth, setViewportWidth] = useState(0);
   const [segmentEditorVisible, setSegmentEditorVisible] = useState(false);
   const [focusSegmentId, setFocusSegmentId] = useState<string | null>(null);
+  const [focusTempoEdit, setFocusTempoEdit] = useState<TempoEditFocus>(null);
   const [newBarDialogVisible, setNewBarDialogVisible] = useState(false);
+
+  const tempoMarkings = useMemo(
+    () => overviewTempoMarkings(segments, song.defaultBpm),
+    [segments, song.defaultBpm],
+  );
 
   segmentsRef.current = segments;
 
@@ -278,16 +289,24 @@ export function SongSignatureTimeline({
     [onManualScroll],
   );
 
-  const openSegment = useCallback(
-    (segment: TimelineSegmentViewModel) => {
+  const openSegmentEditor = useCallback(
+    (segment: TimelineSegmentViewModel, tempoFocus: TempoEditFocus = null) => {
       autoFollowSuspendedUntil.current = Date.now() + AUTO_FOLLOW_SUSPEND_MS;
       const targetOffset = playbackScrollOffset(segments, segment.startBar - 1, 0);
       listRef.current?.scrollToOffset({ offset: targetOffset, animated: true });
       setFocusSegmentId(segment.id);
+      setFocusTempoEdit(tempoFocus);
       setSegmentEditorVisible(true);
     },
     [segments],
   );
+
+  const openSongTempoEditor = useCallback(() => {
+    autoFollowSuspendedUntil.current = Date.now() + AUTO_FOLLOW_SUSPEND_MS;
+    setFocusSegmentId(null);
+    setFocusTempoEdit('song');
+    setSegmentEditorVisible(true);
+  }, []);
 
   const getItemLayout = useCallback(
     (_data: ArrayLike<TimelineSegmentViewModel> | null | undefined, index: number) => {
@@ -333,16 +352,31 @@ export function SongSignatureTimeline({
           horizontal
           data={segments as TimelineSegmentViewModel[]}
           keyExtractor={(item) => `${item.id}-${item.meter}-${item.numberOfBars}`}
-          renderItem={({ item }) => (
-            <View style={styles.item}>
-              <MeterRegion
-                segment={item}
-                onPress={() => openSegment(item)}
-                isPlaying={isTimelineActive && isPlaying}
-                currentBeatIndex={currentBeatIndex}
-              />
-            </View>
-          )}
+          renderItem={({ item, index }) => {
+            const tempoBpm = tempoMarkings[index] ?? null;
+            return (
+              <View style={styles.item}>
+                <MeterRegion
+                  segment={item}
+                  overviewTempoBpm={tempoBpm}
+                  onPress={() => openSegmentEditor(item)}
+                  onTempoPress={
+                    tempoBpm === null
+                      ? undefined
+                      : () => {
+                          if (index === 0) {
+                            openSongTempoEditor();
+                            return;
+                          }
+                          openSegmentEditor(item, 'segment');
+                        }
+                  }
+                  isPlaying={isTimelineActive && isPlaying}
+                  currentBeatIndex={currentBeatIndex}
+                />
+              </View>
+            );
+          }}
           ListEmptyComponent={
             <View style={styles.emptyInline}>
               <Text style={styles.empty}>No meter regions yet.</Text>
@@ -360,7 +394,7 @@ export function SongSignatureTimeline({
               paddingRight: viewportWidth / 2,
             },
           ]}
-          extraData={`${currentBarIndex}-${currentBeatIndex}-${isPlaying}-${isTimelineActive}`}
+          extraData={`${currentBarIndex}-${currentBeatIndex}-${isPlaying}-${isTimelineActive}-${song.defaultBpm}-${tempoMarkings.join(',')}`}
           windowSize={5}
           initialNumToRender={6}
           maxToRenderPerBatch={8}
@@ -378,11 +412,15 @@ export function SongSignatureTimeline({
       <SegmentEditBottomSheet
         visible={segmentEditorVisible}
         segments={segments}
+        songDefaultBpm={song.defaultBpm}
         focusSegmentId={focusSegmentId}
+        focusTempoEdit={focusTempoEdit}
         onClose={() => {
           setSegmentEditorVisible(false);
           setFocusSegmentId(null);
+          setFocusTempoEdit(null);
         }}
+        onSongDefaultBpmChange={onSongDefaultBpmChange}
         onBarCountChange={(segmentId, count) => {
           const domain = findDomainSegmentById(song, segmentId);
           if (domain !== null) {

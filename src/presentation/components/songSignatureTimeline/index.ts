@@ -2,6 +2,10 @@ export { NewBarMeterDialog } from './NewBarMeterDialog';
 export { SegmentEditorRow } from './SegmentEditorRow';
 export { BarPreview } from './BarPreview';
 export { BeatAccentIndicator } from './BeatAccentIndicator';
+export {
+  InlineTempoMarking,
+  formatInlineTempoMarking,
+} from './InlineTempoMarking';
 export { MeterRegion } from './MeterRegion';
 export { MeterRegionCard } from './MeterRegionCard';
 export { SongSignatureTimeline } from './SongSignatureTimeline';

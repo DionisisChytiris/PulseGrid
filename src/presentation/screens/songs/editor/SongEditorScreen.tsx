@@ -36,6 +36,7 @@ export default function SongEditorScreen({ navigation, route }: Props) {
     saving,
     error,
     setSongName,
+    setSongDefaultBpm,
     addBar,
     setSegmentBarCount,
     setSegmentMeter,
@@ -163,6 +164,7 @@ export default function SongEditorScreen({ navigation, route }: Props) {
           onSegmentMeterChange={setSegmentMeter}
           onSegmentBpmOverrideChange={setSegmentBpmOverride}
           onSegmentAccentPatternChange={setSegmentAccentPattern}
+          onSongDefaultBpmChange={setSongDefaultBpm}
           onAddBar={addBar}
         />
       </View>

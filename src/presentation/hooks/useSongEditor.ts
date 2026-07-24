@@ -7,6 +7,7 @@ import {
   moveBarInSong,
   updateBarBpm,
   updateBarMeter,
+  updateSongDefaultBpm,
   updateSongName,
 } from '../../domain/music/editor';
 import { createMeter, formatMeter } from '../../domain/music/Meter';
@@ -86,6 +87,8 @@ export function useSongEditor(songId: string) {
     saving,
     error,
     setSongName: (name: string) => applyAndSave((current) => updateSongName(current, name)),
+    setSongDefaultBpm: (bpm: number) =>
+      applyAndSave((current) => updateSongDefaultBpm(current, bpm)),
     addBar: (meter?: Parameters<typeof addBarToSong>[1]) =>
       applyAndSave((current) => addBarToSong(current, meter)),
     deleteBar: (barId: string) => applyAndSave((current) => deleteBarFromSong(current, barId)),

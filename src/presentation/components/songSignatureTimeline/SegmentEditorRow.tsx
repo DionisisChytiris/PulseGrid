@@ -18,24 +18,34 @@ import {
   normalizeDenominator,
   type MeterDenominator,
 } from './meterPickerValidation';
+import { InlineTempoMarking } from './InlineTempoMarking';
 
 export type SegmentEditorActiveField =
   | { segmentId: string; kind: 'numerator' }
-  | { segmentId: string; kind: 'barCount' };
+  | { segmentId: string; kind: 'barCount' }
+  | { segmentId: string; kind: 'segmentBpm' }
+  | { kind: 'songBpm' };
 
 type Props = {
   segment: TimelineSegmentViewModel;
   expanded: boolean;
+  songDefaultBpm: number;
+  /** Effective BPM to show in overview, or null when unchanged from previous segment. */
+  overviewTempoBpm: number | null;
   numeratorText: string;
   barCountText: string;
+  segmentBpmText: string;
   activeField: SegmentEditorActiveField | null;
   onToggleExpand: () => void;
   onNumeratorFocus: () => void;
   onBarCountFocus: () => void;
+  onSegmentBpmFocus: () => void;
   onDenominatorChange: (denominator: MeterDenominator) => void;
+  onUseSongTempoChange: (useSongTempo: boolean) => void;
   onAccentPatternChange: (pattern: boolean[]) => void;
   onRegisterNumeratorInput: (ref: TextInputType | null) => void;
   onRegisterBarCountInput: (ref: TextInputType | null) => void;
+  onRegisterSegmentBpmInput: (ref: TextInputType | null) => void;
   onLayoutY: (y: number, height: number) => void;
 };
 
@@ -53,31 +63,46 @@ function parseDenominatorFromMeter(meterLabel: string): MeterDenominator {
 }
 
 /**
- * Percentage-column overview (15% | 15% | 15% | 55%).
- * Expanded: highlighted row + meter / bar-count editors underneath.
+ * Percentage-column overview (Bars | Meter | Tempo | Count | Accents)
+ * plus expanded meter / bar-count / tempo editors.
  */
 export const SegmentEditorRow = memo(function SegmentEditorRow({
   segment,
   expanded,
+  songDefaultBpm,
+  overviewTempoBpm,
   numeratorText,
   barCountText,
+  segmentBpmText,
   activeField,
   onToggleExpand,
   onNumeratorFocus,
   onBarCountFocus,
+  onSegmentBpmFocus,
   onDenominatorChange,
+  onUseSongTempoChange,
   onAccentPatternChange,
   onRegisterNumeratorInput,
   onRegisterBarCountInput,
+  onRegisterSegmentBpmInput,
   onLayoutY,
 }: Props) {
   const numeratorFocused =
-    activeField?.segmentId === segment.id && activeField.kind === 'numerator';
+    activeField?.kind === 'numerator' &&
+    'segmentId' in activeField &&
+    activeField.segmentId === segment.id;
   const barCountFocused =
-    activeField?.segmentId === segment.id && activeField.kind === 'barCount';
+    activeField?.kind === 'barCount' &&
+    'segmentId' in activeField &&
+    activeField.segmentId === segment.id;
+  const segmentBpmFocused =
+    activeField?.kind === 'segmentBpm' &&
+    'segmentId' in activeField &&
+    activeField.segmentId === segment.id;
   const denominator = parseDenominatorFromMeter(segment.meter);
   const accentPattern = accentFlagsFromSegment(segment);
   const rangeLabel = barsRangeLabel(segment.startBar, segment.endBar);
+  const useSongTempo = segment.bpmOverride === null;
 
   return (
     <View
@@ -108,9 +133,26 @@ export const SegmentEditorRow = memo(function SegmentEditorRow({
           accessibilityLabel={`Time signature ${segment.meter}`}
           style={({ pressed }) => [styles.colMeter, pressed && styles.colPressed]}
         >
-          <Text style={styles.cellCentered} numberOfLines={1}>
+          <Text style={styles.cellMeter} numberOfLines={1}>
             {segment.meter}
           </Text>
+        </Pressable>
+
+        <Pressable
+          onPress={onToggleExpand}
+          accessibilityRole="button"
+          accessibilityLabel={
+            overviewTempoBpm === null
+              ? 'Tempo unchanged from previous segment'
+              : `Tempo ${overviewTempoBpm} BPM`
+          }
+          style={({ pressed }) => [styles.colTempo, pressed && styles.colPressed]}
+        >
+          {overviewTempoBpm !== null ? (
+            <InlineTempoMarking bpm={overviewTempoBpm} leadingSpace={false} />
+          ) : (
+            <View style={styles.tempoSpacer} />
+          )}
         </Pressable>
 
         <Pressable
@@ -119,7 +161,7 @@ export const SegmentEditorRow = memo(function SegmentEditorRow({
           accessibilityLabel={`Bar count ${segment.numberOfBars}`}
           style={({ pressed }) => [styles.colCount, pressed && styles.colPressed]}
         >
-          <Text style={styles.cellCentered} numberOfLines={1}>
+          <Text style={styles.cellCount} numberOfLines={1}>
             ×{segment.numberOfBars}
           </Text>
         </Pressable>
@@ -198,6 +240,56 @@ export const SegmentEditorRow = memo(function SegmentEditorRow({
               />
             </View>
           </View>
+
+          <View style={styles.tempoBlock}>
+            <Text style={styles.tempoTitle}>Tempo</Text>
+            <Pressable
+              onPress={() => onUseSongTempoChange(!useSongTempo)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: useSongTempo }}
+              accessibilityLabel={
+                useSongTempo
+                  ? `Use song tempo ${songDefaultBpm} BPM`
+                  : 'Use song tempo'
+              }
+              style={styles.tempoCheckRow}
+            >
+              <View style={[styles.checkbox, useSongTempo && styles.checkboxChecked]}>
+                {useSongTempo ? <Text style={styles.checkmark}>✓</Text> : null}
+              </View>
+              <Text style={styles.tempoCheckLabel}>
+                {useSongTempo
+                  ? `Use Song Tempo (${songDefaultBpm} BPM)`
+                  : 'Use Song Tempo'}
+              </Text>
+            </Pressable>
+
+            <View style={[styles.segmentBpmRow, useSongTempo && styles.segmentBpmRowDisabled]}>
+              <Text style={[styles.bpmLabel, useSongTempo && styles.bpmLabelDisabled]}>BPM:</Text>
+              <TextInput
+                ref={onRegisterSegmentBpmInput}
+                style={[
+                  styles.segmentBpmInput,
+                  segmentBpmFocused && styles.inputFocused,
+                  useSongTempo && styles.segmentBpmInputDisabled,
+                ]}
+                value={useSongTempo ? String(songDefaultBpm) : segmentBpmText}
+                editable={!useSongTempo}
+                showSoftInputOnFocus={false}
+                caretHidden={!segmentBpmFocused}
+                disableFullscreenUI
+                selectTextOnFocus
+                maxLength={3}
+                accessibilityLabel="Segment BPM override"
+                accessibilityState={{ disabled: useSongTempo }}
+                onFocus={() => {
+                  if (!useSongTempo) {
+                    onSegmentBpmFocus();
+                  }
+                }}
+              />
+            </View>
+          </View>
         </View>
       ) : null}
     </View>
@@ -221,31 +313,36 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   colBars: {
-    width: '15%',
+    width: 96,
     paddingVertical: 10,
     paddingHorizontal: 4,
     justifyContent: 'center',
   },
   colMeter: {
-    width: '15%',
+    width: 52,
     paddingVertical: 10,
     paddingHorizontal: 4,
     justifyContent: 'center',
-    alignItems: 'center',
+  },
+  colTempo: {
+    width: 88,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    justifyContent: 'center',
   },
   colCount: {
-    width: '15%',
+    width: 48,
     paddingVertical: 10,
     paddingHorizontal: 4,
     justifyContent: 'center',
-    alignItems: 'center',
   },
   colAccents: {
-    width: '55%',
+    flex: 1,
     paddingVertical: 4,
     paddingHorizontal: 6,
     justifyContent: 'center',
     minHeight: 44,
+    minWidth: 0,
   },
   colPressed: {
     opacity: 0.7,
@@ -257,13 +354,22 @@ const styles = StyleSheet.create({
     color: studioColors.textSecondary,
     textAlign: 'left',
   },
-  cellCentered: {
+  cellMeter: {
     fontSize: 14,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
     color: studioColors.textPrimary,
-    textAlign: 'center',
-    width: '100%',
+    textAlign: 'left',
+  },
+  cellCount: {
+    fontSize: 14,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+    color: studioColors.textPrimary,
+    textAlign: 'left',
+  },
+  tempoSpacer: {
+    height: 14,
   },
   accentScrollContent: {
     alignItems: 'center',
@@ -271,6 +377,7 @@ const styles = StyleSheet.create({
     paddingRight: 4,
   },
   editorBlock: {
+    gap: 12,
     paddingBottom: 12,
     paddingHorizontal: 4,
   },
@@ -366,5 +473,81 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 2,
     paddingVertical: 0,
+  },
+  tempoBlock: {
+    gap: 8,
+    paddingTop: 2,
+  },
+  tempoTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: studioColors.textSecondary,
+    letterSpacing: 0.3,
+  },
+  tempoCheckRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minHeight: 36,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: studioColors.border,
+    backgroundColor: studioColors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: studioColors.accent,
+    borderColor: studioColors.accent,
+  },
+  checkmark: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 16,
+  },
+  tempoCheckLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: studioColors.textPrimary,
+  },
+  segmentBpmRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingLeft: 32,
+  },
+  segmentBpmRowDisabled: {
+    opacity: 0.45,
+  },
+  bpmLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: studioColors.textSecondary,
+  },
+  bpmLabelDisabled: {
+    color: studioColors.textMuted,
+  },
+  segmentBpmInput: {
+    width: 64,
+    height: 40,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: studioColors.border,
+    backgroundColor: studioColors.background,
+    color: studioColors.textPrimary,
+    fontSize: 18,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+    textAlign: 'center',
+    paddingHorizontal: 4,
+    paddingVertical: 0,
+  },
+  segmentBpmInputDisabled: {
+    color: studioColors.textSecondary,
   },
 });

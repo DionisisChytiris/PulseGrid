@@ -11,6 +11,7 @@ import {
 } from '../Meter';
 import { createSection, type Section } from '../Section';
 import { createSong, type Song } from '../Song';
+import { clampSongBpm, DEFAULT_SONG_BPM } from '../songBpm';
 import { createTempoDefinition } from '../TempoDefinition';
 import type { TempoTransitionType } from '../TempoEvent';
 
@@ -67,6 +68,8 @@ type StoredSection = {
 export type StoredSong = {
   id: string;
   name: string;
+  /** Optional for backward compatibility — missing values load as DEFAULT_SONG_BPM. */
+  defaultBpm?: number;
   sections: StoredSection[];
   createdAt: number;
   updatedAt: number;
@@ -163,6 +166,7 @@ export function songToStored(song: Song): StoredSong {
   return {
     id: song.id,
     name: song.name,
+    defaultBpm: song.defaultBpm,
     createdAt: song.createdAt,
     updatedAt: song.updatedAt,
     sections: song.sections.map((section) => ({
@@ -213,6 +217,10 @@ export function storedToSong(value: StoredSong): Song {
   return createSong({
     id: value.id,
     name: value.name,
+    defaultBpm:
+      value.defaultBpm === undefined
+        ? DEFAULT_SONG_BPM
+        : clampSongBpm(value.defaultBpm),
     sections: value.sections.map(parseSection),
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,

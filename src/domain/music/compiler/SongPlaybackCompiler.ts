@@ -37,7 +37,7 @@ function assertPositiveBpm(bpm: number): void {
 
 /**
  * Effective BPM at a global bar index (after repeat expansion).
- * Tempo on a bar applies from that bar onward until the next override.
+ * Bars without a tempo override inherit [defaultBpm] (song tempo), not a prior override.
  */
 export function resolveTempoAtPosition(
   song: Song,
@@ -56,16 +56,7 @@ export function resolveTempoAtPosition(
   }
 
   const clampedIndex = Math.min(globalBarIndex, locatedBars.length - 1);
-  let resolvedBpm = defaultBpm;
-
-  for (let index = 0; index <= clampedIndex; index += 1) {
-    const tempoBpm = getBarTempoBpm(locatedBars[index].bar);
-    if (tempoBpm !== undefined) {
-      resolvedBpm = tempoBpm;
-    }
-  }
-
-  return resolvedBpm;
+  return getBarTempoBpm(locatedBars[clampedIndex].bar) ?? defaultBpm;
 }
 
 /** Expands one bar instance into primary-beat ticks. */
@@ -121,10 +112,10 @@ export function compileSong(
 
   for (const located of locatedBars) {
     const tempoBpm = getBarTempoBpm(located.bar);
-    const tempoChangedOnThisBar = tempoBpm !== undefined;
-    if (tempoChangedOnThisBar) {
-      currentBpm = tempoBpm;
-    }
+    // Bars without an override inherit song defaultBpm (not sticky from prior overrides).
+    const nextBpm = tempoBpm ?? defaultBpm;
+    const tempoChangedOnThisBar = nextBpm !== currentBpm;
+    currentBpm = nextBpm;
 
     const context: BarCompileContext = {
       section: located.section,

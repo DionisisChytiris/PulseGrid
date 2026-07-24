@@ -30,6 +30,7 @@ export function cloneSong(song: Song): Song {
   return {
     id: song.id,
     name: song.name,
+    defaultBpm: song.defaultBpm,
     sections: song.sections.map(cloneSection),
     createdAt: song.createdAt,
     updatedAt: song.updatedAt,

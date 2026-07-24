@@ -33,6 +33,7 @@ type Props = {
   onSegmentMeterChange: (segment: TimelineSegment, meterLabel: string) => void;
   onSegmentBpmOverrideChange: (segment: TimelineSegment, bpm: number | null) => void;
   onSegmentAccentPatternChange: (segment: TimelineSegment, pattern: boolean[]) => void;
+  onSongDefaultBpmChange: (bpm: number) => void;
 };
 
 export function SongTimelineView({
@@ -44,6 +45,7 @@ export function SongTimelineView({
   onSegmentMeterChange,
   onSegmentBpmOverrideChange,
   onSegmentAccentPatternChange,
+  onSongDefaultBpmChange,
 }: Props) {
   const listRef = useRef<FlatList<TimelineSegmentViewModel>>(null);
   const segmentLayouts = useRef(new Map<string, { x: number; width: number }>());
@@ -132,11 +134,13 @@ export function SongTimelineView({
       <SegmentEditBottomSheet
         visible={segmentEditorVisible}
         segments={segments}
+        songDefaultBpm={song.defaultBpm}
         focusSegmentId={focusSegmentId}
         onClose={() => {
           setSegmentEditorVisible(false);
           setFocusSegmentId(null);
         }}
+        onSongDefaultBpmChange={onSongDefaultBpmChange}
         onBarCountChange={(segmentId, count) => {
           const domain = findDomainSegmentById(song, segmentId);
           if (domain !== null) {

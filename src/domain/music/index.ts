@@ -37,6 +37,15 @@ export {
 } from './Meter';
 export { BeatUnit } from './BeatUnit';
 export { createSection, createSectionWithBars, type Section, type CreateSectionInput } from './Section';
+export {
+  DEFAULT_SONG_BPM,
+  MIN_SONG_BPM,
+  MAX_SONG_BPM,
+  clampSongBpm,
+  parseSongBpmText,
+  parseSongBpmTextLenient,
+  sanitizeSongBpmInput,
+} from './songBpm';
 export { createSong, type Song, type CreateSongInput } from './Song';
 export {
   cloneSong,
@@ -134,6 +143,7 @@ export {
   moveBarInSong,
   updateBarBpm,
   updateBarMeter,
+  updateSongDefaultBpm,
   updateSongName,
   METER_PRESETS,
 } from './editor';

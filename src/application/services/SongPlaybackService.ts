@@ -52,7 +52,7 @@ export class SongPlaybackService {
     this.quickMetronomePlayback.stop();
 
     try {
-      const compiled = compileSong(song);
+      const compiled = compileSong(song, { defaultBpm: song.defaultBpm });
       const cursor = createSongPlaybackCursor(compiled);
       const adapter = createSongSchedulerAdapter(cursor, compiled);
 

@@ -105,7 +105,7 @@ export function setSegmentMeterLabel(song: Song, segment: TimelineSegment, label
   return setSegmentMeter(song, segment, createMeter(numerator, denominator));
 }
 
-/** BPM override is optional metadata on bars — does not affect scheduling in this step. */
+/** BPM override is optional metadata on bars — clears inherit song defaultBpm. */
 export function setSegmentBpmOverride(
   song: Song,
   segment: TimelineSegment,

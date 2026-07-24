@@ -7,7 +7,7 @@ import {
 } from '../TempoDefinition';
 import type { SubdivisionKind } from '../../valueObjects/Subdivision';
 import { computePulseDurationNs } from '../tempo/beatDuration';
-import { createMeter, inferPulseBeatUnitFromMeter } from '../Meter';
+import { inferPulseBeatUnitFromMeter } from '../Meter';
 import {
   createTimelineCompiledPlaybackSequence,
   type TimelineCompiledPlaybackMetadata,
@@ -32,13 +32,14 @@ function assertPositiveBpm(bpm: number): void {
 
 function resolveTempoDefinitionForBar(
   bar: Bar,
-  current: TempoDefinition,
+  defaultBpm: number,
 ): TempoDefinition {
   if (bar.tempoDefinition !== undefined) {
     return bar.tempoDefinition;
   }
 
-  return createTempoDefinitionForMeter(current.bpm, bar.meter);
+  // No override → inherit song defaultBpm (not sticky from a previous override).
+  return createTempoDefinitionForMeter(defaultBpm, bar.meter);
 }
 
 function expandBarToTimelineEvents(
@@ -88,16 +89,13 @@ export function compileSong(
   const events: TimelinePlaybackEvent[] = [];
   let sequenceIndex = 0;
 
-  const firstMeter = locatedBars[0]?.bar.meter ?? createMeter(4, 4);
-  let currentTempoDefinition = createTempoDefinitionForMeter(defaultBpm, firstMeter);
-
   for (const located of locatedBars) {
-    currentTempoDefinition = resolveTempoDefinitionForBar(located.bar, currentTempoDefinition);
+    const tempoDefinition = resolveTempoDefinitionForBar(located.bar, defaultBpm);
 
     const barEvents = expandBarToTimelineEvents(
       located.bar,
       located.section.id,
-      currentTempoDefinition,
+      tempoDefinition,
       sequenceIndex,
       defaultSubdivision,
     );

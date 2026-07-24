@@ -5,6 +5,7 @@ import type { TimelineSegmentViewModel } from '../../viewModels/TimelineSegmentV
 import { studioColors } from '../../theme';
 
 import { BarPreview } from './BarPreview';
+import { InlineTempoMarking } from './InlineTempoMarking';
 import {
   TRACK_HEIGHT,
   meterRegionWidth,
@@ -13,7 +14,10 @@ import {
 
 type Props = {
   segment: TimelineSegmentViewModel;
+  /** Effective BPM to show after the meter, or null when unchanged. */
+  overviewTempoBpm?: number | null;
   onPress?: (segmentId: string) => void;
+  onTempoPress?: () => void;
   onLayout?: (segmentId: string, x: number, width: number) => void;
   /** Song playback running — pulse LEDs follow the playhead beat. */
   isPlaying?: boolean;
@@ -24,14 +28,16 @@ type Props = {
 /**
  * Cubase-style Signature Track region:
  *
- *        4/4 · 2 bars
+ *        4/4 ♩ = 120
  * ┌──────────────────┐
  * │● ○ ○ ○│● ○ ○ ○│
  * └──────────────────┘
  */
 export const MeterRegion = memo(function MeterRegion({
   segment,
+  overviewTempoBpm = null,
   onPress,
+  onTempoPress,
   onLayout,
   isPlaying = false,
   currentBeatIndex = -1,
@@ -52,10 +58,22 @@ export const MeterRegion = memo(function MeterRegion({
       }}
     >
       <View style={styles.header}>
-        <Text style={styles.meter}>{segment.meter}</Text>
-        {segment.bpmOverride !== null ? (
-          <Text style={styles.bpm}>♩ = {segment.bpmOverride}</Text>
-        ) : null}
+        <Text style={styles.meter} numberOfLines={1}>
+          {segment.meter}
+          {overviewTempoBpm !== null ? (
+            <InlineTempoMarking
+              bpm={overviewTempoBpm}
+              onPress={
+                onTempoPress === undefined
+                  ? undefined
+                  : (event) => {
+                      event.stopPropagation?.();
+                      onTempoPress();
+                    }
+              }
+            />
+          ) : null}
+        </Text>
       </View>
 
       <View style={[styles.track, segment.isActive && styles.trackActive]}>
@@ -88,7 +106,6 @@ const styles = StyleSheet.create({
     height: 34,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
     paddingLeft: 4,
   },
   meter: {
@@ -96,11 +113,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: studioColors.textPrimary,
     letterSpacing: 0.3,
-  },
-  bpm: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: studioColors.beatAccent,
   },
   track: {
     flex: 1,

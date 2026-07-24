@@ -3,6 +3,7 @@ import { createBar, type Bar } from '../Bar';
 import { createMeter, formatMeter, type Meter } from '../Meter';
 import { createSection, type Section } from '../Section';
 import type { Song } from '../Song';
+import { clampSongBpm } from '../songBpm';
 import { cloneSong } from '../SongUtils';
 import { createTempoDefinitionForMeter } from '../TempoDefinition';
 import { generateEntityId } from '../storage/generateEntityId';
@@ -41,6 +42,10 @@ function withMainSection(song: Song, section: Section): Song {
 
 export function updateSongName(song: Song, name: string): Song {
   return touchSong({ ...song, name: name.trim() || 'Untitled Song' });
+}
+
+export function updateSongDefaultBpm(song: Song, bpm: number): Song {
+  return touchSong({ ...song, defaultBpm: clampSongBpm(bpm) });
 }
 
 export function addBarToSong(song: Song, meter: Meter = createMeter(4, 4)): Song {
@@ -104,7 +109,7 @@ export function updateBarBpm(song: Song, barId: string, bpm: number | null): Son
       repeatCount: bar.repeatCount,
       ...(bpm !== null && Number.isFinite(bpm) && bpm > 0
         ? {
-            tempoDefinition: createTempoDefinitionForMeter(bpm, bar.meter),
+            tempoDefinition: createTempoDefinitionForMeter(clampSongBpm(bpm), bar.meter),
             tempoTransition: 'instant',
           }
         : {}),
