@@ -14,6 +14,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   clampSongBpm,
   DEFAULT_SONG_BPM,
+  MAX_SONG_BPM,
+  MIN_SONG_BPM,
   parseSongBpmText,
   parseSongBpmTextLenient,
   sanitizeSongBpmInput,
@@ -42,6 +44,8 @@ import { overviewTempoMarkings } from '../../presentation/components/songSignatu
 import type { TimelineSegmentViewModel } from '../../presentation/viewModels/TimelineSegmentViewModel';
 import { studioColors } from '../../presentation/theme';
 
+import { useBpmStepHold } from './useBpmStepHold';
+
 /** @deprecated Preset chips removed — kept for any external imports. */
 export const ACCENT_PRESET_OPTIONS = [
   { id: 'downbeat', label: 'Downbeat (▲ ○ ○ ○)' },
@@ -52,6 +56,7 @@ export const ACCENT_PRESET_OPTIONS = [
 type Props = {
   visible: boolean;
   segments: readonly TimelineSegmentViewModel[];
+  songName: string;
   songDefaultBpm: number;
   /** Scroll this segment into view when the sheet opens (tapped region). */
   focusSegmentId?: string | null;
@@ -94,6 +99,7 @@ function isFieldForSegment(
 export function SegmentEditBottomSheet({
   visible,
   segments,
+  songName,
   songDefaultBpm,
   focusSegmentId = null,
   focusTempoEdit = null,
@@ -447,6 +453,26 @@ export function SegmentEditBottomSheet({
     activeEdit?.kind === 'songBpm' ? activeEdit.text : String(safeSongBpm);
 
   const songBpmFocused = activeEdit?.kind === 'songBpm';
+  const atMinSongBpm = safeSongBpm <= MIN_SONG_BPM;
+  const atMaxSongBpm = safeSongBpm >= MAX_SONG_BPM;
+
+  const stepSongBpm = useCallback(
+    (direction: 1 | -1) => {
+      const edit = activeEditRef.current;
+      const current =
+        edit?.kind === 'songBpm'
+          ? (parseSongBpmTextLenient(edit.text) ?? safeSongBpm)
+          : safeSongBpm;
+      const next = clampSongBpm(current + direction);
+      onSongDefaultBpmChange(next);
+      if (edit?.kind === 'songBpm') {
+        setActiveEdit({ kind: 'songBpm', text: String(next) });
+      }
+    },
+    [onSongDefaultBpmChange, safeSongBpm],
+  );
+
+  const { beginHold, endHold } = useBpmStepHold({ onStep: stepSongBpm });
 
   return (
     <Modal
@@ -478,36 +504,85 @@ export function SegmentEditBottomSheet({
           {!landscape ? <View style={styles.handle} /> : null}
 
           <View style={styles.header}>
-            <Text style={styles.title}>Edit Segment</Text>
-            <Pressable
-              onPress={handleClose}
-              hitSlop={10}
-              accessibilityRole="button"
-              accessibilityLabel="Done"
-              style={({ pressed }) => [styles.doneButton, pressed && styles.donePressed]}
-            >
-              <Text style={styles.doneText}>Done</Text>
-            </Pressable>
-          </View>
+            <View style={styles.headerSide}>
+              <Text style={styles.songName} numberOfLines={1}>
+                {songName.length > 0 ? songName : 'Untitled'}
+              </Text>
+            </View>
 
-          <View style={styles.songTempoRow}>
-            <Text style={styles.songTempoLabel}>Song Tempo</Text>
-            <View style={styles.songTempoValue}>
-              <TextInput
-                ref={songBpmInputRef}
-                style={[styles.songBpmInput, songBpmFocused && styles.inputFocused]}
-                value={displaySongBpm}
-                showSoftInputOnFocus={false}
-                caretHidden={!songBpmFocused}
-                disableFullscreenUI
-                selectTextOnFocus
-                maxLength={3}
-                accessibilityLabel="Song tempo BPM"
-                onFocus={() => {
-                  beginEdit({ kind: 'songBpm', text: String(safeSongBpm) });
-                }}
-              />
-              <Text style={styles.songBpmUnit}>BPM</Text>
+            <View style={styles.headerCenter}>
+              <View style={styles.tempoControls}>
+                <Pressable
+                  onPressIn={() => {
+                    if (!atMinSongBpm) {
+                      beginHold(-1);
+                    }
+                  }}
+                  onPressOut={endHold}
+                  disabled={atMinSongBpm}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel="Decrease song tempo"
+                  style={({ pressed }) => [
+                    styles.tempoStepButton,
+                    atMinSongBpm && styles.tempoStepDisabled,
+                    pressed && !atMinSongBpm && styles.tempoPressed,
+                  ]}
+                >
+                  <Text style={[styles.tempoStepLabel, atMinSongBpm && styles.tempoStepLabelDisabled]}>
+                    −
+                  </Text>
+                </Pressable>
+
+                <TextInput
+                  ref={songBpmInputRef}
+                  style={[styles.songBpmInput, songBpmFocused && styles.inputFocused]}
+                  value={displaySongBpm}
+                  showSoftInputOnFocus={false}
+                  caretHidden={!songBpmFocused}
+                  disableFullscreenUI
+                  selectTextOnFocus
+                  maxLength={3}
+                  accessibilityLabel="Song tempo BPM"
+                  onFocus={() => {
+                    beginEdit({ kind: 'songBpm', text: String(safeSongBpm) });
+                  }}
+                />
+
+                <Pressable
+                  onPressIn={() => {
+                    if (!atMaxSongBpm) {
+                      beginHold(1);
+                    }
+                  }}
+                  onPressOut={endHold}
+                  disabled={atMaxSongBpm}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel="Increase song tempo"
+                  style={({ pressed }) => [
+                    styles.tempoStepButton,
+                    atMaxSongBpm && styles.tempoStepDisabled,
+                    pressed && !atMaxSongBpm && styles.tempoPressed,
+                  ]}
+                >
+                  <Text style={[styles.tempoStepLabel, atMaxSongBpm && styles.tempoStepLabelDisabled]}>
+                    +
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={[styles.headerSide, styles.headerSideRight]}>
+              <Pressable
+                onPress={handleClose}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="Done"
+                style={({ pressed }) => [styles.doneButton, pressed && styles.donePressed]}
+              >
+                <Text style={styles.doneText}>Done</Text>
+              </Pressable>
             </View>
           </View>
 
@@ -635,14 +710,56 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    minHeight: 36,
-    marginBottom: 4,
+    minHeight: 40,
+    marginBottom: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: studioColors.border,
+    paddingBottom: 6,
   },
-  title: {
-    fontSize: 17,
+  headerSide: {
+    flex: 1,
+    justifyContent: 'center',
+    minWidth: 0,
+  },
+  headerSideRight: {
+    alignItems: 'flex-end',
+  },
+  headerCenter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    minWidth: 128,
+  },
+  songName: {
+    fontSize: 16,
     fontWeight: '700',
     color: studioColors.textPrimary,
+  },
+  tempoControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  tempoStepButton: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tempoStepDisabled: {
+    opacity: 0.35,
+  },
+  tempoStepLabel: {
+    fontSize: 22,
+    fontWeight: '400',
+    color: studioColors.accent,
+    lineHeight: 26,
+  },
+  tempoStepLabelDisabled: {
+    color: studioColors.textMuted,
+  },
+  tempoPressed: {
+    opacity: 0.7,
   },
   doneButton: {
     paddingVertical: 6,
@@ -656,48 +773,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: studioColors.accent,
   },
-  songTempoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-    paddingHorizontal: 2,
-    marginBottom: 6,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: studioColors.border,
-  },
-  songTempoLabel: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: studioColors.textPrimary,
-  },
-  songTempoValue: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
   songBpmInput: {
-    width: 64,
-    height: 36,
-    borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: studioColors.border,
-    backgroundColor: studioColors.background,
+    minWidth: 44,
+    maxWidth: 56,
+    height: 32,
+    paddingHorizontal: 2,
+    paddingVertical: 0,
     color: studioColors.textPrimary,
     fontSize: 17,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
     textAlign: 'center',
-    paddingHorizontal: 4,
-    paddingVertical: 0,
   },
   inputFocused: {
-    borderColor: studioColors.accent,
-  },
-  songBpmUnit: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: studioColors.textSecondary,
+    color: studioColors.beatAccent,
   },
   scroll: {
     flex: 1,

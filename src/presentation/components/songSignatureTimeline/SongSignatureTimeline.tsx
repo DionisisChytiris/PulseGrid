@@ -412,6 +412,7 @@ export function SongSignatureTimeline({
       <SegmentEditBottomSheet
         visible={segmentEditorVisible}
         segments={segments}
+        songName={song.name}
         songDefaultBpm={song.defaultBpm}
         focusSegmentId={focusSegmentId}
         focusTempoEdit={focusTempoEdit}
