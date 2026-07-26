@@ -9,6 +9,7 @@ export {
 export { MeterRegion } from './MeterRegion';
 export { MeterRegionCard } from './MeterRegionCard';
 export { SongSignatureTimeline } from './SongSignatureTimeline';
+export type { SongSignatureTimelineHandle } from './SongSignatureTimeline';
 export { SongStatisticsBottomSheet } from './SongStatisticsBottomSheet';
 export {
   BEAT_GAP,

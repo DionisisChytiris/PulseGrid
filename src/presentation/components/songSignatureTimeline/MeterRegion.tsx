@@ -5,12 +5,13 @@ import type { TimelineSegmentViewModel } from '../../viewModels/TimelineSegmentV
 import { studioColors } from '../../theme';
 
 import { BarPreview } from './BarPreview';
-import { InlineTempoMarking } from './InlineTempoMarking';
+import { useSongLineBeatIndex } from './SongLineBeatContext';
 import {
   TRACK_HEIGHT,
   meterRegionWidth,
   parseMeterDenominator,
 } from './signatureTimelineConstants';
+import { getSongLineRegionColors } from './tempoMarkingColor';
 
 const PLAY_HINT_VISIBLE_MS = 700;
 const PLAY_HINT_FADE_MS = 300;
@@ -18,8 +19,15 @@ const METER_HIT_SIZE = 44;
 
 type Props = {
   segment: TimelineSegmentViewModel;
-  /** Effective BPM to show after the meter, or null when unchanged. */
+  /** Effective BPM shown inside the first bar when tempo changes; null when unchanged. */
   overviewTempoBpm?: number | null;
+  /** Effective BPM for this region — drives accent-dot colour even when the marking is hidden. */
+  regionTempoBpm: number;
+  /**
+   * Notation rule: show meter only on the first bar of a consecutive meter run
+   * (song start or meter change). Same-meter duplicate segments stay silent.
+   */
+  showTimeSignature?: boolean;
   /** Opens Edit Segment (timeline / bar area). */
   onPress?: (segmentId: string) => void;
   /** Starts playback from this segment (time signature label). */
@@ -28,32 +36,34 @@ type Props = {
   onLayout?: (segmentId: string, x: number, width: number) => void;
   /** Song playback running — pulse LEDs follow the playhead beat. */
   isPlaying?: boolean;
-  /** 0-based beat index within the active bar. */
-  currentBeatIndex?: number;
 };
 
 /**
  * Cubase-style Signature Track region:
  *
- *        ▶ 4/4 ♩ = 120   ← meter tap = play from here
- * ┌──────────────────┐
- * │● ○ ○ ○│● ○ ○ ○│   ← track tap = edit segment
- * └──────────────────┘
+ *        4/4                 5/8          ← meter tap = play from here
+ * ┌──────────────┐     ┌────────────┐
+ * │ ♩ = 120      │     │ ♩ = 140    │   ← tempo in first bar (change only)
+ * │ ● ○ ○ ○      │     │ ● ○ ○ ○ ○  │   ← track tap = edit segment
+ * └──────────────┘     └────────────┘
  */
 export const MeterRegion = memo(function MeterRegion({
   segment,
   overviewTempoBpm = null,
+  regionTempoBpm,
+  showTimeSignature = true,
   onPress,
   onPlayFromHere,
   onTempoPress,
   onLayout,
   isPlaying = false,
-  currentBeatIndex = -1,
 }: Props) {
+  const currentBeatIndex = useSongLineBeatIndex();
   const beatCount = Math.max(1, segment.accentPreview.length);
   const denominator = parseMeterDenominator(segment.meter);
   const width = meterRegionWidth(segment.numberOfBars, beatCount, denominator);
   const regionPlaying = isPlaying && segment.isActive;
+  const regionColors = getSongLineRegionColors(regionTempoBpm);
   const playHintOpacity = useRef(new Animated.Value(0)).current;
   const playHintTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const playHintAnimRef = useRef<Animated.CompositeAnimation | null>(null);
@@ -99,37 +109,28 @@ export const MeterRegion = memo(function MeterRegion({
       }}
     >
       <View style={styles.header}>
-        <Pressable
-          onPress={handlePlayFromHere}
-          disabled={onPlayFromHere === undefined}
-          accessibilityRole="button"
-          accessibilityLabel={`Play from ${segment.meter}`}
-          hitSlop={4}
-          style={({ pressed }) => [
-            styles.meterHitTarget,
-            pressed && onPlayFromHere !== undefined && styles.meterHitPressed,
-          ]}
-        >
-          <Animated.Text style={[styles.playHint, { opacity: playHintOpacity }]}>
-            ▶
-          </Animated.Text>
-          <Text style={styles.meter} numberOfLines={1}>
-            {segment.meter}
-          </Text>
-        </Pressable>
-
-        {overviewTempoBpm !== null ? (
-          <InlineTempoMarking
-            bpm={overviewTempoBpm}
-            onPress={
-              onTempoPress === undefined
-                ? undefined
-                : (event) => {
-                    event.stopPropagation?.();
-                    onTempoPress();
-                  }
-            }
-          />
+        {showTimeSignature ? (
+          <Pressable
+            onPress={handlePlayFromHere}
+            disabled={onPlayFromHere === undefined}
+            accessibilityRole="button"
+            accessibilityLabel={`Play from ${segment.meter}`}
+            hitSlop={4}
+            style={({ pressed }) => [
+              styles.meterHitTarget,
+              pressed && onPlayFromHere !== undefined && styles.meterHitPressed,
+            ]}
+          >
+            <Animated.Text style={[styles.playHint, { opacity: playHintOpacity }]}>
+              ▶
+            </Animated.Text>
+            <Text
+              style={[styles.meter, { color: regionColors.timeSignatureColour }]}
+              numberOfLines={1}
+            >
+              {segment.meter}
+            </Text>
+          </Pressable>
         ) : null}
       </View>
 
@@ -140,7 +141,7 @@ export const MeterRegion = memo(function MeterRegion({
         accessibilityLabel={`Edit segment ${segment.meter}`}
         style={[styles.track, segment.isActive && styles.trackActive]}
       >
-        {segment.barIndicators.map((indicator) => (
+        {segment.barIndicators.map((indicator, barIndex) => (
           <BarPreview
             key={`bar-${indicator.barNumber}`}
             beats={segment.accentPreview}
@@ -149,6 +150,11 @@ export const MeterRegion = memo(function MeterRegion({
             isPast={indicator.isPast}
             isPlaying={regionPlaying}
             currentBeatIndex={currentBeatIndex}
+            tempoBpm={barIndex === 0 ? overviewTempoBpm : null}
+            onTempoPress={
+              barIndex === 0 && overviewTempoBpm !== null ? onTempoPress : undefined
+            }
+            accentColor={regionColors.accentDotColour}
           />
         ))}
       </Pressable>
@@ -192,7 +198,6 @@ const styles = StyleSheet.create({
   meter: {
     fontSize: 18,
     fontWeight: '800',
-    color: studioColors.textPrimary,
     letterSpacing: 0.3,
   },
   track: {

@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   FlatList,
   Pressable,
@@ -21,7 +29,16 @@ import { studioColors } from '../../theme';
 
 import { MeterRegion } from './MeterRegion';
 import { NewBarMeterDialog } from './NewBarMeterDialog';
-import { overviewTempoMarkings } from './overviewTempoMarkings';
+import { overviewTempoMarkings, effectiveSegmentBpm } from './overviewTempoMarkings';
+import { SongLineBeatContext } from './SongLineBeatContext';
+import {
+  advanceFollowCursor,
+  createFollowCursor,
+  followScrollBeatPosition,
+  hardSyncFollowCursorToAudio,
+  applyAudioTickToFollowCursor,
+  type FollowCursorState,
+} from './songLineFollowCursor';
 import {
   BAR_CELL_PADDING_V,
   REGION_GAP,
@@ -51,12 +68,9 @@ type Props = {
   onAddBar: (meter: Meter) => void;
 };
 
-type PlaybackCursor = {
-  barIndex: number;
-  beatIndex: number;
-  beatDurationMs: number;
-  tickReceivedAt: number;
-  isPlaying: boolean;
+/** Imperative API for toolbar actions (e.g. Edit button). */
+export type SongSignatureTimelineHandle = {
+  openEditSegment: () => void;
 };
 
 type TempoEditFocus = 'song' | 'segment' | null;
@@ -73,12 +87,15 @@ function segmentStride(segment: TimelineSegmentViewModel): number {
  * Shared coordinate system: pulse N is anchored at N * beatWidth (on the grid
  * line for the first pulse of each quarter-note group). Fractional beats
  * interpolate between consecutive pulse anchors.
+ * Beat positions may cross bar boundaries — they are normalized first so follow
+ * does not stall at beatsInBar - epsilon.
  */
 function playbackScrollOffset(
   segments: readonly TimelineSegmentViewModel[],
   barIndex: number,
   beatPosition: number,
 ): number {
+  const normalized = followScrollBeatPosition(segments, barIndex, beatPosition);
   let offset = 0;
 
   for (const segment of segments) {
@@ -89,12 +106,14 @@ function playbackScrollOffset(
     const cellWidth = barCellWidth(beatsInBar, denominator);
     const beatWidth = cellWidth / beatsInBar;
 
-    if (barIndex >= segmentStartIndex && barIndex <= segmentEndIndex) {
-      const clamped = Math.min(Math.max(beatPosition, 0), beatsInBar - 0.0001);
+    if (
+      normalized.barIndex >= segmentStartIndex &&
+      normalized.barIndex <= segmentEndIndex
+    ) {
       return (
         offset +
-        (barIndex - segmentStartIndex) * cellWidth +
-        clamped * beatWidth
+        (normalized.barIndex - segmentStartIndex) * cellWidth +
+        normalized.beatPosition * beatWidth
       );
     }
 
@@ -113,35 +132,35 @@ function pulseDurationMs(bpm: number | null, meterLabel: string): number {
 /**
  * Cubase-style Signature Track: horizontal meter regions from Song segments.
  */
-export function SongSignatureTimeline({
-  song,
-  segments,
-  isTimelineActive,
-  isPlaying,
-  currentBarIndex,
-  currentBeatIndex,
-  currentBpm,
-  currentMeter,
-  onSegmentBarCountChange,
-  onSegmentMeterChange,
-  onSegmentBpmOverrideChange,
-  onSegmentAccentPatternChange,
-  onSegmentDuplicate,
-  onSegmentDelete,
-  onSongDefaultBpmChange,
-  onPlayFromSegment,
-  onAddBar,
-}: Props) {
+export const SongSignatureTimeline = forwardRef<SongSignatureTimelineHandle, Props>(
+  function SongSignatureTimeline(
+    {
+      song,
+      segments,
+      isTimelineActive,
+      isPlaying,
+      currentBarIndex,
+      currentBeatIndex,
+      currentBpm,
+      currentMeter,
+      onSegmentBarCountChange,
+      onSegmentMeterChange,
+      onSegmentBpmOverrideChange,
+      onSegmentAccentPatternChange,
+      onSegmentDuplicate,
+      onSegmentDelete,
+      onSongDefaultBpmChange,
+      onPlayFromSegment,
+      onAddBar,
+    },
+    ref,
+  ) {
   const listRef = useRef<FlatList<TimelineSegmentViewModel>>(null);
   const autoFollowSuspendedUntil = useRef(0);
   const animationFrameRef = useRef<number | null>(null);
-  const playbackCursorRef = useRef<PlaybackCursor>({
-    barIndex: 0,
-    beatIndex: 0,
-    beatDurationMs: pulseDurationMs(120, '4/4'),
-    tickReceivedAt: 0,
-    isPlaying: false,
-  });
+  /** Last segment opened via tap / Edit — survives sheet close. */
+  const selectedSegmentIdRef = useRef<string | null>(null);
+  const playbackCursorRef = useRef<FollowCursorState>(createFollowCursor());
   const segmentsRef = useRef(segments);
   const wasTimelineActiveRef = useRef(false);
   const wasPlayingRef = useRef(false);
@@ -161,14 +180,10 @@ export function SongSignatureTimeline({
 
   const scrollToPlaybackPosition = useCallback((animated: boolean) => {
     const cursor = playbackCursorRef.current;
-    const elapsed = Math.max(0, performance.now() - cursor.tickReceivedAt);
-    const fraction = cursor.isPlaying
-      ? Math.min(0.999, elapsed / Math.max(1, cursor.beatDurationMs))
-      : 0;
     const offset = playbackScrollOffset(
       segmentsRef.current,
       cursor.barIndex,
-      cursor.beatIndex + fraction,
+      cursor.beatPosition,
     );
 
     if (Date.now() >= autoFollowSuspendedUntil.current) {
@@ -179,6 +194,17 @@ export function SongSignatureTimeline({
   const animateFollow = useCallback(
     (_timestamp: number) => {
       const cursor = playbackCursorRef.current;
+
+      // Playback ended (manual Stop or natural completion) — tear down follow.
+      if (!cursor.isPlaying) {
+        if (animationFrameRef.current !== null) {
+          cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = null;
+        }
+        return;
+      }
+
+      advanceFollowCursor(cursor, segmentsRef.current, performance.now());
 
       if (!cursor.isPlaying) {
         animationFrameRef.current = null;
@@ -204,32 +230,44 @@ export function SongSignatureTimeline({
     const tickKey = `${currentBarIndex}:${currentBeatIndex}:${currentBpm ?? 'na'}:${meter}`;
     const tickChanged = tickKey !== lastTickKeyRef.current;
     const startingPlayback = isTimelineActive && isPlaying && !wasPlayingRef.current;
+    const beatDurationMs = pulseDurationMs(currentBpm, meter);
+    const audioBeat = Math.max(0, currentBeatIndex);
+    const now = performance.now();
 
     wasPlayingRef.current = isTimelineActive && isPlaying;
 
-    if (tickChanged || startingPlayback) {
-      lastTickKeyRef.current = tickKey;
-      playbackCursorRef.current = {
-        barIndex: currentBarIndex,
-        beatIndex: Math.max(0, currentBeatIndex),
-        beatDurationMs: pulseDurationMs(currentBpm, meter),
-        tickReceivedAt: performance.now(),
-        isPlaying: isTimelineActive && isPlaying,
-      };
-    } else {
-      playbackCursorRef.current = {
-        ...playbackCursorRef.current,
-        isPlaying: isTimelineActive && isPlaying,
-        beatDurationMs: pulseDurationMs(currentBpm, meter),
-      };
-    }
-
     if (startingPlayback) {
+      lastTickKeyRef.current = tickKey;
+      hardSyncFollowCursorToAudio(
+        playbackCursorRef.current,
+        segments,
+        currentBarIndex,
+        audioBeat,
+        beatDurationMs,
+        now,
+      );
       autoFollowSuspendedUntil.current = 0;
       scrollToPlaybackPosition(false);
+    } else if (tickChanged) {
+      lastTickKeyRef.current = tickKey;
+      const cursor = playbackCursorRef.current;
+      cursor.isPlaying = isTimelineActive && isPlaying;
+      // Audio tick updates the master-clock anchor only — no per-beat visual snap.
+      applyAudioTickToFollowCursor(
+        cursor,
+        segments,
+        currentBarIndex,
+        audioBeat,
+        beatDurationMs,
+        now,
+      );
+    } else {
+      playbackCursorRef.current.isPlaying = isTimelineActive && isPlaying;
+      playbackCursorRef.current.beatDurationMs = beatDurationMs;
     }
 
     if (playbackCursorRef.current.isPlaying && animationFrameRef.current === null) {
+      playbackCursorRef.current.lastFrameAt = performance.now();
       animationFrameRef.current = requestAnimationFrame(animateFollow);
     }
 
@@ -254,13 +292,9 @@ export function SongSignatureTimeline({
     wasTimelineActiveRef.current = isTimelineActive;
 
     if (wasActive && !isTimelineActive) {
-      playbackCursorRef.current = {
-        ...playbackCursorRef.current,
-        isPlaying: false,
-        barIndex: 0,
-        beatIndex: 0,
-        tickReceivedAt: performance.now(),
-      };
+      playbackCursorRef.current = createFollowCursor({
+        lastFrameAt: performance.now(),
+      });
       wasPlayingRef.current = false;
       lastTickKeyRef.current = null;
 
@@ -297,6 +331,7 @@ export function SongSignatureTimeline({
 
   const openSegmentEditor = useCallback(
     (segment: TimelineSegmentViewModel, tempoFocus: TempoEditFocus = null) => {
+      selectedSegmentIdRef.current = segment.id;
       autoFollowSuspendedUntil.current = Date.now() + AUTO_FOLLOW_SUSPEND_MS;
       const targetOffset = playbackScrollOffset(segments, segment.startBar - 1, 0);
       listRef.current?.scrollToOffset({ offset: targetOffset, animated: true });
@@ -305,6 +340,23 @@ export function SongSignatureTimeline({
       setSegmentEditorVisible(true);
     },
     [segments],
+  );
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      openEditSegment: () => {
+        if (segments.length === 0) {
+          return;
+        }
+        const selected =
+          segments.find((segment) => segment.id === selectedSegmentIdRef.current) ??
+          segments.find((segment) => segment.isActive) ??
+          segments[0];
+        openSegmentEditor(selected);
+      },
+    }),
+    [segments, openSegmentEditor],
   );
 
   const openSongTempoEditor = useCallback(() => {
@@ -345,144 +397,158 @@ export function SongSignatureTimeline({
   );
 
   return (
-    <View style={styles.wrapper}>
-      <View
-        style={styles.listContainer}
-        onLayout={(event) => {
-          setViewportWidth(event.nativeEvent.layout.width);
-        }}
-      >
-        <FlatList
-          ref={listRef}
-          style={styles.list}
-          horizontal
-          data={segments as TimelineSegmentViewModel[]}
-          keyExtractor={(item) => `${item.id}-${item.meter}-${item.numberOfBars}`}
-          renderItem={({ item, index }) => {
-            const tempoBpm = tempoMarkings[index] ?? null;
-            return (
-              <View style={styles.item}>
-                <MeterRegion
-                  segment={item}
-                  overviewTempoBpm={tempoBpm}
-                  onPress={() => openSegmentEditor(item)}
-                  onPlayFromHere={() => {
-                    onPlayFromSegment(item);
-                  }}
-                  onTempoPress={
-                    tempoBpm === null
-                      ? undefined
-                      : () => {
-                          if (index === 0) {
-                            openSongTempoEditor();
-                            return;
-                          }
-                          openSegmentEditor(item, 'segment');
-                        }
-                  }
-                  isPlaying={isTimelineActive && isPlaying}
-                  currentBeatIndex={currentBeatIndex}
-                />
-              </View>
-            );
+    <SongLineBeatContext.Provider value={currentBeatIndex}>
+      <View style={styles.wrapper}>
+        <View
+          style={styles.listContainer}
+          onLayout={(event) => {
+            setViewportWidth(event.nativeEvent.layout.width);
           }}
-          ListEmptyComponent={
-            <View style={styles.emptyInline}>
-              <Text style={styles.empty}>No meter regions yet.</Text>
+        >
+          <FlatList
+            ref={listRef}
+            style={styles.list}
+            horizontal
+            data={segments as TimelineSegmentViewModel[]}
+            keyExtractor={(item) => `${item.id}-${item.meter}-${item.numberOfBars}`}
+            renderItem={({ item, index }) => {
+              const tempoBpm = tempoMarkings[index] ?? null;
+              const regionTempoBpm = effectiveSegmentBpm(
+                item.bpmOverride,
+                song.defaultBpm,
+              );
+              const previousMeter = index > 0 ? segments[index - 1]?.meter : null;
+              const showTimeSignature =
+                index === 0 || previousMeter !== item.meter;
+              return (
+                <View style={styles.item}>
+                  <MeterRegion
+                    segment={item}
+                    overviewTempoBpm={tempoBpm}
+                    regionTempoBpm={regionTempoBpm}
+                    showTimeSignature={showTimeSignature}
+                    onPress={() => openSegmentEditor(item)}
+                    onPlayFromHere={
+                      showTimeSignature
+                        ? () => {
+                            onPlayFromSegment(item);
+                          }
+                        : undefined
+                    }
+                    onTempoPress={
+                      tempoBpm === null
+                        ? undefined
+                        : () => {
+                            if (index === 0) {
+                              openSongTempoEditor();
+                              return;
+                            }
+                            openSegmentEditor(item, 'segment');
+                          }
+                    }
+                    isPlaying={isTimelineActive && isPlaying}
+                  />
+                </View>
+              );
+            }}
+            ListEmptyComponent={
+              <View style={styles.emptyInline}>
+                <Text style={styles.empty}>No meter regions yet.</Text>
+              </View>
+            }
+            ListFooterComponent={addBarControl}
+            getItemLayout={getItemLayout}
+            showsHorizontalScrollIndicator
+            decelerationRate="fast"
+            onScrollBeginDrag={handleScrollBeginDrag}
+            contentContainerStyle={[
+              styles.content,
+              {
+                paddingLeft: viewportWidth / 2,
+                paddingRight: viewportWidth / 2,
+              },
+            ]}
+            extraData={`${currentBarIndex}-${isPlaying}-${isTimelineActive}-${song.defaultBpm}-${tempoMarkings.join(',')}`}
+            windowSize={5}
+            initialNumToRender={6}
+            maxToRenderPerBatch={8}
+          />
+          {viewportWidth > 0 ? (
+            <View
+              pointerEvents="none"
+              style={[styles.playhead, { left: viewportWidth / 2 }]}
+            >
+              <View style={styles.playheadCap} />
             </View>
-          }
-          ListFooterComponent={addBarControl}
-          getItemLayout={getItemLayout}
-          showsHorizontalScrollIndicator
-          decelerationRate="fast"
-          onScrollBeginDrag={handleScrollBeginDrag}
-          contentContainerStyle={[
-            styles.content,
-            {
-              paddingLeft: viewportWidth / 2,
-              paddingRight: viewportWidth / 2,
-            },
-          ]}
-          extraData={`${currentBarIndex}-${currentBeatIndex}-${isPlaying}-${isTimelineActive}-${song.defaultBpm}-${tempoMarkings.join(',')}`}
-          windowSize={5}
-          initialNumToRender={6}
-          maxToRenderPerBatch={8}
-        />
-        {viewportWidth > 0 ? (
-          <View
-            pointerEvents="none"
-            style={[styles.playhead, { left: viewportWidth / 2 }]}
-          >
-            <View style={styles.playheadCap} />
-          </View>
-        ) : null}
-      </View>
+          ) : null}
+        </View>
 
-      <SegmentEditBottomSheet
-        visible={segmentEditorVisible}
-        segments={segments}
-        songName={song.name}
-        songDefaultBpm={song.defaultBpm}
-        focusSegmentId={focusSegmentId}
-        focusTempoEdit={focusTempoEdit}
-        onClose={() => {
-          setSegmentEditorVisible(false);
-          setFocusSegmentId(null);
-          setFocusTempoEdit(null);
-        }}
-        onSongDefaultBpmChange={onSongDefaultBpmChange}
-        onBarCountChange={(segmentId, count) => {
-          const domain = findDomainSegmentById(song, segmentId);
-          if (domain !== null) {
-            onSegmentBarCountChange(domain, count);
-          }
-        }}
-        onMeterChange={(segmentId, meter) => {
-          const domain = findDomainSegmentById(song, segmentId);
-          if (domain !== null) {
-            onSegmentMeterChange(domain, meter);
-          }
-        }}
-        onBpmOverrideChange={(segmentId, bpm) => {
-          const domain = findDomainSegmentById(song, segmentId);
-          if (domain !== null) {
-            onSegmentBpmOverrideChange(domain, bpm);
-          }
-        }}
-        onAccentPatternChange={(segmentId, pattern) => {
-          const domain = findDomainSegmentById(song, segmentId);
-          if (domain !== null) {
-            onSegmentAccentPatternChange(domain, pattern);
-          }
-        }}
-        onDuplicateSegment={(segmentId) => {
-          const domain = findDomainSegmentById(song, segmentId);
-          if (domain === null) {
-            return null;
-          }
-          const focusSegmentIdAfter = `seg-${domain.endBarIndex + 1}`;
-          onSegmentDuplicate(domain);
-          return focusSegmentIdAfter;
-        }}
-        onDeleteSegment={(segmentId) => {
-          const domain = findDomainSegmentById(song, segmentId);
-          if (domain === null) {
-            return null;
-          }
-          return onSegmentDelete(domain);
-        }}
-      />
-      <NewBarMeterDialog
-        visible={newBarDialogVisible}
-        onCancel={() => setNewBarDialogVisible(false)}
-        onConfirm={(meter) => {
-          setNewBarDialogVisible(false);
-          onAddBar(meter);
-        }}
-      />
-    </View>
+        <SegmentEditBottomSheet
+          visible={segmentEditorVisible}
+          segments={segments}
+          songName={song.name}
+          songDefaultBpm={song.defaultBpm}
+          focusSegmentId={focusSegmentId}
+          focusTempoEdit={focusTempoEdit}
+          onClose={() => {
+            setSegmentEditorVisible(false);
+            setFocusSegmentId(null);
+            setFocusTempoEdit(null);
+          }}
+          onSongDefaultBpmChange={onSongDefaultBpmChange}
+          onBarCountChange={(segmentId, count) => {
+            const domain = findDomainSegmentById(song, segmentId);
+            if (domain !== null) {
+              onSegmentBarCountChange(domain, count);
+            }
+          }}
+          onMeterChange={(segmentId, meter) => {
+            const domain = findDomainSegmentById(song, segmentId);
+            if (domain !== null) {
+              onSegmentMeterChange(domain, meter);
+            }
+          }}
+          onBpmOverrideChange={(segmentId, bpm) => {
+            const domain = findDomainSegmentById(song, segmentId);
+            if (domain !== null) {
+              onSegmentBpmOverrideChange(domain, bpm);
+            }
+          }}
+          onAccentPatternChange={(segmentId, pattern) => {
+            const domain = findDomainSegmentById(song, segmentId);
+            if (domain !== null) {
+              onSegmentAccentPatternChange(domain, pattern);
+            }
+          }}
+          onDuplicateSegment={(segmentId) => {
+            const domain = findDomainSegmentById(song, segmentId);
+            if (domain === null) {
+              return null;
+            }
+            const focusSegmentIdAfter = `seg-${domain.endBarIndex + 1}`;
+            onSegmentDuplicate(domain);
+            return focusSegmentIdAfter;
+          }}
+          onDeleteSegment={(segmentId) => {
+            const domain = findDomainSegmentById(song, segmentId);
+            if (domain === null) {
+              return null;
+            }
+            return onSegmentDelete(domain);
+          }}
+        />
+        <NewBarMeterDialog
+          visible={newBarDialogVisible}
+          onCancel={() => setNewBarDialogVisible(false)}
+          onConfirm={(meter) => {
+            setNewBarDialogVisible(false);
+            onAddBar(meter);
+          }}
+        />
+      </View>
+    </SongLineBeatContext.Provider>
   );
-}
+});
 
 const styles = StyleSheet.create({
   wrapper: {

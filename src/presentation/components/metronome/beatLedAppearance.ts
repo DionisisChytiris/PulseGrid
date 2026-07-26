@@ -10,13 +10,15 @@ export type BeatLedAppearance = {
 /**
  * Shared Quick Metronome / Song timeline beat-dot appearance.
  * Playing: current beat solid (accent orange / active blue); others dim.
- * Idle: accent filled; normal outline.
+ * Idle: accent filled (optional region colour); normal outline.
  */
 export function beatLedAppearance(
   isPlaying: boolean,
   isCurrentBeat: boolean,
   isPatternAccent: boolean,
   borderWidth: number,
+  /** Idle accent fill only — playing highlight stays on studio beat colours. */
+  accentFillColor: string = studioColors.beatAccent,
 ): BeatLedAppearance {
   if (isPlaying) {
     if (isCurrentBeat) {
@@ -40,8 +42,8 @@ export function beatLedAppearance(
 
   if (isPatternAccent) {
     return {
-      backgroundColor: studioColors.beatAccent,
-      borderColor: studioColors.beatAccent,
+      backgroundColor: accentFillColor,
+      borderColor: accentFillColor,
       borderWidth: 0,
       opacity: 1,
     };

@@ -1,10 +1,11 @@
 import { memo, useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import type { AccentPreviewBeat } from '../../viewModels/TimelineSegmentViewModel';
 import { studioColors } from '../../theme';
 
 import { BeatAccentIndicator } from './BeatAccentIndicator';
+import { InlineTempoMarking } from './InlineTempoMarking';
 import {
   BAR_CELL_PADDING_V,
   GRID_SLOT_WIDTH,
@@ -24,6 +25,11 @@ type Props = {
   isPlaying?: boolean;
   /** 0-based beat in the active bar (ignored when this bar is not active). */
   currentBeatIndex?: number;
+  /** Tempo change marking — shown in the unused top space of this bar only. */
+  tempoBpm?: number | null;
+  onTempoPress?: () => void;
+  /** Idle accent-dot colour for this tempo region (from getTempoMarkingColor). */
+  accentColor?: string;
 };
 
 /**
@@ -43,6 +49,9 @@ export const BarPreview = memo(function BarPreview({
   isPast = false,
   isPlaying = false,
   currentBeatIndex = -1,
+  tempoBpm = null,
+  onTempoPress,
+  accentColor,
 }: Props) {
   const pulseCount = Math.max(1, beats.length);
   const width = barCellWidth(pulseCount, denominator);
@@ -73,6 +82,19 @@ export const BarPreview = memo(function BarPreview({
         ))}
       </View>
 
+      {tempoBpm !== null ? (
+        <Pressable
+          style={styles.tempoSlot}
+          onPress={onTempoPress}
+          disabled={onTempoPress === undefined}
+          hitSlop={6}
+          accessibilityRole="button"
+          accessibilityLabel={`Tempo ${tempoBpm} BPM`}
+        >
+          <InlineTempoMarking bpm={tempoBpm} />
+        </Pressable>
+      ) : null}
+
       <View pointerEvents="none" style={styles.pulseLayer}>
         {beats.map((beat, index) => {
           const centerX = pulseMarkerCenterX(index, denominator);
@@ -96,6 +118,7 @@ export const BarPreview = memo(function BarPreview({
                 size={markerSize}
                 isPlaying={barPlaying}
                 isCurrentBeat={barPlaying && index === currentBeatIndex}
+                accentColor={accentColor}
               />
             </View>
           );
@@ -132,6 +155,14 @@ const styles = StyleSheet.create({
     width: StyleSheet.hairlineWidth,
     marginLeft: -StyleSheet.hairlineWidth / 2,
     backgroundColor: 'rgba(148, 163, 184, 0.18)',
+  },
+  /** Tempo sits in unused space above the beat dots; pulse positions unchanged. */
+  tempoSlot: {
+    position: 'absolute',
+    top: 3,
+    left: 5,
+    right: 2,
+    zIndex: 2,
   },
   pulseLayer: {
     ...StyleSheet.absoluteFillObject,

@@ -15,6 +15,8 @@ export const studioColors = {
 
   beatActive: '#3B9EFF',
   beatAccent: '#FF9F0A',
+  /** Cubase-style tempo marking (♩ = N) — warm amber/gold on dark slate. */
+  tempoMarking: '#D4A84B',
   beatInactive: '#475569',
   beatInactivePlaying: '#64748B',
   /** LED beat lamp resting state while playing (gray, low opacity). */

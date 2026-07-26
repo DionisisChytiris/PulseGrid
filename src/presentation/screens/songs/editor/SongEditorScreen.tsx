@@ -18,6 +18,7 @@ import { CustomKeyboard } from '../../../components/CustomKeyboard';
 import {
   SongSignatureTimeline,
   SongStatisticsBottomSheet,
+  type SongSignatureTimelineHandle,
 } from '../../../components/songSignatureTimeline';
 import { useEditorCustomKeyboard } from '../../../hooks/useEditorCustomKeyboard';
 import { useSongEditor } from '../../../hooks/useSongEditor';
@@ -35,6 +36,7 @@ export default function SongEditorScreen({ navigation, route }: Props) {
   const { width, height } = useWindowDimensions();
   const { songId } = route.params;
   const [statsVisible, setStatsVisible] = useState(false);
+  const timelineRef = useRef<SongSignatureTimelineHandle>(null);
   const {
     song,
     loading,
@@ -131,7 +133,17 @@ export default function SongEditorScreen({ navigation, route }: Props) {
         />
 
         <Pressable
-          style={styles.statsButton}
+          style={[styles.toolbarButton, styles.toolbarButtonLead]}
+          onPress={() => timelineRef.current?.openEditSegment()}
+          accessibilityRole="button"
+          accessibilityLabel="Edit segment"
+          hitSlop={8}
+        >
+          <Ionicons name="pencil-outline" size={20} color={studioColors.textSecondary} />
+        </Pressable>
+
+        <Pressable
+          style={styles.toolbarButton}
           onPress={() => setStatsVisible(true)}
           accessibilityRole="button"
           accessibilityLabel="Song statistics"
@@ -167,6 +179,7 @@ export default function SongEditorScreen({ navigation, route }: Props) {
 
       <View style={styles.timelineArea}>
         <SongSignatureTimeline
+          ref={timelineRef}
           song={song}
           segments={timeline.segments}
           isTimelineActive={timeline.isTimelineActive}
@@ -299,8 +312,7 @@ const styles = StyleSheet.create({
   nameInputFocused: {
     borderColor: studioColors.accent,
   },
-  statsButton: {
-    marginLeft: 'auto',
+  toolbarButton: {
     width: 38,
     height: 38,
     borderRadius: 8,
@@ -309,6 +321,9 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: studioColors.border,
     backgroundColor: studioColors.surface,
+  },
+  toolbarButtonLead: {
+    marginLeft: 'auto',
   },
   transportButton: {
     width: 38,

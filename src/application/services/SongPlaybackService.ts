@@ -1,3 +1,4 @@
+import { pulseDurationMsFromDisplayBpm } from '../../domain/metronome/PulseGridSettings';
 import { compileSong } from '../../domain/music/compiler/SongPlaybackCompiler';
 import { sliceCompiledPlaybackSequence } from '../../domain/music/compiler/sliceCompiledPlaybackSequence';
 import type { Song } from '../../domain/music/Song';
@@ -6,6 +7,7 @@ import {
   createSongSchedulerAdapter,
 } from '../../domain/music/playback';
 import type { CompiledPlaybackSequence } from '../../domain/music/compiler/CompiledPlaybackSequence';
+import type { PlaybackEvent } from '../../domain/music/compiler/PlaybackEvent';
 import {
   songTimelineFallbackToQuick,
   songTimelinePlaybackPaused,
@@ -38,6 +40,9 @@ export class SongPlaybackService {
 
   private tickUnsubscribe: (() => void) | null = null;
 
+  /** Fires after the final beat so Redux matches native song completion. */
+  private naturalCompletionTimer: ReturnType<typeof setTimeout> | null = null;
+
   /** Next sequence index to resume from (tracked via native onTick, not JS cursor). */
   private playbackSequenceCursor = 0;
 
@@ -57,6 +62,7 @@ export class SongPlaybackService {
    * If already playing, restarts from the new position immediately.
    */
   async playSongTimelineFromBar(song: Song, globalBarIndex: number): Promise<void> {
+    this.clearNaturalCompletionTimer();
     this.quickMetronomePlayback.stop();
     this.detachTickListener();
     metronomeEngine.stop();
@@ -142,6 +148,7 @@ export class SongPlaybackService {
       return;
     }
 
+    this.clearNaturalCompletionTimer();
     metronomeEngine.pauseSongTimeline();
     this.dispatch(songTimelinePlaybackPaused());
   }
@@ -151,6 +158,7 @@ export class SongPlaybackService {
       return;
     }
 
+    this.clearNaturalCompletionTimer();
     const { song, fullCompiled } = this.activePlayback;
     const startIndex = this.playbackSequenceCursor;
     const sliced = sliceCompiledPlaybackSequence(fullCompiled, startIndex);
@@ -184,6 +192,7 @@ export class SongPlaybackService {
   }
 
   stop(): void {
+    this.clearNaturalCompletionTimer();
     this.detachTickListener();
     metronomeEngine.stop();
     this.activePlayback = null;
@@ -250,6 +259,7 @@ export class SongPlaybackService {
       return;
     }
 
+    this.clearNaturalCompletionTimer();
     const { song, fullCompiled } = this.activePlayback;
     const sliced = sliceCompiledPlaybackSequence(fullCompiled, absoluteSequence);
 
@@ -285,6 +295,7 @@ export class SongPlaybackService {
 
   private handleSongModeFallback(song: Song, reason: string): void {
     console.warn(`[SongPlaybackService] Falling back to QUICK_METRONOME: ${reason}`);
+    this.clearNaturalCompletionTimer();
     this.detachTickListener();
     this.activePlayback = null;
 
@@ -315,6 +326,38 @@ export class SongPlaybackService {
     this.tickUnsubscribe = null;
   }
 
+  private clearNaturalCompletionTimer(): void {
+    if (this.naturalCompletionTimer !== null) {
+      clearTimeout(this.naturalCompletionTimer);
+      this.naturalCompletionTimer = null;
+    }
+  }
+
+  /**
+   * Native finishes the finite timeline without a JS completion event.
+   * After the final beat's duration, mirror manual Stop so follow/rAF tear down.
+   */
+  private scheduleNaturalCompletion(event: PlaybackEvent): void {
+    this.clearNaturalCompletionTimer();
+    const beatDurationMs = Math.max(
+      1,
+      pulseDurationMsFromDisplayBpm(event.bpm, event.meter.denominator),
+    );
+
+    this.naturalCompletionTimer = setTimeout(() => {
+      this.naturalCompletionTimer = null;
+      if (!this.activePlayback) {
+        return;
+      }
+
+      if (
+        this.playbackSequenceCursor >= this.activePlayback.fullCompiled.events.length
+      ) {
+        this.stop();
+      }
+    }, beatDurationMs);
+  }
+
   private handleNativeTick(event: NativeTickEvent): void {
     if (!this.activePlayback) {
       return;
@@ -324,6 +367,8 @@ export class SongPlaybackService {
     const playbackEvent = this.activePlayback.fullCompiled.events[absoluteSequence];
 
     if (playbackEvent === undefined) {
+      // Past compiled end — native may still emit a sentinel; stop follow/UI state.
+      this.stop();
       return;
     }
 
@@ -343,5 +388,9 @@ export class SongPlaybackService {
         meterDenominator: playbackEvent.meter.denominator,
       }),
     );
+
+    if (absoluteSequence >= this.activePlayback.fullCompiled.events.length - 1) {
+      this.scheduleNaturalCompletion(playbackEvent);
+    }
   }
 }

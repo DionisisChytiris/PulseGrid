@@ -156,7 +156,7 @@ export const SegmentEditorRow = memo(function SegmentEditorRow({
           style={({ pressed }) => [styles.colTempo, pressed && styles.colPressed]}
         >
           {overviewTempoBpm !== null ? (
-            <InlineTempoMarking bpm={overviewTempoBpm} leadingSpace={false} />
+            <InlineTempoMarking bpm={overviewTempoBpm} style={styles.overviewTempo} />
           ) : (
             <View style={styles.tempoSpacer} />
           )}
@@ -411,6 +411,9 @@ const styles = StyleSheet.create({
   },
   tempoSpacer: {
     height: 14,
+  },
+  overviewTempo: {
+    fontSize: 14,
   },
   accentScrollContent: {
     alignItems: 'center',

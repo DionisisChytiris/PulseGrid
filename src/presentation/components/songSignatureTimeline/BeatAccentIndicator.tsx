@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { View } from 'react-native';
 
+import { studioColors } from '../../theme';
 import { beatLedAppearance } from '../metronome/beatLedAppearance';
 
 type Props = {
@@ -11,6 +12,11 @@ type Props = {
   isPlaying?: boolean;
   /** Highlight this pulse as the current song-playback beat. */
   isCurrentBeat?: boolean;
+  /**
+   * Idle fill for accented dots (tempo-region colour on Song Line).
+   * Playing highlight is unchanged.
+   */
+  accentColor?: string;
 };
 
 /**
@@ -22,9 +28,16 @@ export const BeatAccentIndicator = memo(function BeatAccentIndicator({
   size = 18,
   isPlaying = false,
   isCurrentBeat = false,
+  accentColor = studioColors.beatAccent,
 }: Props) {
   const borderWidth = Math.max(1, Math.round(size * 0.12));
-  const appearance = beatLedAppearance(isPlaying, isCurrentBeat, accented, borderWidth);
+  const appearance = beatLedAppearance(
+    isPlaying,
+    isCurrentBeat,
+    accented,
+    borderWidth,
+    accentColor,
+  );
 
   return (
     <View

@@ -7,10 +7,10 @@ import {
   type TextStyle,
 } from 'react-native';
 
-import { studioColors } from '../../theme';
+import { getTempoMarkingColor } from './tempoMarkingColor';
 
 type FormatOptions = {
-  /** Leading space for nesting after a meter label (Song Line). Default true. */
+  /** Leading space for nesting after a meter label. Default false. */
   readonly leadingSpace?: boolean;
 };
 
@@ -20,31 +20,32 @@ export function formatInlineTempoMarking(
   options: FormatOptions = {},
 ): string {
   const body = `♩ = ${bpm}`;
-  return options.leadingSpace === false ? body : ` ${body}`;
+  return options.leadingSpace === true ? ` ${body}` : body;
 }
 
 type Props = {
   bpm: number;
-  /** Leading space when nested after a meter label. Default true. */
+  /** Leading space when nested after a meter label. Default false. */
   leadingSpace?: boolean;
   onPress?: (event: GestureResponderEvent) => void;
   style?: StyleProp<TextStyle>;
 };
 
 /**
- * Plain-text tempo marking (♩ = N) in the Song Line orange accent style.
+ * Plain-text tempo marking (♩ = N). Colour tracks BPM band; no chrome.
  */
 export const InlineTempoMarking = memo(function InlineTempoMarking({
   bpm,
-  leadingSpace = true,
+  leadingSpace = false,
   onPress,
   style,
 }: Props) {
   return (
     <Text
-      style={[styles.marking, style]}
+      style={[styles.marking, { color: getTempoMarkingColor(bpm) }, style]}
       onPress={onPress}
       suppressHighlighting={onPress !== undefined}
+      numberOfLines={1}
     >
       {formatInlineTempoMarking(bpm, { leadingSpace })}
     </Text>
@@ -53,10 +54,9 @@ export const InlineTempoMarking = memo(function InlineTempoMarking({
 
 const styles = StyleSheet.create({
   marking: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
-    color: studioColors.beatAccent,
     letterSpacing: 0,
   },
 });
