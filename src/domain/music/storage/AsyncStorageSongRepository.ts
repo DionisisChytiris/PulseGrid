@@ -49,10 +49,9 @@ export class AsyncStorageSongRepository implements SongRepository {
   }
 
   async createSong(input: CreateStoredSongInput): Promise<Song> {
-    const name = input.name.trim() || 'Untitled Song';
     const song = createSong({
       id: generateEntityId('song'),
-      name,
+      name: input.name,
       sections: [
         createSectionWithBars('main', 'Main', [
           {

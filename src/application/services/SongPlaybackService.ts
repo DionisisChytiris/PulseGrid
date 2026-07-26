@@ -49,18 +49,49 @@ export class SongPlaybackService {
   ) {}
 
   async playSongTimeline(song: Song): Promise<void> {
+    await this.playSongTimelineFromBar(song, 0);
+  }
+
+  /**
+   * Compile and start song playback at Beat 1 of [globalBarIndex] (0-based).
+   * If already playing, restarts from the new position immediately.
+   */
+  async playSongTimelineFromBar(song: Song, globalBarIndex: number): Promise<void> {
     this.quickMetronomePlayback.stop();
+    this.detachTickListener();
+    metronomeEngine.stop();
 
     try {
       const compiled = compileSong(song, { defaultBpm: song.defaultBpm });
-      const cursor = createSongPlaybackCursor(compiled);
-      const adapter = createSongSchedulerAdapter(cursor, compiled);
+      const safeBarIndex = Math.max(0, Math.floor(globalBarIndex));
+      const target =
+        compiled.events.find(
+          (event) => event.globalBarIndex === safeBarIndex && event.beatIndexInBar === 0,
+        ) ??
+        compiled.events.find((event) => event.globalBarIndex === safeBarIndex) ??
+        compiled.events[0];
+
+      if (target === undefined) {
+        this.handleSongModeFallback(song, 'Compiled song has no playback events');
+        return;
+      }
+
+      const startSequence = target.sequence;
+      const sliced = sliceCompiledPlaybackSequence(compiled, startSequence);
+
+      if (sliced.events.length === 0) {
+        this.handleSongModeFallback(song, 'No events remaining from start bar');
+        return;
+      }
+
+      const cursor = createSongPlaybackCursor(sliced);
+      const adapter = createSongSchedulerAdapter(cursor, sliced);
 
       await NativeAudioModule.whenReady?.();
 
       metronomeEngine.start({
         mode: PlaybackMode.SONG_TIMELINE,
-        compiled,
+        compiled: sliced,
         songAdapter: adapter,
         cursor,
         debugLog: __DEV__,
@@ -74,15 +105,29 @@ export class SongPlaybackService {
       this.activePlayback = {
         song,
         fullCompiled: compiled,
-        playbackStartIndex: 0,
+        playbackStartIndex: startSequence,
       };
-      this.playbackSequenceCursor = 0;
+      this.playbackSequenceCursor = startSequence;
+      this.currentBarIndex = target.globalBarIndex;
 
       this.attachTickListener();
       this.dispatch(
         songTimelinePlaybackStarted({
           songName: song.name,
           totalBars: compiled.metadata.totalBars,
+        }),
+      );
+      this.dispatch(
+        songTimelineTickUpdated({
+          barId: target.barId,
+          sectionId: target.sectionId,
+          bpm: target.bpm,
+          sequenceIndex: startSequence,
+          currentBarIndex: target.globalBarIndex,
+          beatIndexInBar: target.beatIndexInBar,
+          beatsPerMeasure: target.meter.numerator,
+          meterNumerator: target.meter.numerator,
+          meterDenominator: target.meter.denominator,
         }),
       );
     } catch (error) {

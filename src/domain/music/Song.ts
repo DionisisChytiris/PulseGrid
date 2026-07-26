@@ -1,5 +1,6 @@
 import { createSection, type Section } from './Section';
 import { clampSongBpm, DEFAULT_SONG_BPM } from './songBpm';
+import { sanitizeSongName } from './songName';
 
 export interface Song {
   readonly id: string;
@@ -28,7 +29,7 @@ export function createSong(input: CreateSongInput): Song {
 
   return {
     id: input.id,
-    name: input.name,
+    name: sanitizeSongName(input.name),
     defaultBpm: clampSongBpm(input.defaultBpm ?? DEFAULT_SONG_BPM),
     sections: input.sections ?? [],
     createdAt: input.createdAt ?? now,

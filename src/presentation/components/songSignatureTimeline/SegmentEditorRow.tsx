@@ -8,6 +8,7 @@ import {
   View,
   type TextInput as TextInputType,
 } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 import type { TimelineSegmentViewModel } from '../../viewModels/TimelineSegmentViewModel';
 import { studioColors } from '../../theme';
@@ -37,6 +38,9 @@ type Props = {
   segmentBpmText: string;
   activeField: SegmentEditorActiveField | null;
   onToggleExpand: () => void;
+  onDuplicate: () => void;
+  onDelete?: () => void;
+  canDelete: boolean;
   onNumeratorFocus: () => void;
   onBarCountFocus: () => void;
   onSegmentBpmFocus: () => void;
@@ -76,6 +80,9 @@ export const SegmentEditorRow = memo(function SegmentEditorRow({
   segmentBpmText,
   activeField,
   onToggleExpand,
+  onDuplicate,
+  onDelete,
+  canDelete,
   onNumeratorFocus,
   onBarCountFocus,
   onSegmentBpmFocus,
@@ -243,26 +250,60 @@ export const SegmentEditorRow = memo(function SegmentEditorRow({
 
           <View style={styles.tempoBlock}>
             <Text style={styles.tempoTitle}>Tempo</Text>
-            <Pressable
-              onPress={() => onUseSongTempoChange(!useSongTempo)}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: useSongTempo }}
-              accessibilityLabel={
-                useSongTempo
-                  ? `Use song tempo ${songDefaultBpm} BPM`
-                  : 'Use song tempo'
-              }
-              style={styles.tempoCheckRow}
-            >
-              <View style={[styles.checkbox, useSongTempo && styles.checkboxChecked]}>
-                {useSongTempo ? <Text style={styles.checkmark}>✓</Text> : null}
+            <View style={styles.tempoActionsRow}>
+              <Pressable
+                onPress={() => onUseSongTempoChange(!useSongTempo)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: useSongTempo }}
+                accessibilityLabel={
+                  useSongTempo
+                    ? `Use song tempo ${songDefaultBpm} BPM`
+                    : 'Use song tempo'
+                }
+                style={styles.tempoCheckRow}
+              >
+                <View style={[styles.checkbox, useSongTempo && styles.checkboxChecked]}>
+                  {useSongTempo ? <Text style={styles.checkmark}>✓</Text> : null}
+                </View>
+                <Text style={styles.tempoCheckLabel} numberOfLines={1}>
+                  {useSongTempo
+                    ? `Use Song Tempo (${songDefaultBpm} BPM)`
+                    : 'Use Song Tempo'}
+                </Text>
+              </Pressable>
+
+              <View style={styles.segmentActionButtons}>
+                <Pressable
+                  onPress={onDuplicate}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel="Duplicate segment"
+                  style={({ pressed }) => [
+                    styles.segmentActionButton,
+                    pressed && styles.segmentActionPressed,
+                  ]}
+                >
+                  <Ionicons name="copy-outline" size={16} color={studioColors.accent} />
+                  <Text style={styles.duplicateActionText}>Duplicate</Text>
+                </Pressable>
+
+                {canDelete && onDelete !== undefined ? (
+                  <Pressable
+                    onPress={onDelete}
+                    hitSlop={6}
+                    accessibilityRole="button"
+                    accessibilityLabel="Delete segment"
+                    style={({ pressed }) => [
+                      styles.segmentActionButton,
+                      pressed && styles.segmentActionPressed,
+                    ]}
+                  >
+                    <Ionicons name="trash-outline" size={16} color={studioColors.danger} />
+                    <Text style={styles.deleteActionText}>Delete</Text>
+                  </Pressable>
+                ) : null}
               </View>
-              <Text style={styles.tempoCheckLabel}>
-                {useSongTempo
-                  ? `Use Song Tempo (${songDefaultBpm} BPM)`
-                  : 'Use Song Tempo'}
-              </Text>
-            </Pressable>
+            </View>
 
             <View style={[styles.segmentBpmRow, useSongTempo && styles.segmentBpmRowDisabled]}>
               <Text style={[styles.bpmLabel, useSongTempo && styles.bpmLabelDisabled]}>BPM:</Text>
@@ -484,11 +525,20 @@ const styles = StyleSheet.create({
     color: studioColors.textSecondary,
     letterSpacing: 0.3,
   },
+  tempoActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minHeight: 40,
+  },
   tempoCheckRow: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     minHeight: 36,
+    minWidth: 0,
+    paddingRight: 8,
   },
   checkbox: {
     width: 22,
@@ -499,6 +549,7 @@ const styles = StyleSheet.create({
     backgroundColor: studioColors.background,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   checkboxChecked: {
     backgroundColor: studioColors.accent,
@@ -511,9 +562,37 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   tempoCheckLabel: {
+    flexShrink: 1,
     fontSize: 14,
     fontWeight: '600',
     color: studioColors.textPrimary,
+  },
+  segmentActionButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flexShrink: 0,
+  },
+  segmentActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    minHeight: 40,
+  },
+  segmentActionPressed: {
+    opacity: 0.65,
+  },
+  duplicateActionText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: studioColors.accent,
+  },
+  deleteActionText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: studioColors.danger,
   },
   segmentBpmRow: {
     flexDirection: 'row',

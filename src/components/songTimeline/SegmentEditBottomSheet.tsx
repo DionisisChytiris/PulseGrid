@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -68,6 +69,8 @@ type Props = {
   onMeterChange: (segmentId: string, meterLabel: string) => void;
   onAccentPatternChange: (segmentId: string, pattern: boolean[]) => void;
   onBpmOverrideChange: (segmentId: string, bpm: number | null) => void;
+  onDuplicateSegment: (segmentId: string) => string | null;
+  onDeleteSegment: (segmentId: string) => string | null;
 };
 
 type ActiveEdit = SegmentEditorActiveField & { text: string };
@@ -109,6 +112,8 @@ export function SegmentEditBottomSheet({
   onMeterChange,
   onAccentPatternChange,
   onBpmOverrideChange,
+  onDuplicateSegment,
+  onDeleteSegment,
 }: Props) {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -127,6 +132,7 @@ export function SegmentEditBottomSheet({
   activeEditRef.current = activeEdit;
 
   const [expandedSegmentId, setExpandedSegmentId] = useState<string | null>(null);
+  const [pendingFocusSegmentId, setPendingFocusSegmentId] = useState<string | null>(null);
 
   const keyboardOpen = activeEdit !== null;
   const bottomKeyboardHeight =
@@ -174,18 +180,10 @@ export function SegmentEditBottomSheet({
   }, [activeEdit, segments]);
 
   useEffect(() => {
-    if (expandedSegmentId === null) {
-      return;
-    }
-    if (!segments.some((segment) => segment.id === expandedSegmentId)) {
-      setExpandedSegmentId(null);
-    }
-  }, [expandedSegmentId, segments]);
-
-  useEffect(() => {
     if (!visible) {
       setActiveEdit(null);
       setExpandedSegmentId(null);
+      setPendingFocusSegmentId(null);
       rowLayouts.current.clear();
       return;
     }
@@ -210,6 +208,22 @@ export function SegmentEditBottomSheet({
   }, []);
 
   useEffect(() => {
+    if (pendingFocusSegmentId === null) {
+      return;
+    }
+    if (!segments.some((segment) => segment.id === pendingFocusSegmentId)) {
+      return;
+    }
+    setExpandedSegmentId(pendingFocusSegmentId);
+    setPendingFocusSegmentId(null);
+    const focusId = pendingFocusSegmentId;
+    const handle = requestAnimationFrame(() => {
+      scrollRowIntoView(focusId);
+    });
+    return () => cancelAnimationFrame(handle);
+  }, [pendingFocusSegmentId, segments, scrollRowIntoView]);
+
+  useEffect(() => {
     if (!visible || focusSegmentId === null) {
       return;
     }
@@ -223,11 +237,18 @@ export function SegmentEditBottomSheet({
     if (expandedSegmentId === null) {
       return;
     }
+    if (
+      pendingFocusSegmentId === null &&
+      !segments.some((segment) => segment.id === expandedSegmentId)
+    ) {
+      setExpandedSegmentId(null);
+      return;
+    }
     const handle = requestAnimationFrame(() => {
       scrollRowIntoView(expandedSegmentId);
     });
     return () => cancelAnimationFrame(handle);
-  }, [expandedSegmentId, sheetHeight, scrollRowIntoView]);
+  }, [expandedSegmentId, pendingFocusSegmentId, segments, sheetHeight, scrollRowIntoView]);
 
   const blurActiveInput = useCallback((edit: ActiveEdit | null) => {
     if (edit === null) {
@@ -385,6 +406,45 @@ export function SegmentEditBottomSheet({
       });
     },
     [blurActiveInput, commitEdit],
+  );
+
+  const handleDuplicateSegment = useCallback(
+    (segmentId: string) => {
+      finalizeActiveEdit();
+      const focusId = onDuplicateSegment(segmentId);
+      if (focusId !== null) {
+        setPendingFocusSegmentId(focusId);
+      }
+    },
+    [finalizeActiveEdit, onDuplicateSegment],
+  );
+
+  const handleDeleteSegment = useCallback(
+    (segmentId: string) => {
+      if (segments.length <= 1) {
+        return;
+      }
+
+      Alert.alert(
+        'Delete Segment?',
+        'This will permanently remove this segment from the song.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: () => {
+              finalizeActiveEdit();
+              const focusId = onDeleteSegment(segmentId);
+              if (focusId !== null) {
+                setPendingFocusSegmentId(focusId);
+              }
+            },
+          },
+        ],
+      );
+    },
+    [finalizeActiveEdit, onDeleteSegment, segments.length],
   );
 
   const handleKeyboardChange = (text: string) => {
@@ -607,6 +667,17 @@ export function SegmentEditBottomSheet({
                 onToggleExpand={() => {
                   handleToggleExpand(segment.id);
                 }}
+                onDuplicate={() => {
+                  handleDuplicateSegment(segment.id);
+                }}
+                onDelete={
+                  segments.length > 1
+                    ? () => {
+                        handleDeleteSegment(segment.id);
+                      }
+                    : undefined
+                }
+                canDelete={segments.length > 1}
                 onNumeratorFocus={() => {
                   beginEdit({
                     segmentId: segment.id,

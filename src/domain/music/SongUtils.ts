@@ -13,6 +13,7 @@ function cloneBar(bar: Bar): Bar {
     repeatCount: bar.repeatCount,
     ...cloneBarTempoFields(bar),
     ...(bar.clickPattern === undefined ? {} : { clickPattern: cloneClickPattern(bar.clickPattern) }),
+    ...(bar.segmentBreakAfter === true ? { segmentBreakAfter: true as const } : {}),
   };
 }
 

@@ -56,6 +56,8 @@ type StoredBar = {
   /** @deprecated Legacy field — migrated to tempoDefinition on load. */
   tempo?: StoredLegacyTempoEvent;
   repeatCount: number;
+  /** Starts a new UI segment after this bar when the next meter matches. */
+  segmentBreakAfter?: boolean;
 };
 
 type StoredSection = {
@@ -150,6 +152,7 @@ function parseBar(value: StoredBar): Bar {
     tempoDefinition,
     tempoTransition: value.tempoTransition ?? tempoTransition,
     ...(value.clickPattern === undefined ? {} : { clickPattern: parseClickPattern(value.clickPattern) }),
+    ...(value.segmentBreakAfter === true ? { segmentBreakAfter: true } : {}),
   });
 }
 
@@ -189,6 +192,7 @@ export function songToStored(song: Song): StoredSong {
                 accentGroupStarts: bar.accentPattern.accentGroupStarts ?? true,
               },
         repeatCount: bar.repeatCount,
+        ...(bar.segmentBreakAfter === true ? { segmentBreakAfter: true } : {}),
         ...(bar.clickPattern === undefined
           ? {}
           : {

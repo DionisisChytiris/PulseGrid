@@ -15,6 +15,11 @@ export interface Bar {
   readonly accentPattern: SongAccentPattern;
   readonly clickPattern?: ClickPattern;
   readonly repeatCount: number;
+  /**
+   * When true, Signature Track / Edit Segment grouping starts a new segment
+   * after this bar even if the next bar shares the same meter.
+   */
+  readonly segmentBreakAfter?: boolean;
 }
 
 export type CreateBarInput = {
@@ -27,6 +32,7 @@ export type CreateBarInput = {
   /** @deprecated Use tempoDefinition on the bar instead. */
   tempo?: TempoEvent;
   repeatCount?: number;
+  segmentBreakAfter?: boolean;
 };
 
 export function getBarTempoBpm(bar: Bar): number | undefined {
@@ -75,6 +81,7 @@ export function createBar(input: CreateBarInput): Bar {
     accentPattern: input.accentPattern,
     repeatCount,
     ...(input.clickPattern === undefined ? {} : { clickPattern: input.clickPattern }),
+    ...(input.segmentBreakAfter === true ? { segmentBreakAfter: true as const } : {}),
   };
 
   if (tempoDefinition === undefined) {

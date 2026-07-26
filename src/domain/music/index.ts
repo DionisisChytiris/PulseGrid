@@ -46,6 +46,12 @@ export {
   parseSongBpmTextLenient,
   sanitizeSongBpmInput,
 } from './songBpm';
+export {
+  DEFAULT_SONG_NAME,
+  MAX_SONG_NAME_LENGTH,
+  sanitizeSongName,
+  sanitizeSongNameInput,
+} from './songName';
 export { createSong, type Song, type CreateSongInput } from './Song';
 export {
   cloneSong,

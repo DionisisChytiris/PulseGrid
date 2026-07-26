@@ -35,6 +35,9 @@ export function useSongPlayback() {
     onPlaySong: (song: Song) => {
       void songPlaybackService.playSongTimeline(song);
     },
+    onPlaySongFromBar: (song: Song, globalBarIndex: number) => {
+      void songPlaybackService.playSongTimelineFromBar(song, globalBarIndex);
+    },
     onPause: () => songPlaybackService.pause(),
     onResume: () => {
       void songPlaybackService.resume();

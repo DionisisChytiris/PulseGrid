@@ -24,8 +24,9 @@ function sameSignature(a: Meter, b: Meter): boolean {
 }
 
 /**
- * Groups consecutive bars with the same time signature (numerator + denominator)
- * into Signature Track meter regions.
+ * Groups consecutive bars into Signature Track / Edit Segment regions.
+ * A new region starts when the meter changes, or after a bar marked
+ * `segmentBreakAfter` (used so duplicated same-meter runs stay separate).
  * Pure UI derivation — does not affect playback or scheduling.
  */
 export function buildTimelineSegments(song: Song): TimelineSegment[] {
@@ -55,12 +56,13 @@ export function buildTimelineSegments(song: Song): TimelineSegment[] {
   };
 
   for (let index = 1; index <= bars.length; index += 1) {
-    const prevMeter = bars[index - 1].meter;
+    const prevBar = bars[index - 1];
     const atEnd = index === bars.length;
     const signatureChanged =
-      !atEnd && !sameSignature(prevMeter, bars[index].meter);
+      !atEnd && !sameSignature(prevBar.meter, bars[index].meter);
+    const forcedBreak = prevBar.segmentBreakAfter === true;
 
-    if (atEnd || signatureChanged) {
+    if (atEnd || signatureChanged || forcedBreak) {
       pushSegment(runStart, index - 1);
       runStart = index;
     }

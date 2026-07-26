@@ -19,6 +19,8 @@ import {
   setSegmentBarCount,
   setSegmentBpmOverride,
   setSegmentMeterLabel,
+  deleteSegment,
+  duplicateSegment,
   type TimelineSegment,
 } from '../../components/songTimeline';
 
@@ -128,6 +130,24 @@ export function useSongEditor(songId: string) {
       applyAndSave((current) => setSegmentAccentPreset(current, segment, presetId)),
     setSegmentAccentPattern: (segment: TimelineSegment, pattern: readonly boolean[]) =>
       applyAndSave((current) => setSegmentAccentPattern(current, segment, pattern)),
+    duplicateSegment: (segment: TimelineSegment) =>
+      applyAndSave((current) => duplicateSegment(current, segment).song),
+    deleteSegment: (segment: TimelineSegment): string | null => {
+      let focusId: string | null = null;
+      applyAndSave((current) => {
+        const result = deleteSegment(current, segment);
+        if (result.blockedReason !== undefined) {
+          focusId = null;
+          return current;
+        }
+        focusId =
+          result.focusStartBarIndex === null
+            ? null
+            : `seg-${result.focusStartBarIndex}`;
+        return result.song;
+      });
+      return focusId;
+    },
   };
 }
 

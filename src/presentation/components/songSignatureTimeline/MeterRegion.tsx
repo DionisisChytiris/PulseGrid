@@ -1,5 +1,5 @@
-import { memo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { memo, useEffect, useRef } from 'react';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { TimelineSegmentViewModel } from '../../viewModels/TimelineSegmentViewModel';
 import { studioColors } from '../../theme';
@@ -12,11 +12,18 @@ import {
   parseMeterDenominator,
 } from './signatureTimelineConstants';
 
+const PLAY_HINT_VISIBLE_MS = 700;
+const PLAY_HINT_FADE_MS = 300;
+const METER_HIT_SIZE = 44;
+
 type Props = {
   segment: TimelineSegmentViewModel;
   /** Effective BPM to show after the meter, or null when unchanged. */
   overviewTempoBpm?: number | null;
+  /** Opens Edit Segment (timeline / bar area). */
   onPress?: (segmentId: string) => void;
+  /** Starts playback from this segment (time signature label). */
+  onPlayFromHere?: (segmentId: string) => void;
   onTempoPress?: () => void;
   onLayout?: (segmentId: string, x: number, width: number) => void;
   /** Song playback running — pulse LEDs follow the playhead beat. */
@@ -28,15 +35,16 @@ type Props = {
 /**
  * Cubase-style Signature Track region:
  *
- *        4/4 ♩ = 120
+ *        ▶ 4/4 ♩ = 120   ← meter tap = play from here
  * ┌──────────────────┐
- * │● ○ ○ ○│● ○ ○ ○│
+ * │● ○ ○ ○│● ○ ○ ○│   ← track tap = edit segment
  * └──────────────────┘
  */
 export const MeterRegion = memo(function MeterRegion({
   segment,
   overviewTempoBpm = null,
   onPress,
+  onPlayFromHere,
   onTempoPress,
   onLayout,
   isPlaying = false,
@@ -46,11 +54,44 @@ export const MeterRegion = memo(function MeterRegion({
   const denominator = parseMeterDenominator(segment.meter);
   const width = meterRegionWidth(segment.numberOfBars, beatCount, denominator);
   const regionPlaying = isPlaying && segment.isActive;
+  const playHintOpacity = useRef(new Animated.Value(0)).current;
+  const playHintTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const playHintAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+
+  useEffect(
+    () => () => {
+      if (playHintTimeoutRef.current !== null) {
+        clearTimeout(playHintTimeoutRef.current);
+      }
+      playHintAnimRef.current?.stop();
+    },
+    [],
+  );
+
+  const handlePlayFromHere = () => {
+    if (onPlayFromHere === undefined) {
+      return;
+    }
+    onPlayFromHere(segment.id);
+
+    playHintAnimRef.current?.stop();
+    if (playHintTimeoutRef.current !== null) {
+      clearTimeout(playHintTimeoutRef.current);
+    }
+    playHintOpacity.setValue(1);
+    playHintTimeoutRef.current = setTimeout(() => {
+      playHintTimeoutRef.current = null;
+      playHintAnimRef.current = Animated.timing(playHintOpacity, {
+        toValue: 0,
+        duration: PLAY_HINT_FADE_MS,
+        useNativeDriver: true,
+      });
+      playHintAnimRef.current.start();
+    }, PLAY_HINT_VISIBLE_MS);
+  };
 
   return (
-    <Pressable
-      onPress={() => onPress?.(segment.id)}
-      disabled={onPress === undefined}
+    <View
       style={[styles.region, { width }, segment.isActive && styles.regionActive]}
       onLayout={(event) => {
         const { x, width: layoutWidth } = event.nativeEvent.layout;
@@ -58,25 +99,47 @@ export const MeterRegion = memo(function MeterRegion({
       }}
     >
       <View style={styles.header}>
-        <Text style={styles.meter} numberOfLines={1}>
-          {segment.meter}
-          {overviewTempoBpm !== null ? (
-            <InlineTempoMarking
-              bpm={overviewTempoBpm}
-              onPress={
-                onTempoPress === undefined
-                  ? undefined
-                  : (event) => {
-                      event.stopPropagation?.();
-                      onTempoPress();
-                    }
-              }
-            />
-          ) : null}
-        </Text>
+        <Pressable
+          onPress={handlePlayFromHere}
+          disabled={onPlayFromHere === undefined}
+          accessibilityRole="button"
+          accessibilityLabel={`Play from ${segment.meter}`}
+          hitSlop={4}
+          style={({ pressed }) => [
+            styles.meterHitTarget,
+            pressed && onPlayFromHere !== undefined && styles.meterHitPressed,
+          ]}
+        >
+          <Animated.Text style={[styles.playHint, { opacity: playHintOpacity }]}>
+            ▶
+          </Animated.Text>
+          <Text style={styles.meter} numberOfLines={1}>
+            {segment.meter}
+          </Text>
+        </Pressable>
+
+        {overviewTempoBpm !== null ? (
+          <InlineTempoMarking
+            bpm={overviewTempoBpm}
+            onPress={
+              onTempoPress === undefined
+                ? undefined
+                : (event) => {
+                    event.stopPropagation?.();
+                    onTempoPress();
+                  }
+            }
+          />
+        ) : null}
       </View>
 
-      <View style={[styles.track, segment.isActive && styles.trackActive]}>
+      <Pressable
+        onPress={() => onPress?.(segment.id)}
+        disabled={onPress === undefined}
+        accessibilityRole="button"
+        accessibilityLabel={`Edit segment ${segment.meter}`}
+        style={[styles.track, segment.isActive && styles.trackActive]}
+      >
         {segment.barIndicators.map((indicator) => (
           <BarPreview
             key={`bar-${indicator.barNumber}`}
@@ -88,8 +151,8 @@ export const MeterRegion = memo(function MeterRegion({
             currentBeatIndex={currentBeatIndex}
           />
         ))}
-      </View>
-    </Pressable>
+      </Pressable>
+    </View>
   );
 });
 
@@ -103,10 +166,28 @@ const styles = StyleSheet.create({
     // Region chrome emphasizes active meter without shrinking content.
   },
   header: {
-    height: 34,
+    height: METER_HIT_SIZE,
     flexDirection: 'row',
     alignItems: 'center',
+    paddingLeft: 0,
+  },
+  meterHitTarget: {
+    minWidth: METER_HIT_SIZE,
+    minHeight: METER_HIT_SIZE,
     paddingLeft: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  meterHitPressed: {
+    opacity: 0.7,
+  },
+  playHint: {
+    position: 'absolute',
+    left: -2,
+    fontSize: 12,
+    fontWeight: '700',
+    color: studioColors.beatAccent,
   },
   meter: {
     fontSize: 18,

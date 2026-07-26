@@ -33,6 +33,8 @@ type Props = {
   onSegmentMeterChange: (segment: TimelineSegment, meterLabel: string) => void;
   onSegmentBpmOverrideChange: (segment: TimelineSegment, bpm: number | null) => void;
   onSegmentAccentPatternChange: (segment: TimelineSegment, pattern: boolean[]) => void;
+  onSegmentDuplicate: (segment: TimelineSegment) => void;
+  onSegmentDelete: (segment: TimelineSegment) => string | null;
   onSongDefaultBpmChange: (bpm: number) => void;
 };
 
@@ -45,6 +47,8 @@ export function SongTimelineView({
   onSegmentMeterChange,
   onSegmentBpmOverrideChange,
   onSegmentAccentPatternChange,
+  onSegmentDuplicate,
+  onSegmentDelete,
   onSongDefaultBpmChange,
 }: Props) {
   const listRef = useRef<FlatList<TimelineSegmentViewModel>>(null);
@@ -165,6 +169,22 @@ export function SongTimelineView({
           if (domain !== null) {
             onSegmentAccentPatternChange(domain, pattern);
           }
+        }}
+        onDuplicateSegment={(segmentId) => {
+          const domain = findDomainSegmentById(song, segmentId);
+          if (domain === null) {
+            return null;
+          }
+          const focusSegmentIdAfter = `seg-${domain.endBarIndex + 1}`;
+          onSegmentDuplicate(domain);
+          return focusSegmentIdAfter;
+        }}
+        onDeleteSegment={(segmentId) => {
+          const domain = findDomainSegmentById(song, segmentId);
+          if (domain === null) {
+            return null;
+          }
+          return onSegmentDelete(domain);
         }}
       />
     </View>

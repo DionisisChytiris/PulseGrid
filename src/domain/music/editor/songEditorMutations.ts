@@ -4,6 +4,7 @@ import { createMeter, formatMeter, type Meter } from '../Meter';
 import { createSection, type Section } from '../Section';
 import type { Song } from '../Song';
 import { clampSongBpm } from '../songBpm';
+import { sanitizeSongName } from '../songName';
 import { cloneSong } from '../SongUtils';
 import { createTempoDefinitionForMeter } from '../TempoDefinition';
 import { generateEntityId } from '../storage/generateEntityId';
@@ -41,7 +42,7 @@ function withMainSection(song: Song, section: Section): Song {
 }
 
 export function updateSongName(song: Song, name: string): Song {
-  return touchSong({ ...song, name: name.trim() || 'Untitled Song' });
+  return touchSong({ ...song, name: sanitizeSongName(name) });
 }
 
 export function updateSongDefaultBpm(song: Song, bpm: number): Song {

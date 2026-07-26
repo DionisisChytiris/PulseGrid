@@ -5,6 +5,9 @@ export { SongTimelineView } from './SongTimelineView';
 export { TimelinePlaybackPanel } from './TimelinePlaybackPanel';
 export { TimelineSegmentRow } from './TimelineSegmentRow';
 export {
+  cloneBarWithNewId,
+  deleteSegment,
+  duplicateSegment,
   setSegmentAccentPattern,
   setSegmentAccentPreset,
   setSegmentBarCount,

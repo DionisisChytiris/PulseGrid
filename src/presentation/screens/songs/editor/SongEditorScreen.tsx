@@ -13,8 +13,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { createSong } from '../../../../domain/music/Song';
+import { sanitizeSongName, sanitizeSongNameInput } from '../../../../domain/music/songName';
 import { CustomKeyboard } from '../../../components/CustomKeyboard';
-import { SongSignatureTimeline } from '../../../components/songSignatureTimeline';
+import {
+  SongSignatureTimeline,
+  SongStatisticsBottomSheet,
+} from '../../../components/songSignatureTimeline';
 import { useEditorCustomKeyboard } from '../../../hooks/useEditorCustomKeyboard';
 import { useSongEditor } from '../../../hooks/useSongEditor';
 import { useSongEditorLandscapeLock } from '../../../hooks/useSongEditorLandscapeLock';
@@ -30,6 +34,7 @@ export default function SongEditorScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const { songId } = route.params;
+  const [statsVisible, setStatsVisible] = useState(false);
   const {
     song,
     loading,
@@ -42,6 +47,8 @@ export default function SongEditorScreen({ navigation, route }: Props) {
     setSegmentMeter,
     setSegmentBpmOverride,
     setSegmentAccentPattern,
+    duplicateSegment,
+    deleteSegment,
   } = useSongEditor(songId);
 
   const playback = useSongPlayback();
@@ -89,12 +96,10 @@ export default function SongEditorScreen({ navigation, route }: Props) {
 
   const commitSongName = () => {
     if (keyboard.activeField === 'songName') {
-      const next = keyboard.value.trim().length > 0 ? keyboard.value.trim() : song.name;
-      setSongName(next);
+      setSongName(sanitizeSongName(keyboard.value));
     }
     keyboard.dismiss();
   };
-
   return (
     <View
       style={[
@@ -109,7 +114,7 @@ export default function SongEditorScreen({ navigation, route }: Props) {
     >
       <View style={styles.topBar}>
         <Pressable onPress={() => navigation.goBack()} hitSlop={8}>
-          <Text style={styles.backLink}>← Songs</Text>
+          <Text style={styles.backLink}>← </Text>
         </Pressable>
 
         <SongNameInput
@@ -120,10 +125,20 @@ export default function SongEditorScreen({ navigation, route }: Props) {
           onFocus={(current) => keyboard.focusField('songName', current, 'letters')}
           onDraftChange={(value) => {
             if (keyboard.activeField === 'songName') {
-              keyboard.setValue(value);
+              keyboard.setValue(sanitizeSongNameInput(value));
             }
           }}
         />
+
+        <Pressable
+          style={styles.statsButton}
+          onPress={() => setStatsVisible(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Song statistics"
+          hitSlop={8}
+        >
+          <Ionicons name="stats-chart-outline" size={20} color={studioColors.textSecondary} />
+        </Pressable>
 
         <Pressable
           style={[
@@ -164,7 +179,12 @@ export default function SongEditorScreen({ navigation, route }: Props) {
           onSegmentMeterChange={setSegmentMeter}
           onSegmentBpmOverrideChange={setSegmentBpmOverride}
           onSegmentAccentPatternChange={setSegmentAccentPattern}
+          onSegmentDuplicate={duplicateSegment}
+          onSegmentDelete={deleteSegment}
           onSongDefaultBpmChange={setSongDefaultBpm}
+          onPlayFromSegment={(segment) => {
+            playback.onPlaySongFromBar(song, segment.startBar - 1);
+          }}
           onAddBar={addBar}
         />
       </View>
@@ -172,10 +192,16 @@ export default function SongEditorScreen({ navigation, route }: Props) {
       <CustomKeyboard
         visible={songNameKeyboardVisible}
         value={songNameKeyboardVisible ? keyboard.value : ''}
-        onChangeText={keyboard.setValue}
+        onChangeText={(value) => keyboard.setValue(sanitizeSongNameInput(value))}
         onDone={commitSongName}
         placement="auto"
         initialMode="letters"
+      />
+
+      <SongStatisticsBottomSheet
+        visible={statsVisible}
+        song={song}
+        onClose={() => setStatsVisible(false)}
       />
     </View>
   );
@@ -217,8 +243,9 @@ function SongNameInput({
       style={[styles.nameInput, focused && styles.nameInputFocused]}
       value={display}
       onChangeText={(text) => {
-        setLocal(text);
-        onDraftChange(text);
+        const next = sanitizeSongNameInput(text);
+        setLocal(next);
+        onDraftChange(next);
       }}
       onFocus={() => onFocus(local)}
       placeholder="Song name"
@@ -254,8 +281,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   nameInput: {
-    flex: 1,
-    minWidth: 120,
+    flexGrow: 0,
+    flexShrink: 1,
+    width: '70%',
+    maxWidth: '70%',
+    minWidth: 200,
     borderWidth: 1,
     borderColor: studioColors.border,
     borderRadius: 8,
@@ -269,6 +299,17 @@ const styles = StyleSheet.create({
   nameInputFocused: {
     borderColor: studioColors.accent,
   },
+  statsButton: {
+    marginLeft: 'auto',
+    width: 38,
+    height: 38,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: studioColors.border,
+    backgroundColor: studioColors.surface,
+  },
   transportButton: {
     width: 38,
     height: 38,
@@ -276,8 +317,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  playButton: { backgroundColor: studioColors.accent },
-  stopButton: { backgroundColor: studioColors.stop },
+  playButton: { backgroundColor: studioColors.accent, marginHorizontal: 20 },
+  stopButton: { backgroundColor: studioColors.stop, marginHorizontal: 20 },
   saving: { color: studioColors.textSecondary, fontSize: 12 },
   timelineArea: {
     flex: 1,

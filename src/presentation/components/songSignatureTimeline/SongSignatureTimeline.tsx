@@ -44,7 +44,10 @@ type Props = {
   onSegmentMeterChange: (segment: TimelineSegment, meterLabel: string) => void;
   onSegmentBpmOverrideChange: (segment: TimelineSegment, bpm: number | null) => void;
   onSegmentAccentPatternChange: (segment: TimelineSegment, pattern: boolean[]) => void;
+  onSegmentDuplicate: (segment: TimelineSegment) => void;
+  onSegmentDelete: (segment: TimelineSegment) => string | null;
   onSongDefaultBpmChange: (bpm: number) => void;
+  onPlayFromSegment: (segment: TimelineSegmentViewModel) => void;
   onAddBar: (meter: Meter) => void;
 };
 
@@ -123,7 +126,10 @@ export function SongSignatureTimeline({
   onSegmentMeterChange,
   onSegmentBpmOverrideChange,
   onSegmentAccentPatternChange,
+  onSegmentDuplicate,
+  onSegmentDelete,
   onSongDefaultBpmChange,
+  onPlayFromSegment,
   onAddBar,
 }: Props) {
   const listRef = useRef<FlatList<TimelineSegmentViewModel>>(null);
@@ -360,6 +366,9 @@ export function SongSignatureTimeline({
                   segment={item}
                   overviewTempoBpm={tempoBpm}
                   onPress={() => openSegmentEditor(item)}
+                  onPlayFromHere={() => {
+                    onPlayFromSegment(item);
+                  }}
                   onTempoPress={
                     tempoBpm === null
                       ? undefined
@@ -446,6 +455,22 @@ export function SongSignatureTimeline({
             onSegmentAccentPatternChange(domain, pattern);
           }
         }}
+        onDuplicateSegment={(segmentId) => {
+          const domain = findDomainSegmentById(song, segmentId);
+          if (domain === null) {
+            return null;
+          }
+          const focusSegmentIdAfter = `seg-${domain.endBarIndex + 1}`;
+          onSegmentDuplicate(domain);
+          return focusSegmentIdAfter;
+        }}
+        onDeleteSegment={(segmentId) => {
+          const domain = findDomainSegmentById(song, segmentId);
+          if (domain === null) {
+            return null;
+          }
+          return onSegmentDelete(domain);
+        }}
       />
       <NewBarMeterDialog
         visible={newBarDialogVisible}
@@ -522,7 +547,7 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   addBarHeaderSpacer: {
-    height: 34,
+    height: 44,
   },
   addBarTrack: {
     flex: 1,

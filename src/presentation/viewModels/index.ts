@@ -1,5 +1,11 @@
 export { buildAccentPreview } from './buildAccentPreview';
 export {
+  buildSongStatistics,
+  formatAccentPatternName,
+  formatEstimatedDurationNs,
+  type SongStatistics,
+} from './buildSongStatistics';
+export {
   buildTimelineSegmentViewModels,
   findDomainSegmentById,
   type TimelinePlaybackContext,
