@@ -66,6 +66,8 @@ type Props = {
   onSongDefaultBpmChange: (bpm: number) => void;
   onPlayFromSegment: (segment: TimelineSegmentViewModel) => void;
   onAddBar: (meter: Meter) => void;
+  /** Entire-song loop — subtle highlight on the time-signature lane. */
+  songLoopEnabled?: boolean;
 };
 
 /** Imperative API for toolbar actions (e.g. Edit button). */
@@ -152,6 +154,7 @@ export const SongSignatureTimeline = forwardRef<SongSignatureTimelineHandle, Pro
       onSongDefaultBpmChange,
       onPlayFromSegment,
       onAddBar,
+      songLoopEnabled = false,
     },
     ref,
   ) {
@@ -230,13 +233,21 @@ export const SongSignatureTimeline = forwardRef<SongSignatureTimelineHandle, Pro
     const tickKey = `${currentBarIndex}:${currentBeatIndex}:${currentBpm ?? 'na'}:${meter}`;
     const tickChanged = tickKey !== lastTickKeyRef.current;
     const startingPlayback = isTimelineActive && isPlaying && !wasPlayingRef.current;
+    // Loop restart keeps isPlaying true — hard-sync when transport wraps to bar 1.
+    const loopRestartSync =
+      tickChanged &&
+      isTimelineActive &&
+      isPlaying &&
+      !startingPlayback &&
+      currentBarIndex === 0 &&
+      Math.max(0, currentBeatIndex) === 0;
     const beatDurationMs = pulseDurationMs(currentBpm, meter);
     const audioBeat = Math.max(0, currentBeatIndex);
     const now = performance.now();
 
     wasPlayingRef.current = isTimelineActive && isPlaying;
 
-    if (startingPlayback) {
+    if (startingPlayback || loopRestartSync) {
       lastTickKeyRef.current = tickKey;
       hardSyncFollowCursorToAudio(
         playbackCursorRef.current,
@@ -382,7 +393,9 @@ export const SongSignatureTimeline = forwardRef<SongSignatureTimelineHandle, Pro
   const addBarControl = (
     <View style={styles.addBarRegion}>
       {/* Matches MeterRegion header so the control sits in the pulse track band. */}
-      <View style={styles.addBarHeaderSpacer} />
+      <View
+        style={[styles.addBarHeaderSpacer, songLoopEnabled && styles.loopLaneHighlight]}
+      />
       <View style={styles.addBarTrack}>
         <Pressable
           style={styles.addBarButton}
@@ -427,6 +440,7 @@ export const SongSignatureTimeline = forwardRef<SongSignatureTimelineHandle, Pro
                     overviewTempoBpm={tempoBpm}
                     regionTempoBpm={regionTempoBpm}
                     showTimeSignature={showTimeSignature}
+                    songLoopEnabled={songLoopEnabled}
                     onPress={() => openSegmentEditor(item)}
                     onPlayFromHere={
                       showTimeSignature
@@ -468,7 +482,7 @@ export const SongSignatureTimeline = forwardRef<SongSignatureTimelineHandle, Pro
                 paddingRight: viewportWidth / 2,
               },
             ]}
-            extraData={`${currentBarIndex}-${isPlaying}-${isTimelineActive}-${song.defaultBpm}-${tempoMarkings.join(',')}`}
+            extraData={`${currentBarIndex}-${isPlaying}-${isTimelineActive}-${song.defaultBpm}-${tempoMarkings.join(',')}-${songLoopEnabled}`}
             windowSize={5}
             initialNumToRender={6}
             maxToRenderPerBatch={8}
@@ -614,6 +628,9 @@ const styles = StyleSheet.create({
   },
   addBarHeaderSpacer: {
     height: 44,
+  },
+  loopLaneHighlight: {
+    backgroundColor: 'rgba(59, 158, 255, 0.1)',
   },
   addBarTrack: {
     flex: 1,

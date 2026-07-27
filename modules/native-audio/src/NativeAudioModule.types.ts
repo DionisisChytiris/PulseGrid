@@ -20,4 +20,11 @@ export type NativeAudioStartOptions = {
   subdivision: NativeSubdivisionKind;
   playbackMode?: NativePlaybackMode;
   timelineEvents?: NativeTimelinePlaybackEvent[];
+  /**
+   * When true, song timeline wraps from the last event to the first without
+   * stopping the transport (seamless entire-song / region loop).
+   */
+  timelineLoops?: boolean;
+  /** Absolute sequence index to begin at within timelineEvents (default 0). */
+  timelineStartSequence?: number;
 };

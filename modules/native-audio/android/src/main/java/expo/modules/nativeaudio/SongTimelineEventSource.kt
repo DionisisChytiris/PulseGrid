@@ -6,12 +6,17 @@ import kotlin.math.max
 /**
  * Deterministic iterator over a precompiled score event stream.
  * Supports sequential peek for publishLookaheadEvents without recomputing the Song.
+ * When [loops] is true, sequences wrap forever with continuous deadline offsets.
  */
 internal class SongTimelineEventSource(
   events: List<TimelinePlaybackEvent>,
+  private var loops: Boolean = false,
 ) : EventSource {
   private val events: List<TimelinePlaybackEvent> = events.toList()
   private val deadlineOffsetNs: LongArray
+  private val cycleDurationNs: Long
+  /** When loops is turned off mid-cycle, play through this exclusive sequence then end. */
+  private var loopEndExclusive: Long? = null
 
   init {
     deadlineOffsetNs = LongArray(this.events.size + 1)
@@ -23,20 +28,50 @@ internal class SongTimelineEventSource(
     }
 
     deadlineOffsetNs[this.events.size] = offsetNs
+    cycleDurationNs = offsetNs
   }
+
+  fun setLoops(enabled: Boolean, nextSequence: Long = 0L) {
+    if (enabled) {
+      loops = true
+      loopEndExclusive = null
+      return
+    }
+
+    loops = false
+    if (events.isEmpty()) {
+      loopEndExclusive = null
+      return
+    }
+
+    // Finish the current cycle, then stop — never hard-cut mid-bar.
+    val count = events.size.toLong()
+    loopEndExclusive = ((nextSequence / count) + 1L) * count
+  }
+
+  fun isLooping(): Boolean = loops
 
   override fun reset() {
     // Precomputed stream — nothing to rewind.
   }
 
-  override fun eventCount(): Int? = events.size
+  override fun eventCount(): Int? {
+    if (loops) {
+      return null
+    }
+    val end = loopEndExclusive
+    if (end != null) {
+      return end.toInt()
+    }
+    return events.size
+  }
 
   override fun peekAt(sequence: Long): EventSourceTick? {
-    val index = sequence.toInt()
-    if (index < 0 || index >= events.size) {
+    if (events.isEmpty()) {
       return null
     }
 
+    val index = resolveEventIndex(sequence) ?: return null
     val event = events[index]
     return EventSourceTick(
       beatIndexInBar = event.beatIndexInBar,
@@ -48,24 +83,35 @@ internal class SongTimelineEventSource(
   }
 
   override fun offsetNsForSequence(sequence: Long): Long {
-    val index = sequence.toInt()
-    if (index < 0) {
+    if (events.isEmpty()) {
       return 0L
     }
 
+    if (sequence < 0L) {
+      return 0L
+    }
+
+    val end = loopEndExclusive
+    if (loops || (end != null && sequence < end)) {
+      val count = events.size.toLong()
+      val cycle = sequence / count
+      val indexInCycle = (sequence % count).toInt()
+      return cycle * cycleDurationNs + deadlineOffsetNs[indexInCycle]
+    }
+
+    val index = sequence.toInt()
     if (index >= events.size) {
       return deadlineOffsetNs[events.size]
     }
-
     return deadlineOffsetNs[index]
   }
 
   override fun bpmAt(sequence: Long): Double {
-    val index = sequence.toInt().coerceIn(0, max(0, events.size - 1))
     if (events.isEmpty()) {
       return 120.0
     }
 
+    val index = resolveEventIndex(sequence) ?: return events.last().bpm
     return events[index].bpm
   }
 
@@ -89,6 +135,27 @@ internal class SongTimelineEventSource(
           "${event.beatsPerMeasure} subdiv=${event.subdivisionIndex}",
       )
     }
+  }
+
+  private fun resolveEventIndex(sequence: Long): Int? {
+    if (sequence < 0L || events.isEmpty()) {
+      return null
+    }
+
+    val end = loopEndExclusive
+    if (end != null && sequence >= end) {
+      return null
+    }
+
+    if (loops || end != null) {
+      return (sequence % events.size).toInt()
+    }
+
+    val index = sequence.toInt()
+    if (index >= events.size) {
+      return null
+    }
+    return index
   }
 
   private fun tickDurationNs(event: TimelinePlaybackEvent): Long {

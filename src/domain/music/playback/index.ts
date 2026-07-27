@@ -4,6 +4,12 @@ export {
   type SongPlaybackCursorOptions,
 } from './SongPlaybackCursor';
 export {
+  SONG_LOOP_DISABLED,
+  createEntireSongLoop,
+  resolveLoopRestartBar,
+  type SongLoopConfig,
+} from './SongLoopConfig';
+export {
   beatDurationNs,
   computeDeadlineOffsets,
   mapPlaybackEventToScheduledSnapshot,

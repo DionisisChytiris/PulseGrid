@@ -23,6 +23,7 @@ export type NativeAudioModuleSpec = {
   setTempo(bpm: number): void;
   setAccentPattern(accentPattern: boolean[]): void;
   setSubdivision(subdivision: string): void;
+  setTimelineLoops?(enabled: boolean): void;
   setNormalClickSound?(soundId: string): void;
   setAccentClickSound?(soundId: string): void;
   setSubdivisionClickSound?(soundId: string): void;
@@ -50,6 +51,7 @@ const noopModule: NativeAudioModuleSpec = {
   setTempo() {},
   setAccentPattern() {},
   setSubdivision() {},
+  setTimelineLoops() {},
   setNormalClickSound() {},
   setAccentClickSound() {},
   setSubdivisionClickSound() {},
@@ -169,6 +171,9 @@ const NativeAudioModuleClient: NativeAudioModuleSpec = {
   },
   setSubdivision: (subdivision) => {
     getModule().setSubdivision(subdivision);
+  },
+  setTimelineLoops: (enabled) => {
+    getModule().setTimelineLoops?.(enabled);
   },
   setNormalClickSound: (soundId) => {
     getModule().setNormalClickSound?.(soundId);

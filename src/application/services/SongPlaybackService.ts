@@ -3,8 +3,11 @@ import { compileSong } from '../../domain/music/compiler/SongPlaybackCompiler';
 import { sliceCompiledPlaybackSequence } from '../../domain/music/compiler/sliceCompiledPlaybackSequence';
 import type { Song } from '../../domain/music/Song';
 import {
+  createEntireSongLoop,
   createSongPlaybackCursor,
   createSongSchedulerAdapter,
+  SONG_LOOP_DISABLED,
+  type SongLoopConfig,
 } from '../../domain/music/playback';
 import type { CompiledPlaybackSequence } from '../../domain/music/compiler/CompiledPlaybackSequence';
 import type { PlaybackEvent } from '../../domain/music/compiler/PlaybackEvent';
@@ -28,7 +31,10 @@ import type { PlaybackService } from './PlaybackService';
 type ActiveSongPlayback = {
   readonly song: Song;
   readonly fullCompiled: CompiledPlaybackSequence;
+  /** Offset added to native sequence when playing a non-looping slice. */
   readonly playbackStartIndex: number;
+  /** Native emits absolute sequences on the full score with seamless wrap. */
+  readonly seamlessLoop: boolean;
 };
 
 /**
@@ -40,8 +46,11 @@ export class SongPlaybackService {
 
   private tickUnsubscribe: (() => void) | null = null;
 
-  /** Fires after the final beat so Redux matches native song completion. */
+  /** Fires after the final beat so Redux matches native song completion (or loop restart). */
   private naturalCompletionTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Entire-song loop for now; startBar/endBar reserved for bar-range loops. */
+  private loopConfig: SongLoopConfig = SONG_LOOP_DISABLED;
 
   /** Next sequence index to resume from (tracked via native onTick, not JS cursor). */
   private playbackSequenceCursor = 0;
@@ -53,6 +62,37 @@ export class SongPlaybackService {
     private readonly quickMetronomePlayback: PlaybackService,
   ) {}
 
+  /** Enable/disable entire-song loop (phase 1). Keeps transport playing across cycles. */
+  setSongLoopEnabled(enabled: boolean): void {
+    this.loopConfig = createEntireSongLoop(enabled);
+
+    if (this.activePlayback?.seamlessLoop) {
+      // Already on the seamless full-score path — toggle wrap without rebuild.
+      metronomeEngine.setTimelineLoops(enabled);
+      if (enabled) {
+        this.clearNaturalCompletionTimer();
+      }
+      return;
+    }
+
+    // Finite one-shot session: loop applies on the next Play (seamless native wrap).
+  }
+
+  get songLoopEnabled(): boolean {
+    return this.loopConfig.enabled;
+  }
+
+  /** Future bar-range entry point — same loop system as entire-song. */
+  setSongLoopConfig(config: SongLoopConfig): void {
+    this.loopConfig = config.enabled
+      ? {
+          enabled: true,
+          startBar: config.startBar,
+          endBar: config.endBar,
+        }
+      : SONG_LOOP_DISABLED;
+  }
+
   async playSongTimeline(song: Song): Promise<void> {
     await this.playSongTimelineFromBar(song, 0);
   }
@@ -60,6 +100,8 @@ export class SongPlaybackService {
   /**
    * Compile and start song playback at Beat 1 of [globalBarIndex] (0-based).
    * If already playing, restarts from the new position immediately.
+   * When song loop is enabled, feeds the full score with native seamless wrap —
+   * never stop/start at the loop boundary.
    */
   async playSongTimelineFromBar(song: Song, globalBarIndex: number): Promise<void> {
     this.clearNaturalCompletionTimer();
@@ -83,24 +125,40 @@ export class SongPlaybackService {
       }
 
       const startSequence = target.sequence;
-      const sliced = sliceCompiledPlaybackSequence(compiled, startSequence);
+      const seamlessLoop = this.loopConfig.enabled;
+      const playbackCompiled = seamlessLoop
+        ? compiled
+        : sliceCompiledPlaybackSequence(compiled, startSequence);
 
-      if (sliced.events.length === 0) {
+      if (playbackCompiled.events.length === 0) {
         this.handleSongModeFallback(song, 'No events remaining from start bar');
         return;
       }
 
-      const cursor = createSongPlaybackCursor(sliced);
-      const adapter = createSongSchedulerAdapter(cursor, sliced);
+      const cursorOptions = seamlessLoop
+        ? {
+            loopStartIndex: 0,
+            loopEndIndex: compiled.events.length - 1,
+            debugLog: __DEV__,
+          }
+        : { debugLog: __DEV__ };
+
+      const cursor = createSongPlaybackCursor(playbackCompiled, cursorOptions);
+      if (seamlessLoop && startSequence > 0) {
+        cursor.seekTo(startSequence);
+      }
+      const adapter = createSongSchedulerAdapter(cursor, playbackCompiled);
 
       await NativeAudioModule.whenReady?.();
 
       metronomeEngine.start({
         mode: PlaybackMode.SONG_TIMELINE,
-        compiled: sliced,
+        compiled: playbackCompiled,
         songAdapter: adapter,
         cursor,
         debugLog: __DEV__,
+        timelineLoops: seamlessLoop,
+        timelineStartSequence: seamlessLoop ? startSequence : 0,
       });
 
       if (metronomeEngine.mode !== PlaybackMode.SONG_TIMELINE) {
@@ -111,7 +169,8 @@ export class SongPlaybackService {
       this.activePlayback = {
         song,
         fullCompiled: compiled,
-        playbackStartIndex: startSequence,
+        playbackStartIndex: seamlessLoop ? 0 : startSequence,
+        seamlessLoop,
       };
       this.playbackSequenceCursor = startSequence;
       this.currentBarIndex = target.globalBarIndex;
@@ -161,30 +220,45 @@ export class SongPlaybackService {
     this.clearNaturalCompletionTimer();
     const { song, fullCompiled } = this.activePlayback;
     const startIndex = this.playbackSequenceCursor;
-    const sliced = sliceCompiledPlaybackSequence(fullCompiled, startIndex);
+    const seamlessLoop = this.loopConfig.enabled;
+    const playbackCompiled = seamlessLoop
+      ? fullCompiled
+      : sliceCompiledPlaybackSequence(fullCompiled, startIndex);
 
-    if (sliced.events.length === 0) {
+    if (playbackCompiled.events.length === 0) {
       this.stop();
       return;
     }
 
-    const cursor = createSongPlaybackCursor(sliced);
-    const adapter = createSongSchedulerAdapter(cursor, sliced);
+    const cursorOptions = seamlessLoop
+      ? {
+          loopStartIndex: 0,
+          loopEndIndex: fullCompiled.events.length - 1,
+        }
+      : undefined;
+    const cursor = createSongPlaybackCursor(playbackCompiled, cursorOptions);
+    if (seamlessLoop) {
+      cursor.seekTo(startIndex);
+    }
+    const adapter = createSongSchedulerAdapter(cursor, playbackCompiled);
 
     await NativeAudioModule.whenReady?.();
 
     metronomeEngine.resumeSongTimeline({
       mode: PlaybackMode.SONG_TIMELINE,
-      compiled: sliced,
+      compiled: playbackCompiled,
       songAdapter: adapter,
       cursor,
       debugLog: false,
+      timelineLoops: seamlessLoop,
+      timelineStartSequence: seamlessLoop ? startIndex : 0,
     });
 
     this.activePlayback = {
       song,
       fullCompiled,
-      playbackStartIndex: startIndex,
+      playbackStartIndex: seamlessLoop ? 0 : startIndex,
+      seamlessLoop,
     };
 
     this.attachTickListener();
@@ -261,31 +335,46 @@ export class SongPlaybackService {
 
     this.clearNaturalCompletionTimer();
     const { song, fullCompiled } = this.activePlayback;
-    const sliced = sliceCompiledPlaybackSequence(fullCompiled, absoluteSequence);
+    const seamlessLoop = this.loopConfig.enabled;
+    const playbackCompiled = seamlessLoop
+      ? fullCompiled
+      : sliceCompiledPlaybackSequence(fullCompiled, absoluteSequence);
 
-    if (sliced.events.length === 0) {
+    if (playbackCompiled.events.length === 0) {
       this.stop();
       return;
     }
 
-    const cursor = createSongPlaybackCursor(sliced);
-    const adapter = createSongSchedulerAdapter(cursor, sliced);
+    const cursorOptions = seamlessLoop
+      ? {
+          loopStartIndex: 0,
+          loopEndIndex: fullCompiled.events.length - 1,
+        }
+      : undefined;
+    const cursor = createSongPlaybackCursor(playbackCompiled, cursorOptions);
+    if (seamlessLoop) {
+      cursor.seekTo(absoluteSequence);
+    }
+    const adapter = createSongSchedulerAdapter(cursor, playbackCompiled);
 
     metronomeEngine.stop();
     await NativeAudioModule.whenReady?.();
 
     metronomeEngine.start({
       mode: PlaybackMode.SONG_TIMELINE,
-      compiled: sliced,
+      compiled: playbackCompiled,
       songAdapter: adapter,
       cursor,
       debugLog: false,
+      timelineLoops: seamlessLoop,
+      timelineStartSequence: seamlessLoop ? absoluteSequence : 0,
     });
 
     this.activePlayback = {
       song,
       fullCompiled,
-      playbackStartIndex: absoluteSequence,
+      playbackStartIndex: seamlessLoop ? 0 : absoluteSequence,
+      seamlessLoop,
     };
     this.playbackSequenceCursor = absoluteSequence;
 
@@ -334,11 +423,15 @@ export class SongPlaybackService {
   }
 
   /**
-   * Native finishes the finite timeline without a JS completion event.
-   * After the final beat's duration, mirror manual Stop so follow/rAF tear down.
+   * After the final beat of a finite pass (or a loop cycle that was disabled mid-play),
+   * mirror manual Stop so follow/rAF tear down.
    */
   private scheduleNaturalCompletion(event: PlaybackEvent): void {
     this.clearNaturalCompletionTimer();
+    if (this.loopConfig.enabled) {
+      return;
+    }
+
     const beatDurationMs = Math.max(
       1,
       pulseDurationMsFromDisplayBpm(event.bpm, event.meter.denominator),
@@ -346,15 +439,11 @@ export class SongPlaybackService {
 
     this.naturalCompletionTimer = setTimeout(() => {
       this.naturalCompletionTimer = null;
-      if (!this.activePlayback) {
+      if (!this.activePlayback || this.loopConfig.enabled) {
         return;
       }
 
-      if (
-        this.playbackSequenceCursor >= this.activePlayback.fullCompiled.events.length
-      ) {
-        this.stop();
-      }
+      this.stop();
     }, beatDurationMs);
   }
 
@@ -363,16 +452,30 @@ export class SongPlaybackService {
       return;
     }
 
-    const absoluteSequence = this.activePlayback.playbackStartIndex + event.sequence;
-    const playbackEvent = this.activePlayback.fullCompiled.events[absoluteSequence];
+    const eventCount = this.activePlayback.fullCompiled.events.length;
+    if (eventCount <= 0) {
+      return;
+    }
+
+    const absoluteSequence = this.activePlayback.seamlessLoop
+      ? event.sequence
+      : this.activePlayback.playbackStartIndex + event.sequence;
+
+    const eventIndex = this.activePlayback.seamlessLoop
+      ? ((absoluteSequence % eventCount) + eventCount) % eventCount
+      : absoluteSequence;
+
+    const playbackEvent = this.activePlayback.fullCompiled.events[eventIndex];
 
     if (playbackEvent === undefined) {
-      // Past compiled end — native may still emit a sentinel; stop follow/UI state.
       this.stop();
       return;
     }
 
-    this.playbackSequenceCursor = absoluteSequence + 1;
+    this.playbackSequenceCursor = eventIndex + 1;
+    if (this.playbackSequenceCursor >= eventCount) {
+      this.playbackSequenceCursor = this.activePlayback.seamlessLoop ? 0 : eventCount;
+    }
     this.currentBarIndex = playbackEvent.globalBarIndex;
 
     this.dispatch(
@@ -380,7 +483,7 @@ export class SongPlaybackService {
         barId: playbackEvent.barId,
         sectionId: playbackEvent.sectionId,
         bpm: playbackEvent.bpm,
-        sequenceIndex: absoluteSequence,
+        sequenceIndex: eventIndex,
         currentBarIndex: playbackEvent.globalBarIndex,
         beatIndexInBar: playbackEvent.beatIndexInBar,
         beatsPerMeasure: playbackEvent.meter.numerator,
@@ -389,7 +492,14 @@ export class SongPlaybackService {
       }),
     );
 
-    if (absoluteSequence >= this.activePlayback.fullCompiled.events.length - 1) {
+    const finishingFinitePass =
+      !this.activePlayback.seamlessLoop && eventIndex >= eventCount - 1;
+    const finishingDisabledLoopCycle =
+      this.activePlayback.seamlessLoop &&
+      !this.loopConfig.enabled &&
+      eventIndex >= eventCount - 1;
+
+    if (finishingFinitePass || finishingDisabledLoopCycle) {
       this.scheduleNaturalCompletion(playbackEvent);
     }
   }

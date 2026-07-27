@@ -45,5 +45,8 @@ export function useSongPlayback() {
     onStop: () => songPlaybackService.stop(),
     onSeekPreviousBar: () => songPlaybackService.seekToPreviousBar(),
     onSeekNextBar: () => songPlaybackService.seekToNextBar(),
+    setSongLoopEnabled: (enabled: boolean) => {
+      songPlaybackService.setSongLoopEnabled(enabled);
+    },
   };
 }

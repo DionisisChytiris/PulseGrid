@@ -41,6 +41,12 @@ final class MetronomeEngine {
   private var timelineEvents: [TimelinePlaybackEvent] = []
   /// Cumulative deadline offsets for [timelineEvents] (length = events.count + 1).
   private var timelineDeadlineOffsetNs: [UInt64] = []
+  /// When true, song timeline wraps forever with continuous deadlines.
+  private var timelineLoops = false
+  /// Duration of one full song cycle (last deadline offset).
+  private var timelineCycleDurationNs: UInt64 = 0
+  /// When loops is turned off mid-cycle, halt at this exclusive sequence.
+  private var timelineLoopEndExclusive: UInt64? = nil
 
   /// Next subdivision-tick sequence to emit via onTick (UI only).
   private var nextUiSequence: UInt64 = 0
@@ -80,7 +86,9 @@ final class MetronomeEngine {
     beatsPerMeasure: Int,
     accentPattern: [Bool],
     ticksPerBeat: Int,
-    timelineEvents: [TimelinePlaybackEvent] = []
+    timelineEvents: [TimelinePlaybackEvent] = [],
+    timelineLoops: Bool = false,
+    timelineStartSequence: UInt64 = 0
   ) {
     // idle → preparing
     stateLock.lock()
@@ -92,8 +100,11 @@ final class MetronomeEngine {
     self.accentPattern = accentPattern.isEmpty ? [true] : accentPattern
     self.timelineEvents = timelineEvents
     self.timelineDeadlineOffsetNs = Self.buildDeadlineOffsets(timelineEvents)
-    nextUiSequence = 0
-    lastPublishedSequence = -1
+    self.timelineLoops = timelineLoops && !timelineEvents.isEmpty
+    self.timelineCycleDurationNs = timelineDeadlineOffsetNs.last ?? 0
+    let startSequence = timelineEvents.isEmpty ? UInt64(0) : timelineStartSequence
+    nextUiSequence = startSequence
+    lastPublishedSequence = Int64(bitPattern: startSequence) &- 1
     scheduledAudioSequences.removeAll(keepingCapacity: true)
     anchorTimeNs = 0
     phase = .preparing
@@ -105,7 +116,8 @@ final class MetronomeEngine {
 
     let modeLabel = timelineEvents.isEmpty ? "QUICK_METRONOME" : "SONG_TIMELINE"
     print(
-      "\(Self.logPrefix) — phase=preparing generation=\(activeGeneration) mode=\(modeLabel) events=\(timelineEvents.count)"
+      "\(Self.logPrefix) — phase=preparing generation=\(activeGeneration) mode=\(modeLabel) " +
+        "events=\(timelineEvents.count) loops=\(self.timelineLoops) startSeq=\(startSequence)"
     )
 
     // Preparing: engine + calibrate only — no publish, no UI.
@@ -127,11 +139,12 @@ final class MetronomeEngine {
 
     // preparing → scheduledStartup: future anchor, then one lookahead publish.
     let nowNs = DispatchTime.now().uptimeNanoseconds
-    anchorTimeNs = nowNs &+ Self.startupLeadNs
+    let startOffset = timelineOffsetNsLocked(startSequence)
+    anchorTimeNs = nowNs &+ Self.startupLeadNs &- startOffset
     phase = .scheduledStartup
     isRunning = true
-    nextUiSequence = 0
-    lastPublishedSequence = -1
+    nextUiSequence = startSequence
+    lastPublishedSequence = Int64(bitPattern: startSequence) &- 1
     scheduledAudioSequences.removeAll(keepingCapacity: true)
     stateLock.unlock()
 
@@ -144,6 +157,27 @@ final class MetronomeEngine {
     loopQueue.async { [weak self] in
       self?.runUiLoop(activeGeneration: activeGeneration)
     }
+  }
+
+  func setTimelineLoops(_ enabled: Bool) {
+    stateLock.lock()
+    defer { stateLock.unlock() }
+
+    guard !timelineEvents.isEmpty else {
+      timelineLoops = false
+      timelineLoopEndExclusive = nil
+      return
+    }
+
+    if enabled {
+      timelineLoops = true
+      timelineLoopEndExclusive = nil
+      return
+    }
+
+    timelineLoops = false
+    let count = UInt64(timelineEvents.count)
+    timelineLoopEndExclusive = ((nextUiSequence / count) &+ 1) &* count
   }
 
   func updateTempo(_ bpm: Double) {
@@ -246,6 +280,9 @@ final class MetronomeEngine {
     anchorTimeNs = 0
     timelineEvents = []
     timelineDeadlineOffsetNs = []
+    timelineLoops = false
+    timelineCycleDurationNs = 0
+    timelineLoopEndExclusive = nil
   }
 
   // MARK: - UI loop (independent of audio publication)
@@ -283,8 +320,8 @@ final class MetronomeEngine {
         "\(Self.logPrefix) — UI tick \(sequence) before deadline (now=\(now) deadline=\(deadlineNs))"
       )
 
-      // Song timeline finished — stop the loop (finite event stream).
-      if !timelineEvents.isEmpty, Int(sequence) >= timelineEvents.count {
+      // Song timeline finished — stop the loop (finite event stream / end of cycle).
+      if !timelineEvents.isEmpty, shouldHaltTimelineSequenceLocked(sequence) {
         haltLoopLocked()
         stateLock.unlock()
         print("\(Self.logPrefix) — song timeline complete sequence=\(sequence)")
@@ -367,8 +404,7 @@ final class MetronomeEngine {
   /// Caller must hold stateLock.
   private func snapshotForSequenceLocked(_ sequence: UInt64, timestampMs: Double) -> TickSnapshot? {
     if !timelineEvents.isEmpty {
-      let index = Int(sequence)
-      guard index >= 0, index < timelineEvents.count else {
+      guard let index = timelineEventIndexLocked(sequence) else {
         return nil
       }
 
@@ -414,19 +450,67 @@ final class MetronomeEngine {
   /// Caller must hold stateLock.
   private func deadlineForSequenceLocked(_ sequence: UInt64) -> UInt64 {
     if !timelineEvents.isEmpty {
-      let index = Int(sequence)
-      let offset: UInt64
-      if index < 0 {
-        offset = 0
-      } else if index >= timelineDeadlineOffsetNs.count {
-        offset = timelineDeadlineOffsetNs.last ?? 0
-      } else {
-        offset = timelineDeadlineOffsetNs[index]
-      }
-      return anchorTimeNs &+ offset
+      return anchorTimeNs &+ timelineOffsetNsLocked(sequence)
     }
 
     return anchorTimeNs &+ tickOffsetNs(sequence, bpm, ticksPerBeat)
+  }
+
+  /// Absolute offset from score start for [sequence], supporting seamless loop cycles.
+  private func timelineOffsetNsLocked(_ sequence: UInt64) -> UInt64 {
+    let count = timelineEvents.count
+    guard count > 0, !timelineDeadlineOffsetNs.isEmpty else {
+      return 0
+    }
+
+    let wrapping = timelineLoops || timelineLoopEndExclusive != nil
+    if wrapping {
+      let cycle = sequence / UInt64(count)
+      let indexInCycle = Int(sequence % UInt64(count))
+      return cycle &* timelineCycleDurationNs &+ timelineDeadlineOffsetNs[indexInCycle]
+    }
+
+    let index = Int(sequence)
+    if index < 0 {
+      return 0
+    }
+    if index >= timelineDeadlineOffsetNs.count {
+      return timelineDeadlineOffsetNs.last ?? 0
+    }
+    return timelineDeadlineOffsetNs[index]
+  }
+
+  private func timelineEventIndexLocked(_ sequence: UInt64) -> Int? {
+    let count = timelineEvents.count
+    guard count > 0 else {
+      return nil
+    }
+
+    if let end = timelineLoopEndExclusive, sequence >= end {
+      return nil
+    }
+
+    if timelineLoops || timelineLoopEndExclusive != nil {
+      return Int(sequence % UInt64(count))
+    }
+
+    let index = Int(sequence)
+    guard index >= 0, index < count else {
+      return nil
+    }
+    return index
+  }
+
+  private func shouldHaltTimelineSequenceLocked(_ sequence: UInt64) -> Bool {
+    if timelineLoops {
+      return false
+    }
+
+    if let end = timelineLoopEndExclusive {
+      return sequence >= end
+    }
+
+    return Int(sequence) >= timelineEvents.count
   }
 
   private static func buildDeadlineOffsets(_ events: [TimelinePlaybackEvent]) -> [UInt64] {

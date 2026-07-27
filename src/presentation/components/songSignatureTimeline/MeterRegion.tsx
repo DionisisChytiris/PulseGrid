@@ -28,6 +28,8 @@ type Props = {
    * (song start or meter change). Same-meter duplicate segments stay silent.
    */
   showTimeSignature?: boolean;
+  /** Subtle full-lane highlight while entire-song loop is enabled. */
+  songLoopEnabled?: boolean;
   /** Opens Edit Segment (timeline / bar area). */
   onPress?: (segmentId: string) => void;
   /** Starts playback from this segment (time signature label). */
@@ -52,6 +54,7 @@ export const MeterRegion = memo(function MeterRegion({
   overviewTempoBpm = null,
   regionTempoBpm,
   showTimeSignature = true,
+  songLoopEnabled = false,
   onPress,
   onPlayFromHere,
   onTempoPress,
@@ -108,7 +111,7 @@ export const MeterRegion = memo(function MeterRegion({
         onLayout?.(segment.id, x, layoutWidth);
       }}
     >
-      <View style={styles.header}>
+      <View style={[styles.header, songLoopEnabled && styles.headerLoopActive]}>
         {showTimeSignature ? (
           <Pressable
             onPress={handlePlayFromHere}
@@ -176,6 +179,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingLeft: 0,
+  },
+  /** ~10% accent — continuous across regions; does not tint meter/tempo text. */
+  headerLoopActive: {
+    backgroundColor: 'rgba(59, 158, 255, 0.1)',
   },
   meterHitTarget: {
     minWidth: METER_HIT_SIZE,

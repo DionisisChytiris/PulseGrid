@@ -26,6 +26,10 @@ export type SongModeNativeStartOptions = {
   readonly songAdapter?: SongSchedulerAdapter;
   readonly cursor?: SongPlaybackCursor;
   readonly debugLog?: boolean;
+  /** Seamless wrap at score end without stopping the transport. */
+  readonly timelineLoops?: boolean;
+  /** Absolute sequence within [compiled] to begin at (default 0). */
+  readonly timelineStartSequence?: number;
 };
 
 export type SongModeNativeStartResult = {
@@ -123,19 +127,30 @@ export function startSongModeNativePlayback(
   const session = createSongModeSession(compiled, options);
   const { adapter, cursor } = session;
   const timelineEvents = serializeCompiledSequenceForNative(compiled);
+  const startSequence = Math.max(0, Math.floor(options.timelineStartSequence ?? 0));
+  const timelineLoops = options.timelineLoops ?? false;
 
+  // Validate the full wire from score start, then seek to the requested entry point.
+  cursor.seekTo(0);
   assertAdapterMatchesNativeWire(adapter, timelineEvents);
+
+  if (startSequence > 0) {
+    cursor.seekTo(startSequence);
+  }
 
   if (options.debugLog ?? true) {
     logSongModePreview(adapter.peekAhead(SONG_MODE_PREVIEW_COUNT));
   }
 
-  const firstSnapshot = adapter.snapshotAt(0);
-  const firstEvent = compiled.events[0];
+  const firstSnapshot = adapter.snapshotAt(startSequence);
+  const firstEvent = compiled.events[startSequence] ?? compiled.events[0];
 
   cursor.play();
 
-  console.log(`${tag} Playback mode: SONG_TIMELINE (adapter-fed, events=${timelineEvents.length})`);
+  console.log(
+    `${tag} Playback mode: SONG_TIMELINE (adapter-fed, events=${timelineEvents.length}, ` +
+      `loops=${timelineLoops}, startSeq=${startSequence})`,
+  );
 
   NativeAudioModule.start({
     bpm: firstSnapshot?.bpm ?? firstEvent?.bpm ?? 120,
@@ -145,6 +160,8 @@ export function startSongModeNativePlayback(
     subdivision: 'quarter',
     playbackMode: PlaybackMode.SONG_TIMELINE,
     timelineEvents,
+    timelineLoops,
+    timelineStartSequence: startSequence,
   });
 
   return {

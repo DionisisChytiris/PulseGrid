@@ -30,6 +30,10 @@ public class NativeAudioModule: Module {
         playbackMode == "song_timeline"
           ? self.readTimelineEvents(options["timelineEvents"])
           : []
+      let timelineLoops = (options["timelineLoops"] as? Bool) ?? false
+      let timelineStartSequence = UInt64(
+        max(0, (options["timelineStartSequence"] as? NSNumber)?.intValue ?? 0)
+      )
 
       // Prepare/calibrate happens inside MetronomeEngine.start (preparing phase)
       // before the future anchor and first lookahead publish.
@@ -38,8 +42,14 @@ public class NativeAudioModule: Module {
         beatsPerMeasure: beatsPerMeasure,
         accentPattern: accentPattern,
         ticksPerBeat: ticksPerBeat,
-        timelineEvents: timelineEvents
+        timelineEvents: timelineEvents,
+        timelineLoops: timelineLoops,
+        timelineStartSequence: timelineStartSequence
       )
+    }
+
+    Function("setTimelineLoops") { (enabled: Bool) in
+      self.metronomeEngine.setTimelineLoops(enabled)
     }
 
     Function("stop") {

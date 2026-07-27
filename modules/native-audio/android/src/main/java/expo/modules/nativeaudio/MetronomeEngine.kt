@@ -97,8 +97,11 @@ internal class MetronomeEngine(
     ticksPerBeat: Int,
     mode: PlaybackMode = PlaybackMode.QUICK_METRONOME,
     timelineEvents: List<TimelinePlaybackEvent> = emptyList(),
+    timelineLoops: Boolean = false,
+    timelineStartSequence: Long = 0L,
   ) {
     val activeGeneration: Long
+    val startSequence: Long
     synchronized(lock) {
       val wasRunning = isRunning
       if (wasRunning) {
@@ -113,20 +116,32 @@ internal class MetronomeEngine(
       this.accentPattern = copyAccentPattern(accentPattern)
       val effectiveMode = resolvePlaybackMode(mode, timelineEvents)
       playbackMode = effectiveMode
-      eventSource = createEventSourceLocked(effectiveMode, timelineEvents)
+      eventSource = createEventSourceLocked(effectiveMode, timelineEvents, timelineLoops)
       eventSource.reset()
 
       when (effectiveMode) {
         PlaybackMode.QUICK_METRONOME -> Log.i(TAG, "Playback mode: QUICK_METRONOME (event source: quick)")
         PlaybackMode.SONG_TIMELINE -> {
-          Log.i(TAG, "Playback mode: SONG_TIMELINE (event source: adapter-fed, events=${timelineEvents.size})")
+          Log.i(
+            TAG,
+            "Playback mode: SONG_TIMELINE (event source: adapter-fed, events=${timelineEvents.size}, " +
+              "loops=$timelineLoops, startSeq=$timelineStartSequence)",
+          )
           (eventSource as? SongTimelineEventSource)?.logPreviewIfDebug(TAG)
         }
       }
 
-      anchorTimeNs = System.nanoTime()
-      nextUiSequence = 0
-      lastPublishedSequence = -1
+      startSequence = if (effectiveMode == PlaybackMode.SONG_TIMELINE) {
+        timelineStartSequence.coerceAtLeast(0L)
+      } else {
+        0L
+      }
+
+      // Anchor so the start sequence is imminent (preserve mid-song play-from-here timing).
+      val nowNs = System.nanoTime()
+      anchorTimeNs = nowNs - eventSource.offsetNsForSequence(startSequence)
+      nextUiSequence = startSequence
+      lastPublishedSequence = startSequence - 1
       isPaused = false
 
       activeGeneration = ++generation
@@ -141,8 +156,8 @@ internal class MetronomeEngine(
         return
       }
 
-      firstSnapshot = snapshotForSequenceLocked(0, timestampMs = 0L)
-      nextUiSequence = 1
+      firstSnapshot = snapshotForSequenceLocked(startSequence, timestampMs = 0L)
+      nextUiSequence = startSequence + 1
 
       ensureHandler()?.post {
         synchronized(lock) {
@@ -155,6 +170,13 @@ internal class MetronomeEngine(
     }
 
     firstSnapshot?.let { emitUiTick(it) }
+  }
+
+  fun setTimelineLoops(enabled: Boolean) {
+    synchronized(lock) {
+      val source = eventSource as? SongTimelineEventSource ?: return
+      source.setLoops(enabled, nextUiSequence)
+    }
   }
 
   fun updateTempo(bpm: Double) {
@@ -346,10 +368,11 @@ internal class MetronomeEngine(
   private fun createEventSourceLocked(
     mode: PlaybackMode,
     timelineEvents: List<TimelinePlaybackEvent>,
+    timelineLoops: Boolean = false,
   ): EventSource {
     return when (mode) {
       PlaybackMode.QUICK_METRONOME -> createQuickEventSourceLocked()
-      PlaybackMode.SONG_TIMELINE -> SongTimelineEventSource(timelineEvents)
+      PlaybackMode.SONG_TIMELINE -> SongTimelineEventSource(timelineEvents, timelineLoops)
     }
   }
 

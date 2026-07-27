@@ -25,6 +25,8 @@ export type MetronomeEngineSongStart = {
   readonly songAdapter?: SongSchedulerAdapter;
   readonly cursor?: SongPlaybackCursor;
   readonly debugLog?: boolean;
+  readonly timelineLoops?: boolean;
+  readonly timelineStartSequence?: number;
 };
 
 export type MetronomeEngineStartInput = MetronomeEngineQuickStart | MetronomeEngineSongStart;
@@ -76,6 +78,10 @@ export class MetronomeEngine {
     NativeAudioModule.stop();
   }
 
+  setTimelineLoops(enabled: boolean): void {
+    NativeAudioModule.setTimelineLoops?.(enabled);
+  }
+
   /** Pauses native audio while preserving the song cursor position (UI orchestration only). */
   pauseSongTimeline(): void {
     this.songSession?.cursor.pause();
@@ -122,6 +128,8 @@ export class MetronomeEngine {
       songAdapter: input.songAdapter,
       cursor: input.cursor,
       debugLog: input.debugLog,
+      timelineLoops: input.timelineLoops,
+      timelineStartSequence: input.timelineStartSequence,
     });
 
     if (result.mode === PlaybackMode.QUICK_METRONOME) {

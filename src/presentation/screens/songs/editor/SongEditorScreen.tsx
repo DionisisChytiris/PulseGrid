@@ -36,6 +36,7 @@ export default function SongEditorScreen({ navigation, route }: Props) {
   const { width, height } = useWindowDimensions();
   const { songId } = route.params;
   const [statsVisible, setStatsVisible] = useState(false);
+  const [songLoopEnabled, setSongLoopEnabled] = useState(false);
   const timelineRef = useRef<SongSignatureTimelineHandle>(null);
   const {
     song,
@@ -55,6 +56,13 @@ export default function SongEditorScreen({ navigation, route }: Props) {
 
   const playback = useSongPlayback();
   const keyboard = useEditorCustomKeyboard();
+
+  useEffect(() => {
+    playback.setSongLoopEnabled(songLoopEnabled);
+    return () => {
+      playback.setSongLoopEnabled(false);
+    };
+  }, [songLoopEnabled]);
   const placeholderSong = useMemo(
     () => createSong({ id: 'loading', name: '', sections: [] }),
     [],
@@ -133,7 +141,28 @@ export default function SongEditorScreen({ navigation, route }: Props) {
         />
 
         <Pressable
-          style={[styles.toolbarButton, styles.toolbarButtonLead]}
+          style={[
+            styles.toolbarButton,
+            styles.toolbarButtonLead,
+            songLoopEnabled && styles.toolbarButtonActive,
+          ]}
+          onPress={() => {
+            setSongLoopEnabled((prev) => !prev);
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={songLoopEnabled ? 'Disable song loop' : 'Enable song loop'}
+          accessibilityState={{ checked: songLoopEnabled }}
+          hitSlop={8}
+        >
+          <Ionicons
+            name="repeat"
+            size={20}
+            color={songLoopEnabled ? studioColors.accent : studioColors.textSecondary}
+          />
+        </Pressable>
+
+        <Pressable
+          style={styles.toolbarButton}
           onPress={() => timelineRef.current?.openEditSegment()}
           accessibilityRole="button"
           accessibilityLabel="Edit segment"
@@ -199,6 +228,7 @@ export default function SongEditorScreen({ navigation, route }: Props) {
             playback.onPlaySongFromBar(song, segment.startBar - 1);
           }}
           onAddBar={addBar}
+          songLoopEnabled={songLoopEnabled}
         />
       </View>
 
@@ -296,9 +326,9 @@ const styles = StyleSheet.create({
   nameInput: {
     flexGrow: 0,
     flexShrink: 1,
-    width: '70%',
-    maxWidth: '70%',
-    minWidth: 200,
+    width: '62%',
+    maxWidth: '62%',
+    minWidth: 140,
     borderWidth: 1,
     borderColor: studioColors.border,
     borderRadius: 8,
@@ -324,6 +354,10 @@ const styles = StyleSheet.create({
   },
   toolbarButtonLead: {
     marginLeft: 'auto',
+  },
+  toolbarButtonActive: {
+    borderColor: studioColors.accent,
+    backgroundColor: studioColors.accentMutedBg,
   },
   transportButton: {
     width: 38,

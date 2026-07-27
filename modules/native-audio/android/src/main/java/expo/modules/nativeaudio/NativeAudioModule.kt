@@ -58,6 +58,8 @@ class NativeAudioModule : Module() {
       } else {
         emptyList()
       }
+      val timelineLoops = readBoolean(options["timelineLoops"]) ?: false
+      val timelineStartSequence = readLong(options["timelineStartSequence"]) ?: 0L
 
       clickSoundPlayer?.resumeScheduledClicks()
 
@@ -68,7 +70,13 @@ class NativeAudioModule : Module() {
         ticksPerBeat,
         playbackMode,
         timelineEvents,
+        timelineLoops,
+        timelineStartSequence,
       )
+    }
+
+    Function("setTimelineLoops") { enabled: Boolean ->
+      metronomeEngine.setTimelineLoops(enabled)
     }
 
     Function("stop") {
@@ -183,6 +191,13 @@ class NativeAudioModule : Module() {
       is Int -> value.toLong()
       is Double -> value.toLong()
       is Long -> value
+      else -> null
+    }
+  }
+
+  private fun readBoolean(value: Any?): Boolean? {
+    return when (value) {
+      is Boolean -> value
       else -> null
     }
   }
