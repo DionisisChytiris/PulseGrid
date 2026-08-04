@@ -14,8 +14,10 @@ import type { SubdivisionKind } from '../../domain/valueObjects/Subdivision';
 import type { IAudioEngine, MetronomeStartConfig } from '../../infrastructure/audio/IAudioEngine';
 import type { ITimingSource } from '../../infrastructure/audio/ITimingSource';
 import { VisualTickScheduler } from '../../infrastructure/audio/VisualTickScheduler';
+import { saveMetronomeSettings } from '../../infrastructure/persistence/metronomeSettingsStorage';
 import type { AppDispatch, RootState } from '../../store';
 
+import { buildPersistedMetronomeSettingsFromState } from './buildPersistedMetronomeSettingsFromState';
 import { clickSoundService } from './clickSoundServiceInstance';
 import type { MetronomeTickConsumer } from './MetronomeTickConsumer';
 
@@ -126,11 +128,17 @@ export class PlaybackService {
     this.dispatch(bpmChanged(bpm));
     this.audioEngine.setTempo(bpm);
     this.timingSource.setTimingTempo(bpm);
+    void this.persistQuickMetronomePreferences();
     console.log(`Tempo changed to ${bpm} BPM`);
+  }
+
+  private async persistQuickMetronomePreferences(): Promise<void> {
+    await saveMetronomeSettings(buildPersistedMetronomeSettingsFromState(this.getState()));
   }
 
   setTimeSignature(timeSignature: TimeSignature): void {
     this.dispatch(timeSignatureChanged(timeSignature));
+    void this.persistQuickMetronomePreferences();
 
     if (this.getState().metronome.isPlaying) {
       this.restartPlayback();
@@ -141,6 +149,7 @@ export class PlaybackService {
 
   setAccentPattern(accents: boolean[]): void {
     this.applyAccentPattern(accents);
+    void this.persistQuickMetronomePreferences();
   }
 
   setSubdivision(subdivision: SubdivisionKind): void {
@@ -151,6 +160,8 @@ export class PlaybackService {
       this.timingSource.setSubdivision(subdivision);
     }
 
+    // finerSubdivision is dispatched by the UI before this call; persist together.
+    void this.persistQuickMetronomePreferences();
     console.log(`Subdivision changed to ${subdivision}`);
   }
 

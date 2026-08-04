@@ -91,6 +91,24 @@ const metronomeSlice = createSlice({
       state.currentSubdivisionIndex = action.payload.subdivisionIndex;
       state.isAccent = action.payload.isAccent;
     },
+    /**
+     * Restore Quick Metronome meter / finer subdiv / accents without the
+     * side effects of timeSignatureChanged (which resets accents).
+     * Order: timeSignature → finerSubdivision (+ engine sync) → accentPattern.
+     */
+    quickMetronomePreferencesHydrated(
+      state,
+      action: PayloadAction<{
+        timeSignature: TimeSignature;
+        finerSubdivision: FinerSubdivisionSelection;
+        accentPattern: boolean[];
+      }>,
+    ) {
+      state.timeSignature = action.payload.timeSignature;
+      state.finerSubdivision = action.payload.finerSubdivision;
+      syncEngineSubdivision(state);
+      state.accentPattern = [...action.payload.accentPattern];
+    },
   },
 });
 
@@ -103,6 +121,7 @@ export const {
   finerSubdivisionChanged,
   subdivisionChanged,
   setTick,
+  quickMetronomePreferencesHydrated,
 } = metronomeSlice.actions;
 
 export default metronomeSlice.reducer;

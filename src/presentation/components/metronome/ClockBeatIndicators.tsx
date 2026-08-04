@@ -4,12 +4,12 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { clickSoundService } from '../../../application/services/clickSoundServiceInstance';
 import {
   selectAccentPattern,
-  selectCurrentBeat,
   selectIsPlaying,
   selectTimeSignature,
 } from '../../../features/metronome/metronomeSelectors';
 import { selectBarStartEnabled } from '../../../features/settings/settingsSelectors';
 import { useAppSelector } from '../../../store/hooks';
+import { useBeatFlashPulse } from '../../hooks/useBeatFlashPulse';
 import { useResponsiveLayout } from '../../layout/useResponsiveLayout';
 import { studioColors } from '../../theme';
 
@@ -186,11 +186,11 @@ function ClockBeatIndicatorsComponent({
   onAccentPatternChange,
 }: ClockBeatIndicatorsProps) {
   const isPlaying = useAppSelector(selectIsPlaying);
-  const currentBeat = useAppSelector(selectCurrentBeat);
   const accentPattern = useAppSelector(selectAccentPattern);
   const barStartEnabled = useAppSelector(selectBarStartEnabled);
   const timeSignature = useAppSelector(selectTimeSignature);
   const beatCount = timeSignature.numerator;
+  const flashBeatIndex = useBeatFlashPulse(isPlaying, beatCount);
 
   const layout = useResponsiveLayout();
   const baseDotSize = layout.scale(20, 0.05, 0.05);
@@ -255,7 +255,7 @@ function ClockBeatIndicatorsComponent({
           left={left}
           top={top}
           isPlaying={isPlaying}
-          isCurrentBeat={isPlaying && beatIndex === currentBeat}
+          isCurrentBeat={isPlaying && beatIndex === flashBeatIndex}
           isPatternAccent={accentPattern[beatIndex] ?? false}
           isBarStartEnabled={barStartEnabled}
           onPress={beatIndex === 0 ? toggleBarStart : () => toggleAccentBeat(beatIndex)}

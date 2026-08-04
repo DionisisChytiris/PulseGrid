@@ -12,13 +12,15 @@ import type {
   NormalClickSoundId,
   SubdivisionClickSoundId,
 } from '../../domain/metronome/ClickSoundCatalog';
+import { bpmChanged, quickMetronomePreferencesHydrated } from '../../features/metronome/metronomeSlice';
+import type { IAudioEngine } from '../../infrastructure/audio/IAudioEngine';
 import {
   loadMetronomeSettings,
   saveMetronomeSettings,
 } from '../../infrastructure/persistence/metronomeSettingsStorage';
 import type { AppDispatch, RootState } from '../../store';
 
-import type { IAudioEngine } from '../../infrastructure/audio/IAudioEngine';
+import { buildPersistedMetronomeSettingsFromState } from './buildPersistedMetronomeSettingsFromState';
 
 export class ClickSoundService {
   constructor(
@@ -30,6 +32,14 @@ export class ClickSoundService {
   async hydrate(): Promise<void> {
     const settings = await loadMetronomeSettings();
     this.dispatch(settingsHydrated(settings));
+    this.dispatch(bpmChanged(settings.bpm));
+    this.dispatch(
+      quickMetronomePreferencesHydrated({
+        timeSignature: settings.timeSignature,
+        finerSubdivision: settings.finerSubdivision,
+        accentPattern: settings.accentPattern,
+      }),
+    );
     await this.audioEngine.whenReady();
     this.applyToEngine(settings);
     this.audioEngine.setBarStartEnabled(settings.barStartEnabled);
@@ -154,25 +164,6 @@ export class ClickSoundService {
   }
 
   private async persistCurrent(): Promise<void> {
-    const {
-      normalClickSound,
-      accentClickSound,
-      barClickSound,
-      subdivisionClickSound,
-      barStartEnabled,
-      subdivisionAccentMode,
-      subdivisionAccentEveryNth,
-      subdivisionAccentPattern,
-    } = this.getState().settings;
-    await saveMetronomeSettings({
-      normalClickSound,
-      accentClickSound,
-      barClickSound,
-      subdivisionClickSound,
-      barStartEnabled,
-      subdivisionAccentMode,
-      subdivisionAccentEveryNth,
-      subdivisionAccentPattern,
-    });
+    await saveMetronomeSettings(buildPersistedMetronomeSettingsFromState(this.getState()));
   }
 }

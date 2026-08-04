@@ -17,6 +17,8 @@ import { saveMetronomeSettings } from '../../infrastructure/persistence/metronom
 import type { IAudioEngine } from '../../infrastructure/audio/IAudioEngine';
 import type { AppDispatch, RootState } from '../../store';
 
+import { buildPersistedMetronomeSettingsFromState } from './buildPersistedMetronomeSettingsFromState';
+
 const ACTIVE_SUBDIVISION_ACCENT_MODES = new Set<SubdivisionAccentModeId>([
   SubdivisionAccentMode.OFF,
   SubdivisionAccentMode.GROUP_START,
@@ -97,26 +99,6 @@ export class SubdivisionAccentSettingsService {
   }
 
   private async persistCurrent(): Promise<void> {
-    const {
-      normalClickSound,
-      accentClickSound,
-      barClickSound,
-      subdivisionClickSound,
-      barStartEnabled,
-      subdivisionAccentMode,
-      subdivisionAccentEveryNth,
-      subdivisionAccentPattern,
-    } = this.getState().settings;
-
-    await saveMetronomeSettings({
-      normalClickSound,
-      accentClickSound,
-      barClickSound,
-      subdivisionClickSound,
-      barStartEnabled,
-      subdivisionAccentMode,
-      subdivisionAccentEveryNth,
-      subdivisionAccentPattern,
-    });
+    await saveMetronomeSettings(buildPersistedMetronomeSettingsFromState(this.getState()));
   }
 }
