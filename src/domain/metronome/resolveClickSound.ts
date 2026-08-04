@@ -15,7 +15,7 @@ export type ResolveClickSoundInput = {
   readonly subdivisionAccentMode?: SubdivisionAccentMode;
   readonly subdivisionAccentEveryNth?: number;
   readonly subdivisionAccentPattern?: SubdivisionAccentPattern;
-  /** When true (default), downbeat plays Bar. When false, only the BAR role is removed. */
+  /** When true (default), downbeat plays Bar. When false, BAR is not emitted. */
   readonly barStartEnabled?: boolean;
 };
 
@@ -40,9 +40,9 @@ function isBeatAccentHit(
 }
 
 /**
- * Selects Bar / Accent / Click for a pulse.
- * Bar Start adds the BAR role on the downbeat when enabled; when disabled, beat 1 uses accent logic.
- * Domain mirror of native AccentClassification (runtime authority).
+ * Selects Bar / Accent / Click for a pulse (Quick Metronome mirror of native resolveClickSoundKind).
+ * Bar Start owns beat 1's main-beat role; accentPattern[0] does not auto-accent beat 1.
+ * Subdivision accents still apply on every beat, including beat 1.
  */
 export function resolveClickSoundType({
   beatIndexInBar,
@@ -59,8 +59,10 @@ export function resolveClickSoundType({
   }
 
   const beatIsAccented = resolveBeatAccent(beatIndexInBar, accentPattern);
+  // Beat 1 main-beat accent is owned by Bar Start; do not fall through to accentPattern[0].
+  const beatAccentForHit = beatIndexInBar !== 0 && beatIsAccented;
 
-  if (isBeatAccentHit(beatIsAccented, subdivisionIndex, ticksPerBeat)) {
+  if (isBeatAccentHit(beatAccentForHit, subdivisionIndex, ticksPerBeat)) {
     return ClickSoundType.Accent;
   }
 

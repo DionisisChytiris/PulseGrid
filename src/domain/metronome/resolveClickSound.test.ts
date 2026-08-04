@@ -199,7 +199,7 @@ describe('resolveClickSoundType', () => {
     ).toBe(ClickSoundType.Click);
   });
 
-  it('lets beat 1 follow accent logic when Bar Start is disabled', () => {
+  it('does not auto-accent beat 1 from accentPattern[0] when Bar Start is off', () => {
     expect(
       resolveClickSoundType({
         beatIndexInBar: 0,
@@ -208,7 +208,7 @@ describe('resolveClickSoundType', () => {
         ticksPerBeat: 1,
         barStartEnabled: false,
       }),
-    ).toBe(ClickSoundType.Accent);
+    ).toBe(ClickSoundType.Click);
 
     expect(
       resolveClickSoundType({
@@ -241,12 +241,12 @@ describe('resolveClickSoundType', () => {
       }),
     ).toBe(ClickSoundType.Accent);
 
-    // Subdivision accents may still apply on beat 1 when Bar Start is off.
+    // Subdivision accents still apply on beat 1 when Bar Start is off.
     expect(
       resolveClickSoundType({
         beatIndexInBar: 0,
         subdivisionIndex: 0,
-        accentPattern: [false, false, false, false],
+        accentPattern: [true, false, false, false],
         ticksPerBeat: 3,
         subdivisionAccentMode: SubdivisionAccentMode.GROUP_START,
         barStartEnabled: false,

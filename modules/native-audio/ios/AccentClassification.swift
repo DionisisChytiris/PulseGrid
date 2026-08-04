@@ -47,7 +47,8 @@ enum AccentClassification {
   }
 
   /// Priority: Bar Start (downbeat only, when enabled) → accent logic → Click.
-  /// Disabling Bar Start removes only the BAR role; beat 1 then uses accent logic like any other beat.
+  /// Quick Metronome: beat-accent pattern does not apply to beat 1 (Bar Start owns that slot).
+  /// Subdivision accents still apply on every beat, including beat 1.
   static func resolveClickSoundKind(
     beatIndexInBar: Int,
     subdivisionIndex: Int,
@@ -66,9 +67,11 @@ enum AccentClassification {
     }
 
     let beatIsAccented = resolveBeatAccent(beatIndexInBar: beatIndexInBar, accentPattern: accentPattern)
+    // Beat 1 main-beat accent is owned by Bar Start; do not fall through to accentPattern[0].
+    let beatAccentForHit = beatIndexInBar != 0 && beatIsAccented
 
     if isBeatAccentHit(
-      beatIsAccented: beatIsAccented,
+      beatIsAccented: beatAccentForHit,
       subdivisionIndex: subdivisionIndex,
       ticksPerBeat: ticksPerBeat
     ) {

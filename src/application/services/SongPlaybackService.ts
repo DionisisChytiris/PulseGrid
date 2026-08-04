@@ -26,6 +26,7 @@ import NativeAudioModule, {
 } from '../../infrastructure/audio/NativeAudioModuleClient';
 import type { AppDispatch } from '../../store';
 
+import { clickSoundService } from './clickSoundServiceInstance';
 import type { PlaybackService } from './PlaybackService';
 
 type ActiveSongPlayback = {
@@ -151,6 +152,9 @@ export class SongPlaybackService {
 
       await NativeAudioModule.whenReady?.();
 
+      // Song Timeline: disable BAR role at runtime only (no Redux / persist).
+      clickSoundService.syncBarStartEnabledToEngine(false);
+
       metronomeEngine.start({
         mode: PlaybackMode.SONG_TIMELINE,
         compiled: playbackCompiled,
@@ -162,6 +166,7 @@ export class SongPlaybackService {
       });
 
       if (metronomeEngine.mode !== PlaybackMode.SONG_TIMELINE) {
+        clickSoundService.restoreBarStartEnabledToEngine();
         this.handleSongModeFallback(song, 'Song timeline start returned QUICK_METRONOME mode');
         return;
       }
@@ -244,6 +249,8 @@ export class SongPlaybackService {
 
     await NativeAudioModule.whenReady?.();
 
+    clickSoundService.syncBarStartEnabledToEngine(false);
+
     metronomeEngine.resumeSongTimeline({
       mode: PlaybackMode.SONG_TIMELINE,
       compiled: playbackCompiled,
@@ -272,6 +279,7 @@ export class SongPlaybackService {
     this.activePlayback = null;
     this.playbackSequenceCursor = 0;
     this.currentBarIndex = 0;
+    clickSoundService.restoreBarStartEnabledToEngine();
     this.dispatch(songTimelinePlaybackStopped());
   }
 
@@ -360,6 +368,8 @@ export class SongPlaybackService {
     metronomeEngine.stop();
     await NativeAudioModule.whenReady?.();
 
+    clickSoundService.syncBarStartEnabledToEngine(false);
+
     metronomeEngine.start({
       mode: PlaybackMode.SONG_TIMELINE,
       compiled: playbackCompiled,
@@ -387,6 +397,8 @@ export class SongPlaybackService {
     this.clearNaturalCompletionTimer();
     this.detachTickListener();
     this.activePlayback = null;
+
+    clickSoundService.restoreBarStartEnabledToEngine();
 
     this.dispatch(
       songTimelineFallbackToQuick({

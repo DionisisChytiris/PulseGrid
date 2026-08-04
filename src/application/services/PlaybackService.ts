@@ -16,6 +16,7 @@ import type { ITimingSource } from '../../infrastructure/audio/ITimingSource';
 import { VisualTickScheduler } from '../../infrastructure/audio/VisualTickScheduler';
 import type { AppDispatch, RootState } from '../../store';
 
+import { clickSoundService } from './clickSoundServiceInstance';
 import type { MetronomeTickConsumer } from './MetronomeTickConsumer';
 
 function formatTimeSignature({ numerator, denominator }: TimeSignature): string {
@@ -108,6 +109,8 @@ export class PlaybackService {
     }
 
     this.timingSource.startTiming(config);
+    // Ensure Song Timeline's temporary Bar Start override is cleared for QM.
+    clickSoundService.restoreBarStartEnabledToEngine();
     this.audioEngine.start(config);
   }
 

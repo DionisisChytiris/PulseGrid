@@ -57,7 +57,7 @@ export class ClickSoundService {
   }
 
   async setBarStartEnabled(enabled: boolean): Promise<void> {
-    // TEMP debug — remove after bar-start hit-test diagnosis
+    // TEMP debug — remove after native barStart propagation diagnosis
     const previous = this.getState().settings.barStartEnabled;
     console.log('[BarStartDebug] ClickSoundService.setBarStartEnabled called', {
       previous,
@@ -72,6 +72,19 @@ export class ClickSoundService {
     });
     this.audioEngine.setBarStartEnabled(enabled);
     await this.persistCurrent();
+  }
+
+  /**
+   * Push Bar Start to the native engine only.
+   * Does not update Redux or persistence (Song Timeline temporary override).
+   */
+  syncBarStartEnabledToEngine(enabled: boolean): void {
+    this.audioEngine.setBarStartEnabled(enabled);
+  }
+
+  /** Re-apply the saved Quick Metronome Bar Start preference to native. */
+  restoreBarStartEnabledToEngine(): void {
+    this.audioEngine.setBarStartEnabled(this.getState().settings.barStartEnabled);
   }
 
   async setSubdivisionClickSound(soundId: SubdivisionClickSoundId): Promise<void> {
