@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuickMetronome } from '../hooks/useQuickMetronome';
 import { useResponsiveLayout } from '../layout/useResponsiveLayout';
@@ -28,6 +28,11 @@ export default function QuickMetronomeScreen() {
     tapTempoHintVisible,
     tapTempoHintMessage,
     onDismissTapTempoHint,
+    trainerPopupVisible,
+    trainerSettings,
+    onTrainerPress,
+    onTrainerPopupClose,
+    onTrainerSettingsChange,
   } = useQuickMetronome();
 
   const insets = useSafeAreaInsets();
@@ -43,9 +48,36 @@ export default function QuickMetronomeScreen() {
         },
       ]}
     >
-      <View style={[styles.inner, { maxWidth: layout.contentMaxWidth }]}>
-        <QuickMetronomeTopBar isPlaying={isPlaying} />
+      {/* Backdrop must be a sibling under the top bar host (not an ancestor overlay). */}
+      {trainerPopupVisible ? (
+        <Pressable
+          style={styles.trainerBackdrop}
+          onPress={onTrainerPopupClose}
+          accessibilityRole="button"
+          accessibilityLabel="Close practice trainer"
+        />
+      ) : null}
 
+      {/* Raised above backdrop so Trainer button + popup receive touches. */}
+      <View
+        style={[
+          styles.topBarHost,
+          { maxWidth: layout.contentMaxWidth },
+          trainerPopupVisible && styles.topBarHostRaised,
+        ]}
+        pointerEvents="box-none"
+      >
+        <QuickMetronomeTopBar
+          isPlaying={isPlaying}
+          bpm={bpm}
+          trainerSettings={trainerSettings}
+          trainerPopupVisible={trainerPopupVisible}
+          onTrainerPress={onTrainerPress}
+          onTrainerSettingsChange={onTrainerSettingsChange}
+        />
+      </View>
+
+      <View style={[styles.inner, { maxWidth: layout.contentMaxWidth }]}>
         <View style={[styles.content, { gap: layout.sectionGap }]}>
           <Text style={[styles.title, { fontSize: layout.scale(24) }]}>Pulse Grid</Text>
 
@@ -103,6 +135,19 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     backgroundColor: studioColors.background,
+  },
+  trainerBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 20,
+    elevation: 20,
+  },
+  topBarHost: {
+    width: '100%',
+    zIndex: 1,
+  },
+  topBarHostRaised: {
+    zIndex: 30,
+    elevation: 30,
   },
   inner: {
     flex: 1,

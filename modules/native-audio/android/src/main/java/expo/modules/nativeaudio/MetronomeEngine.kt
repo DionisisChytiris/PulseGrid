@@ -304,8 +304,9 @@ internal class MetronomeEngine(
   /**
    * Applies a musical parameter change atomically against the predictive scheduler.
    *
-   * Live mutations retune the anchor for continuity at [nextUiSequence] but do not rewind
-   * [lastPublishedSequence], so already-enqueued events remain unchanged.
+   * Live Quick Metronome mutations retune the anchor while preserving the wall-clock
+   * deadline of [nextUiSequence]. They do not rewind [lastPublishedSequence], so
+   * already-enqueued events remain unchanged.
    */
   private fun applyMusicalStateChange(change: MusicalStateChange) {
     val snapshots: List<TickSnapshot>
@@ -330,10 +331,12 @@ internal class MetronomeEngine(
       if (subdivisionChange != null) {
         val safeTicksPerBeat = normalizeTicksPerBeat(subdivisionChange)
         if (safeTicksPerBeat != this.ticksPerBeat) {
-          this.ticksPerBeat = safeTicksPerBeat
+          // Retune before mutating ticks so deadlineForSequenceLocked still
+          // reflects the pre-change schedule (same order as the BPM path).
           if (isRunning && !isPaused) {
             retuneAnchorForContinuityLocked(bpm, safeTicksPerBeat)
           }
+          this.ticksPerBeat = safeTicksPerBeat
         }
       }
 
@@ -514,14 +517,29 @@ internal class MetronomeEngine(
     return snapshots
   }
 
-  /** Caller must hold [lock]. Preserves the musical instant of [nextUiSequence] across mutations. */
+  /**
+   * Caller must hold [lock].
+   *
+   * Quick Metronome live tempo/subdivision mutations preserve the absolute wall-clock
+   * deadline of [nextUiSequence] so an already-posted UI waiter stays valid. New BPM
+   * only changes spacing of sequences after that upcoming beat.
+   *
+   * Song Timeline branch keeps the prior rebase-to-now behavior (unused by
+   * [applyMusicalStateChange], which no-ops Song Timeline mutations earlier).
+   */
   private fun retuneAnchorForContinuityLocked(newBpm: Double, newTicksPerBeat: Int) {
-    val now = System.nanoTime()
-    anchorTimeNs = when (playbackMode) {
-      PlaybackMode.QUICK_METRONOME ->
-        now - quickTickOffsetNs(nextUiSequence, newBpm, newTicksPerBeat)
-      PlaybackMode.SONG_TIMELINE ->
-        now - eventSource.offsetNsForSequence(nextUiSequence)
+    when (playbackMode) {
+      PlaybackMode.QUICK_METRONOME -> {
+        // Preserve wall time of the upcoming beat; do not map it to "now".
+        // deadlineForSequenceLocked still uses the pre-mutation bpm/ticks from eventSource.
+        val preservedDeadlineNs = deadlineForSequenceLocked(nextUiSequence)
+        val newOffsetNs = quickTickOffsetNs(nextUiSequence, newBpm, newTicksPerBeat)
+        anchorTimeNs = preservedDeadlineNs - newOffsetNs
+      }
+      PlaybackMode.SONG_TIMELINE -> {
+        val now = System.nanoTime()
+        anchorTimeNs = now - eventSource.offsetNsForSequence(nextUiSequence)
+      }
     }
   }
 

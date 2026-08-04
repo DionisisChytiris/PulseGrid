@@ -20,6 +20,7 @@ import type { AppDispatch, RootState } from '../../store';
 import { buildPersistedMetronomeSettingsFromState } from './buildPersistedMetronomeSettingsFromState';
 import { clickSoundService } from './clickSoundServiceInstance';
 import type { MetronomeTickConsumer } from './MetronomeTickConsumer';
+import type { TempoTrainerService } from './TempoTrainerService';
 
 function formatTimeSignature({ numerator, denominator }: TimeSignature): string {
   return `${numerator}/${denominator}`;
@@ -38,6 +39,7 @@ function formatTimeSignature({ numerator, denominator }: TimeSignature): string 
 export class PlaybackService {
   private readonly tapTempoCalculator: TapTempoCalculator;
   private playbackGeneration = 0;
+  private tempoTrainer: TempoTrainerService | null = null;
 
   constructor(
     private readonly dispatch: AppDispatch,
@@ -47,7 +49,18 @@ export class PlaybackService {
     private readonly tickConsumer: MetronomeTickConsumer,
   ) {
     this.tapTempoCalculator = new TapTempoCalculator(DEFAULT_TAP_TEMPO_CONFIG);
-    this.timingSource.setTickListener((tick) => this.tickConsumer.handleTick(tick));
+    this.timingSource.setTickListener((tick) => {
+      this.tickConsumer.handleTick(tick);
+      this.tempoTrainer?.onTick(tick);
+    });
+  }
+
+  /**
+   * Attach Quick Metronome Practice Trainer. Optional so Song Timeline never constructs it.
+   * BPM increases always call back into this.setBpm.
+   */
+  attachTempoTrainer(trainer: TempoTrainerService): void {
+    this.tempoTrainer = trainer;
   }
 
   private getStartConfig(): MetronomeStartConfig {
@@ -87,6 +100,7 @@ export class PlaybackService {
 
     this.dispatch(playbackStarted());
     this.dispatch(quickMetronomeModeActive());
+    this.tempoTrainer?.onPlaybackStarted();
     console.log('Playback started');
     void this.startPlayback();
   }
@@ -121,10 +135,18 @@ export class PlaybackService {
     this.audioEngine.stop();
     this.timingSource.stopTiming();
     this.dispatch(playbackStopped());
+    this.tempoTrainer?.onPlaybackStopped();
     console.log('Playback stopped');
   }
 
   setBpm(bpm: number): void {
+    const oldBpm = this.getState().metronome.bpm;
+    // TEMP debug — measure live tempo transitions (no behavior change)
+    console.log('[TempoChange]', {
+      oldBpm,
+      newBpm: bpm,
+      timestamp: Date.now(),
+    });
     this.dispatch(bpmChanged(bpm));
     this.audioEngine.setTempo(bpm);
     this.timingSource.setTimingTempo(bpm);

@@ -1,7 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { playbackService } from '../../application/services/playbackServiceInstance';
 import { subdivisionAccentSettingsService } from '../../application/services/subdivisionAccentSettingsServiceInstance';
+import {
+  DEFAULT_TEMPO_TRAINER_SETTINGS,
+  type TempoTrainerSettings,
+} from '../../application/services/TempoTrainerService';
+import { tempoTrainerService } from '../../application/services/tempoTrainerServiceInstance';
 import {
   selectAccentPattern,
   selectBpm,
@@ -25,6 +30,15 @@ export const MAX_BPM = 600;
 const TAP_TEMPO_INTRO =
   'Tap TAP at least 3 times in a steady beat to set the tempo. BPM updates from the 3rd tap. Pause longer than 2 seconds to start over. Hold TAP for help.';
 
+function clampTrainerSettings(settings: TempoTrainerSettings): TempoTrainerSettings {
+  return {
+    enabled: settings.enabled,
+    barsInterval: Math.min(64, Math.max(1, Math.floor(settings.barsInterval))),
+    bpmDelta: Math.min(50, Math.max(1, Math.floor(settings.bpmDelta))),
+    maxBpm: Math.min(MAX_BPM, Math.max(40, Math.floor(settings.maxBpm))),
+  };
+}
+
 export function useQuickMetronome() {
   const dispatch = useAppDispatch();
   const bpm = useAppSelector(selectBpm);
@@ -37,6 +51,14 @@ export function useQuickMetronome() {
   const currentSubdivisionIndex = useAppSelector(selectCurrentSubdivisionIndex);
   const isAccent = useAppSelector(selectIsAccent);
   const [tapTempoHintVisible, setTapTempoHintVisible] = useState(false);
+  const [trainerPopupVisible, setTrainerPopupVisible] = useState(false);
+  const [trainerSettings, setTrainerSettings] = useState<TempoTrainerSettings>(
+    DEFAULT_TEMPO_TRAINER_SETTINGS,
+  );
+
+  useEffect(() => {
+    tempoTrainerService.setSettings(trainerSettings);
+  }, [trainerSettings]);
 
   const onTapTempo = () => {
     playbackService.tapTempo();
@@ -59,6 +81,13 @@ export function useQuickMetronome() {
     tapTempoHintVisible,
     tapTempoHintMessage: TAP_TEMPO_INTRO,
     onDismissTapTempoHint: () => setTapTempoHintVisible(false),
+    trainerPopupVisible,
+    trainerSettings,
+    onTrainerPress: () => setTrainerPopupVisible((open) => !open),
+    onTrainerPopupClose: () => setTrainerPopupVisible(false),
+    onTrainerSettingsChange: (next: TempoTrainerSettings) => {
+      setTrainerSettings(clampTrainerSettings(next));
+    },
     minBpm: MIN_BPM,
     maxBpm: MAX_BPM,
     onStart: () => playbackService.start(),

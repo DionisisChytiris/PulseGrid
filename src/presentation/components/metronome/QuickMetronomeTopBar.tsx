@@ -1,15 +1,42 @@
 import { StyleSheet, View } from 'react-native';
 
+import type { TempoTrainerSettings } from '../../../application/services/TempoTrainerService';
+
 import { PracticeTimer } from './PracticeTimer';
+import { PracticeTrainerButton, PracticeTrainerPopup } from './PracticeTrainerPopup';
 
 type QuickMetronomeTopBarProps = {
   isPlaying: boolean;
+  bpm: number;
+  trainerSettings: TempoTrainerSettings;
+  trainerPopupVisible: boolean;
+  onTrainerPress: () => void;
+  onTrainerSettingsChange: (settings: TempoTrainerSettings) => void;
 };
 
-export function QuickMetronomeTopBar({ isPlaying }: QuickMetronomeTopBarProps) {
+export function QuickMetronomeTopBar({
+  isPlaying,
+  bpm,
+  trainerSettings,
+  trainerPopupVisible,
+  onTrainerPress,
+  onTrainerSettingsChange,
+}: QuickMetronomeTopBarProps) {
   return (
-    <View style={styles.topBar}>
-      <View style={styles.leftSlot} />
+    <View style={styles.topBar} pointerEvents="box-none">
+      <View style={styles.leftSlot} pointerEvents="box-none">
+        <PracticeTrainerButton
+          isActive={trainerPopupVisible}
+          trainerEnabled={trainerSettings.enabled}
+          onPress={onTrainerPress}
+        />
+        <PracticeTrainerPopup
+          visible={trainerPopupVisible}
+          bpm={bpm}
+          settings={trainerSettings}
+          onSettingsChange={onTrainerSettingsChange}
+        />
+      </View>
       <PracticeTimer isPlaying={isPlaying} />
     </View>
   );
@@ -26,5 +53,6 @@ const styles = StyleSheet.create({
   },
   leftSlot: {
     flex: 1,
+    position: 'relative',
   },
 });
