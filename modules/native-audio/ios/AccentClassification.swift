@@ -9,10 +9,11 @@ enum SubdivisionAccentMode {
   case custom
 }
 
+/// Live audible roles. `.subdivision` is retained for compatibility only (unused for ticks).
 enum ClickSoundKind {
-  case beatAccent
-  case subdivisionAccent
-  case normal
+  case bar
+  case accent
+  case click
   case subdivision
 }
 
@@ -20,6 +21,7 @@ enum AccentClassification {
   private static let defaultSubdivisionAccentMode: SubdivisionAccentMode = .off
   private static let defaultSubdivisionAccentEveryNth = 4
   private static let defaultSubdivisionAccentPattern: [Bool] = []
+  private static let defaultBarStartEnabled = true
 
   static func resolveTickAccent(
     beatIndexInBar: Int,
@@ -44,6 +46,8 @@ enum AccentClassification {
     return subdivisionIsAccented || (beatIsAccented && subdivisionIndex == 0)
   }
 
+  /// Priority: Bar Start (downbeat only, when enabled) → accent logic → Click.
+  /// Disabling Bar Start removes only the BAR role; beat 1 then uses accent logic like any other beat.
   static func resolveClickSoundKind(
     beatIndexInBar: Int,
     subdivisionIndex: Int,
@@ -51,8 +55,16 @@ enum AccentClassification {
     ticksPerBeat: Int,
     subdivisionAccentMode: SubdivisionAccentMode = defaultSubdivisionAccentMode,
     subdivisionAccentEveryNth: Int = defaultSubdivisionAccentEveryNth,
-    subdivisionAccentPattern: [Bool] = defaultSubdivisionAccentPattern
+    subdivisionAccentPattern: [Bool] = defaultSubdivisionAccentPattern,
+    barStartEnabled: Bool = defaultBarStartEnabled
   ) -> ClickSoundKind {
+    if barStartEnabled && isBarStartHit(
+      beatIndexInBar: beatIndexInBar,
+      subdivisionIndex: subdivisionIndex
+    ) {
+      return .bar
+    }
+
     let beatIsAccented = resolveBeatAccent(beatIndexInBar: beatIndexInBar, accentPattern: accentPattern)
 
     if isBeatAccentHit(
@@ -60,7 +72,7 @@ enum AccentClassification {
       subdivisionIndex: subdivisionIndex,
       ticksPerBeat: ticksPerBeat
     ) {
-      return .beatAccent
+      return .accent
     }
 
     if resolveSubdivisionAccent(
@@ -72,22 +84,32 @@ enum AccentClassification {
       subdivisionAccentPattern: subdivisionAccentPattern,
       beatIsAccented: beatIsAccented
     ) {
-      return .subdivisionAccent
+      return .accent
     }
 
-    return ticksPerBeat <= 1 ? .normal : .subdivision
+    return .click
   }
 
-  /// Song timeline: accent comes from the compiled event, not the session accentPattern.
+  /// Song timeline: accent from compiled event; Bar Start only overrides the downbeat when enabled.
+  /// Disabling Bar Start removes only BAR — compiled accent on beat 1 still applies.
   static func resolveClickSoundKindFromTickAccent(
     isAccent: Bool,
-    subdivisionIndex: Int
+    beatIndexInBar: Int,
+    subdivisionIndex: Int,
+    barStartEnabled: Bool = defaultBarStartEnabled
   ) -> ClickSoundKind {
-    if isAccent {
-      return .beatAccent
+    if barStartEnabled && isBarStartHit(
+      beatIndexInBar: beatIndexInBar,
+      subdivisionIndex: subdivisionIndex
+    ) {
+      return .bar
     }
 
-    return subdivisionIndex > 0 ? .subdivision : .normal
+    if isAccent {
+      return .accent
+    }
+
+    return .click
   }
 
   static func resolveBeatAccent(beatIndexInBar: Int, accentPattern: [Bool]) -> Bool {
@@ -140,6 +162,13 @@ enum AccentClassification {
     }
 
     return pattern[subdivisionIndex % pattern.count]
+  }
+
+  private static func isBarStartHit(
+    beatIndexInBar: Int,
+    subdivisionIndex: Int
+  ) -> Bool {
+    beatIndexInBar == 0 && subdivisionIndex == 0
   }
 
   private static func isBeatAccentHit(

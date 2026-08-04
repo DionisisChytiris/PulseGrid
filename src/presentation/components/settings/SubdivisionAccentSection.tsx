@@ -183,7 +183,6 @@ export function SubdivisionAccentSection() {
 
   return (
     <View style={[styles.group, { gap: layout.scale(8) }]}>
-      <Text style={[styles.groupLabel, { fontSize: layout.scale(13) }]}>Subdivision Accents</Text>
       {SUBDIVISION_ACCENT_MODE_OPTIONS.map((option) => {
         const isCustom = option.id === SubdivisionAccentMode.CUSTOM;
         const disabled = option.comingSoon || (isCustom && !customAvailable);
@@ -257,13 +256,6 @@ const styles = StyleSheet.create({
   group: {
     width: '100%',
     gap: 8,
-  },
-  groupLabel: {
-    color: studioColors.textSecondary,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-    textTransform: 'uppercase',
-    marginBottom: 2,
   },
   optionRow: {
     flexDirection: 'row',

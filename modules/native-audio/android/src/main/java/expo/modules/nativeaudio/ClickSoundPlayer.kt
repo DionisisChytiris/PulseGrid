@@ -42,6 +42,10 @@ internal class ClickSoundPlayer(private val context: Context) {
 
   fun areReady(): Boolean = oboePlayer.areReady()
 
+  fun playBar(scheduledDeadlineNs: Long) {
+    oboePlayer.playBar(scheduledDeadlineNs)
+  }
+
   fun playAccent(scheduledDeadlineNs: Long) {
     oboePlayer.playAccent(scheduledDeadlineNs)
   }
@@ -62,6 +66,10 @@ internal class ClickSoundPlayer(private val context: Context) {
     oboePlayer.setAccentClickSound(soundId)
   }
 
+  fun setBarClickSound(soundId: Int) {
+    oboePlayer.setBarClickSound(soundId)
+  }
+
   fun setSubdivisionClickSound(soundId: Int) {
     oboePlayer.setSubdivisionClickSound(soundId)
   }
@@ -72,6 +80,10 @@ internal class ClickSoundPlayer(private val context: Context) {
 
   fun previewAccentClick() {
     oboePlayer.previewAccentClick()
+  }
+
+  fun previewBarClick() {
+    oboePlayer.previewBarClick()
   }
 
   fun previewSubdivisionClick() {

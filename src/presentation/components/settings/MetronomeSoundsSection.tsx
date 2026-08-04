@@ -1,57 +1,54 @@
 import { useCallback } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { clickSoundService } from '../../../application/services/clickSoundServiceInstance';
 import {
   ACCENT_CLICK_SOUNDS,
+  BAR_CLICK_SOUNDS,
   NORMAL_CLICK_SOUNDS,
-  SUBDIVISION_CLICK_SOUNDS,
   type AccentClickSoundId,
+  type BarClickSoundId,
   type NormalClickSoundId,
-  type SubdivisionClickSoundId,
 } from '../../../domain/metronome/ClickSoundCatalog';
 import {
   selectAccentClickSound,
+  selectBarClickSound,
   selectNormalClickSound,
-  selectSubdivisionClickSound,
 } from '../../../features/settings/settingsSelectors';
 import { useAppSelector } from '../../../store/hooks';
 import { useResponsiveLayout } from '../../layout/useResponsiveLayout';
-import { studioColors } from '../../theme';
 import { SettingsSoundDropdown } from './SettingsSoundDropdown';
 
 export function MetronomeSoundsSection() {
   const layout = useResponsiveLayout();
-  const normalClickSound = useAppSelector(selectNormalClickSound);
+  const barClickSound = useAppSelector(selectBarClickSound);
   const accentClickSound = useAppSelector(selectAccentClickSound);
-  const subdivisionClickSound = useAppSelector(selectSubdivisionClickSound);
+  const normalClickSound = useAppSelector(selectNormalClickSound);
 
-  const onSelectNormal = useCallback((soundId: NormalClickSoundId) => {
-    void clickSoundService.setNormalClickSound(soundId);
+  const onSelectBar = useCallback((soundId: BarClickSoundId) => {
+    void clickSoundService.setBarClickSound(soundId);
   }, []);
 
   const onSelectAccent = useCallback((soundId: AccentClickSoundId) => {
     void clickSoundService.setAccentClickSound(soundId);
   }, []);
 
-  const onSelectSubdivision = useCallback((soundId: SubdivisionClickSoundId) => {
-    void clickSoundService.setSubdivisionClickSound(soundId);
+  const onSelectClick = useCallback((soundId: NormalClickSoundId) => {
+    void clickSoundService.setNormalClickSound(soundId);
   }, []);
 
   return (
     <View style={[styles.group, { gap: layout.scale(14) }]}>
-      <Text style={[styles.groupLabel, { fontSize: layout.scale(13) }]}>Sounds</Text>
-
       <SettingsSoundDropdown
-        label="Normal Click"
-        value={normalClickSound}
-        options={NORMAL_CLICK_SOUNDS}
-        onValueChange={onSelectNormal}
-        onPreview={(soundId) => clickSoundService.previewNormalClick(soundId)}
+        label="Bar"
+        value={barClickSound}
+        options={BAR_CLICK_SOUNDS}
+        onValueChange={onSelectBar}
+        onPreview={(soundId) => clickSoundService.previewBarClick(soundId)}
       />
 
       <SettingsSoundDropdown
-        label="Accent Click"
+        label="Accent"
         value={accentClickSound}
         options={ACCENT_CLICK_SOUNDS}
         onValueChange={onSelectAccent}
@@ -59,11 +56,11 @@ export function MetronomeSoundsSection() {
       />
 
       <SettingsSoundDropdown
-        label="Subdivision Click"
-        value={subdivisionClickSound}
-        options={SUBDIVISION_CLICK_SOUNDS}
-        onValueChange={onSelectSubdivision}
-        onPreview={(soundId) => clickSoundService.previewSubdivisionClick(soundId)}
+        label="Click"
+        value={normalClickSound}
+        options={NORMAL_CLICK_SOUNDS}
+        onValueChange={onSelectClick}
+        onPreview={(soundId) => clickSoundService.previewNormalClick(soundId)}
       />
     </View>
   );
@@ -72,12 +69,5 @@ export function MetronomeSoundsSection() {
 const styles = StyleSheet.create({
   group: {
     width: '100%',
-  },
-  groupLabel: {
-    color: studioColors.textSecondary,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-    textTransform: 'uppercase',
-    marginBottom: 2,
   },
 });

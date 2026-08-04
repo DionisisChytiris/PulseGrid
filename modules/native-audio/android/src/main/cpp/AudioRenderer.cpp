@@ -9,11 +9,36 @@ void loadSample(
     std::size_t frameCount) {
   player.load(samples, frameCount);
 }
+
+void loadAccentPcm(
+    SamplePlayer& player,
+    click_sample_data::AccentSound sound) {
+  switch (sound) {
+    case click_sample_data::AccentSound::Classic:
+      loadSample(player, click_sample_data::kAccentClassicPcm16Mono,
+                 click_sample_data::kAccentClassicFrameCount);
+      break;
+    case click_sample_data::AccentSound::Strong:
+      loadSample(player, click_sample_data::kAccentStrongPcm16Mono,
+                 click_sample_data::kAccentStrongFrameCount);
+      break;
+    case click_sample_data::AccentSound::Digital:
+      loadSample(player, click_sample_data::kAccentDigitalPcm16Mono,
+                 click_sample_data::kAccentDigitalFrameCount);
+      break;
+    case click_sample_data::AccentSound::Cowbell:
+      loadSample(player, click_sample_data::kAccentCowbellPcm16Mono,
+                 click_sample_data::kAccentCowbellFrameCount);
+      break;
+  }
+}
 }  // namespace
 
 AudioRenderer::AudioRenderer() {
   loadNormalSound(click_sample_data::NormalSound::Classic);
   loadAccentSound(click_sample_data::AccentSound::Classic);
+  // Temporary: Strong so BAR buffer content differs from Accent (Classic).
+  loadBarSound(click_sample_data::AccentSound::Strong);
   loadSubdivisionSound(click_sample_data::NormalSound::Classic);
 }
 
@@ -45,24 +70,13 @@ void AudioRenderer::loadNormalSound(click_sample_data::NormalSound sound) {
 
 void AudioRenderer::loadAccentSound(click_sample_data::AccentSound sound) {
   selectedAccentSound_ = sound;
-  switch (sound) {
-    case click_sample_data::AccentSound::Classic:
-      loadSample(accentPlayer_, click_sample_data::kAccentClassicPcm16Mono,
-                 click_sample_data::kAccentClassicFrameCount);
-      break;
-    case click_sample_data::AccentSound::Strong:
-      loadSample(accentPlayer_, click_sample_data::kAccentStrongPcm16Mono,
-                 click_sample_data::kAccentStrongFrameCount);
-      break;
-    case click_sample_data::AccentSound::Digital:
-      loadSample(accentPlayer_, click_sample_data::kAccentDigitalPcm16Mono,
-                 click_sample_data::kAccentDigitalFrameCount);
-      break;
-    case click_sample_data::AccentSound::Cowbell:
-      loadSample(accentPlayer_, click_sample_data::kAccentCowbellPcm16Mono,
-                 click_sample_data::kAccentCowbellFrameCount);
-      break;
-  }
+  loadAccentPcm(accentPlayer_, sound);
+}
+
+void AudioRenderer::loadBarSound(click_sample_data::AccentSound sound) {
+  selectedBarSound_ = sound;
+  // Bar reuses accent PCM until dedicated bar assets exist.
+  loadAccentPcm(barPlayer_, sound);
 }
 
 void AudioRenderer::loadSubdivisionSound(click_sample_data::NormalSound sound) {
@@ -105,6 +119,13 @@ void AudioRenderer::selectAccentSound(click_sample_data::AccentSound sound) {
   loadAccentSound(sound);
 }
 
+void AudioRenderer::selectBarSound(click_sample_data::AccentSound sound) {
+  if (sound == selectedBarSound_) {
+    return;
+  }
+  loadBarSound(sound);
+}
+
 void AudioRenderer::selectSubdivisionSound(click_sample_data::NormalSound sound) {
   if (sound == selectedSubdivisionSound_) {
     return;
@@ -120,6 +141,10 @@ void AudioRenderer::previewNormal() {
   normalPlayer_.start(0);
 }
 
+void AudioRenderer::previewBar() {
+  barPlayer_.start(0);
+}
+
 void AudioRenderer::previewSubdivision() {
   subdivisionPlayer_.start(0);
 }
@@ -127,6 +152,7 @@ void AudioRenderer::previewSubdivision() {
 void AudioRenderer::stopAllPlayers() {
   accentPlayer_.stop();
   normalPlayer_.stop();
+  barPlayer_.stop();
   subdivisionPlayer_.stop();
 }
 
@@ -150,6 +176,9 @@ void AudioRenderer::render(
 
   auto* pcm = static_cast<int16_t*>(audioData);
 
+  if (barPlayer_.isPlaying()) {
+    barPlayer_.render(pcm, numFrames, channelCount);
+  }
   if (accentPlayer_.isPlaying()) {
     accentPlayer_.render(pcm, numFrames, channelCount);
   }
@@ -162,7 +191,8 @@ void AudioRenderer::render(
 }
 
 bool AudioRenderer::isIdle() const {
-  return !accentPlayer_.isPlaying() &&
+  return !barPlayer_.isPlaying() &&
+         !accentPlayer_.isPlaying() &&
          !normalPlayer_.isPlaying() &&
          !subdivisionPlayer_.isPlaying();
 }

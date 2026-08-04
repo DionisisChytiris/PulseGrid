@@ -30,6 +30,8 @@ export class NoopAudioEngine implements IAudioEngine {
 
   setAccentClickSound(_soundId: string): void {}
 
+  setBarClickSound(_soundId: string): void {}
+
   setSubdivisionClickSound(_soundId: string): void {}
 
   setSubdivisionAccentMode(_mode: string): void {}
@@ -38,9 +40,13 @@ export class NoopAudioEngine implements IAudioEngine {
 
   setSubdivisionAccentPattern(_pattern: boolean[]): void {}
 
+  setBarStartEnabled(_enabled: boolean): void {}
+
   previewNormalClick(): void {}
 
   previewAccentClick(): void {}
+
+  previewBarClick(): void {}
 
   previewSubdivisionClick(): void {}
 }

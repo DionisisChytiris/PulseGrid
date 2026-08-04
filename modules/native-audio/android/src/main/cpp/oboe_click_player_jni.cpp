@@ -77,6 +77,16 @@ Java_expo_modules_nativeaudio_OboeClickPlayer_nativeSetAccentClickSound(
 }
 
 JNIEXPORT void JNICALL
+Java_expo_modules_nativeaudio_OboeClickPlayer_nativeSetBarClickSound(
+    JNIEnv* /*env*/,
+    jclass /*clazz*/,
+    jint soundId) {
+  if (gEngine != nullptr) {
+    gEngine->renderer().selectBarSound(static_cast<click_sample_data::AccentSound>(soundId));
+  }
+}
+
+JNIEXPORT void JNICALL
 Java_expo_modules_nativeaudio_OboeClickPlayer_nativeSetSubdivisionClickSound(
     JNIEnv* /*env*/,
     jclass /*clazz*/,

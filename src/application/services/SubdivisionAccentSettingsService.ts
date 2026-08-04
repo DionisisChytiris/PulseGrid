@@ -100,7 +100,9 @@ export class SubdivisionAccentSettingsService {
     const {
       normalClickSound,
       accentClickSound,
+      barClickSound,
       subdivisionClickSound,
+      barStartEnabled,
       subdivisionAccentMode,
       subdivisionAccentEveryNth,
       subdivisionAccentPattern,
@@ -109,7 +111,9 @@ export class SubdivisionAccentSettingsService {
     await saveMetronomeSettings({
       normalClickSound,
       accentClickSound,
+      barClickSound,
       subdivisionClickSound,
+      barStartEnabled,
       subdivisionAccentMode,
       subdivisionAccentEveryNth,
       subdivisionAccentPattern,

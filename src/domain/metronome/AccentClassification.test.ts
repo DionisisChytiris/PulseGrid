@@ -18,7 +18,7 @@ describe('AccentClassification (domain mirror)', () => {
       expect(resolveBeatAccent(1, accentPattern)).toBe(false);
     });
 
-    it('resolves beat accent sound on accented beats when subdivision accent mode is off', () => {
+    it('resolves Bar on the downbeat when subdivision accent mode is off', () => {
       expect(
         resolveClickSoundType({
           beatIndexInBar: 0,
@@ -27,7 +27,7 @@ describe('AccentClassification (domain mirror)', () => {
           ticksPerBeat: 1,
           subdivisionAccentMode: SubdivisionAccentMode.OFF,
         }),
-      ).toBe(ClickSoundType.BeatAccent);
+      ).toBe(ClickSoundType.Bar);
 
       expect(
         resolveSubdivisionAccent({
@@ -50,7 +50,7 @@ describe('AccentClassification (domain mirror)', () => {
             ticksPerBeat: 3,
             subdivisionAccentMode: SubdivisionAccentMode.OFF,
           }),
-        ).toBe(ClickSoundType.Normal);
+        ).toBe(ClickSoundType.Click);
 
         expect(
           resolveTickAccent({
@@ -88,7 +88,7 @@ describe('AccentClassification (domain mirror)', () => {
       ).toBe(false);
     });
 
-    it('resolves subdivision accent sound without beat accent on non-accented beats', () => {
+    it('resolves Accent without beat accent on non-downbeat beats', () => {
       expect(resolveBeatAccent(1, accentPattern)).toBe(false);
 
       expect(
@@ -99,7 +99,7 @@ describe('AccentClassification (domain mirror)', () => {
           ticksPerBeat: 3,
           subdivisionAccentMode: SubdivisionAccentMode.GROUP_START,
         }),
-      ).toBe(ClickSoundType.SubdivisionAccent);
+      ).toBe(ClickSoundType.Accent);
 
       expect(
         resolveTickAccent({
@@ -114,7 +114,7 @@ describe('AccentClassification (domain mirror)', () => {
   });
 
   describe('beat accent and subdivision accent together', () => {
-    it('prioritizes beat accent sound when both apply on subdiv index 0', () => {
+    it('prioritizes Bar when both apply on the downbeat', () => {
       expect(resolveBeatAccent(0, accentPattern)).toBe(true);
       expect(
         resolveSubdivisionAccent({
@@ -134,7 +134,7 @@ describe('AccentClassification (domain mirror)', () => {
           ticksPerBeat: 3,
           subdivisionAccentMode: SubdivisionAccentMode.GROUP_START,
         }),
-      ).toBe(ClickSoundType.BeatAccent);
+      ).toBe(ClickSoundType.Bar);
     });
 
     it('flags the tick as accented when either beat or subdivision accent applies', () => {
@@ -151,14 +151,14 @@ describe('AccentClassification (domain mirror)', () => {
 
     it('keeps distinct sound roles across an accented and non-accented beat in one bar', () => {
       const accentedBeatSounds = [
-        ClickSoundType.BeatAccent,
-        ClickSoundType.Normal,
-        ClickSoundType.Normal,
+        ClickSoundType.Bar,
+        ClickSoundType.Click,
+        ClickSoundType.Click,
       ];
       const nonAccentedBeatSounds = [
-        ClickSoundType.SubdivisionAccent,
-        ClickSoundType.Normal,
-        ClickSoundType.Normal,
+        ClickSoundType.Accent,
+        ClickSoundType.Click,
+        ClickSoundType.Click,
       ];
 
       for (let subdivisionIndex = 0; subdivisionIndex < 3; subdivisionIndex += 1) {
@@ -209,7 +209,7 @@ describe('AccentClassification (domain mirror)', () => {
           ticksPerBeat: 3,
           subdivisionAccentMode: SubdivisionAccentMode.OFF,
         }),
-      ).toBe(ClickSoundType.BeatAccent);
+      ).toBe(ClickSoundType.Bar);
 
       expect(
         resolveClickSoundType({
@@ -219,7 +219,7 @@ describe('AccentClassification (domain mirror)', () => {
           ticksPerBeat: 3,
           subdivisionAccentMode: SubdivisionAccentMode.OFF,
         }),
-      ).toBe(ClickSoundType.Normal);
+      ).toBe(ClickSoundType.Click);
     });
   });
 
@@ -247,7 +247,7 @@ describe('AccentClassification (domain mirror)', () => {
           ticksPerBeat: 3,
           subdivisionAccentMode: SubdivisionAccentMode.GROUP_START,
         }),
-      ).toBe(ClickSoundType.Normal);
+      ).toBe(ClickSoundType.Click);
 
       expect(
         resolveTickAccent({
@@ -320,7 +320,7 @@ describe('AccentClassification (domain mirror)', () => {
       }
     });
 
-    it('prioritizes beat accent sound when EVERY_NTH also applies on subdiv index 0', () => {
+    it('prioritizes Bar when EVERY_NTH also applies on the downbeat', () => {
       expect(resolveBeatAccent(0, accentPattern)).toBe(true);
 
       expect(
@@ -343,10 +343,10 @@ describe('AccentClassification (domain mirror)', () => {
           subdivisionAccentMode: SubdivisionAccentMode.EVERY_NTH,
           subdivisionAccentEveryNth: 4,
         }),
-      ).toBe(ClickSoundType.BeatAccent);
+      ).toBe(ClickSoundType.Bar);
     });
 
-    it('uses subdivision accent sound on EVERY_NTH hits without beat accent', () => {
+    it('uses Accent on EVERY_NTH hits without beat accent', () => {
       expect(
         resolveClickSoundType({
           beatIndexInBar: 2,
@@ -356,7 +356,7 @@ describe('AccentClassification (domain mirror)', () => {
           subdivisionAccentMode: SubdivisionAccentMode.EVERY_NTH,
           subdivisionAccentEveryNth: 4,
         }),
-      ).toBe(ClickSoundType.SubdivisionAccent);
+      ).toBe(ClickSoundType.Accent);
     });
   });
 
@@ -393,7 +393,7 @@ describe('AccentClassification (domain mirror)', () => {
       ).toBe(false);
     });
 
-    it('prioritizes beat accent sound when CUSTOM also applies on subdiv index 0', () => {
+    it('prioritizes Bar when CUSTOM also applies on the downbeat', () => {
       expect(
         resolveClickSoundType({
           beatIndexInBar: 0,
@@ -403,10 +403,10 @@ describe('AccentClassification (domain mirror)', () => {
           subdivisionAccentMode: SubdivisionAccentMode.CUSTOM,
           subdivisionAccentPattern: customPattern,
         }),
-      ).toBe(ClickSoundType.BeatAccent);
+      ).toBe(ClickSoundType.Bar);
     });
 
-    it('uses subdivision accent sound on CUSTOM hits without beat accent', () => {
+    it('uses Accent on CUSTOM hits without beat accent', () => {
       expect(
         resolveClickSoundType({
           beatIndexInBar: 1,
@@ -416,7 +416,7 @@ describe('AccentClassification (domain mirror)', () => {
           subdivisionAccentMode: SubdivisionAccentMode.CUSTOM,
           subdivisionAccentPattern: customPattern,
         }),
-      ).toBe(ClickSoundType.SubdivisionAccent);
+      ).toBe(ClickSoundType.Accent);
     });
   });
 });

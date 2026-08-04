@@ -6,7 +6,7 @@ import { resolveClickSoundSelection } from './resolveClickSoundSelection';
 const accentPattern = [true, false, false, false];
 
 describe('resolveClickSoundSelection', () => {
-  it('maps beat accents to the accent click setting', () => {
+  it('maps Bar to the bar click setting', () => {
     expect(
       resolveClickSoundSelection(
         {
@@ -18,12 +18,12 @@ describe('resolveClickSoundSelection', () => {
         DEFAULT_METRONOME_SOUND_SETTINGS,
       ),
     ).toEqual({
-      type: ClickSoundType.BeatAccent,
-      soundId: DEFAULT_METRONOME_SOUND_SETTINGS.accentClickSound,
+      type: ClickSoundType.Bar,
+      soundId: DEFAULT_METRONOME_SOUND_SETTINGS.barClickSound,
     });
   });
 
-  it('maps quarter-note normal beats to the normal click setting', () => {
+  it('maps quarter-note unaccented beats to the Click (normal) setting', () => {
     expect(
       resolveClickSoundSelection(
         {
@@ -35,12 +35,12 @@ describe('resolveClickSoundSelection', () => {
         DEFAULT_METRONOME_SOUND_SETTINGS,
       ),
     ).toEqual({
-      type: ClickSoundType.Normal,
+      type: ClickSoundType.Click,
       soundId: DEFAULT_METRONOME_SOUND_SETTINGS.normalClickSound,
     });
   });
 
-  it('maps subdivision fills to the subdivision click setting', () => {
+  it('maps subdivision fills to the Click (normal) setting', () => {
     expect(
       resolveClickSoundSelection(
         {
@@ -53,12 +53,12 @@ describe('resolveClickSoundSelection', () => {
         DEFAULT_METRONOME_SOUND_SETTINGS,
       ),
     ).toEqual({
-      type: ClickSoundType.Normal,
-      soundId: DEFAULT_METRONOME_SOUND_SETTINGS.subdivisionClickSound,
+      type: ClickSoundType.Click,
+      soundId: DEFAULT_METRONOME_SOUND_SETTINGS.normalClickSound,
     });
   });
 
-  it('maps group-start accents to the normal click setting as the medium accent', () => {
+  it('maps group-start accents to the accent click setting', () => {
     expect(
       resolveClickSoundSelection(
         {
@@ -71,13 +71,19 @@ describe('resolveClickSoundSelection', () => {
         DEFAULT_METRONOME_SOUND_SETTINGS,
       ),
     ).toEqual({
-      type: ClickSoundType.SubdivisionAccent,
-      soundId: DEFAULT_METRONOME_SOUND_SETTINGS.normalClickSound,
+      type: ClickSoundType.Accent,
+      soundId: DEFAULT_METRONOME_SOUND_SETTINGS.accentClickSound,
     });
   });
 
-  it('keeps beat and subdivision accents on different sound settings when combined', () => {
-    const beatAccent = resolveClickSoundSelection(
+  it('keeps Bar and Accent as distinct roles with independent sample banks', () => {
+    const settings = {
+      ...DEFAULT_METRONOME_SOUND_SETTINGS,
+      barClickSound: 'strong_accent' as const,
+      accentClickSound: 'classic_accent' as const,
+    };
+
+    const bar = resolveClickSoundSelection(
       {
         beatIndexInBar: 0,
         subdivisionIndex: 0,
@@ -85,10 +91,10 @@ describe('resolveClickSoundSelection', () => {
         ticksPerBeat: 3,
         subdivisionAccentMode: SubdivisionAccentMode.GROUP_START,
       },
-      DEFAULT_METRONOME_SOUND_SETTINGS,
+      settings,
     );
 
-    const subdivisionAccent = resolveClickSoundSelection(
+    const accent = resolveClickSoundSelection(
       {
         beatIndexInBar: 1,
         subdivisionIndex: 0,
@@ -96,13 +102,12 @@ describe('resolveClickSoundSelection', () => {
         ticksPerBeat: 3,
         subdivisionAccentMode: SubdivisionAccentMode.GROUP_START,
       },
-      DEFAULT_METRONOME_SOUND_SETTINGS,
+      settings,
     );
 
-    expect(beatAccent.type).toBe(ClickSoundType.BeatAccent);
-    expect(subdivisionAccent.type).toBe(ClickSoundType.SubdivisionAccent);
-    expect(beatAccent.soundId).toBe(DEFAULT_METRONOME_SOUND_SETTINGS.accentClickSound);
-    expect(subdivisionAccent.soundId).toBe(DEFAULT_METRONOME_SOUND_SETTINGS.normalClickSound);
-    expect(beatAccent.soundId).not.toBe(subdivisionAccent.soundId);
+    expect(bar.type).toBe(ClickSoundType.Bar);
+    expect(accent.type).toBe(ClickSoundType.Accent);
+    expect(bar.soundId).toBe('strong_accent');
+    expect(accent.soundId).toBe('classic_accent');
   });
 });

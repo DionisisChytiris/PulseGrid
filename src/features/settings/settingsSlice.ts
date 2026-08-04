@@ -2,9 +2,11 @@ import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 
 import {
   DEFAULT_ACCENT_CLICK_SOUND,
+  DEFAULT_BAR_CLICK_SOUND,
   DEFAULT_NORMAL_CLICK_SOUND,
   DEFAULT_SUBDIVISION_CLICK_SOUND,
   type AccentClickSoundId,
+  type BarClickSoundId,
   type NormalClickSoundId,
   type SubdivisionClickSoundId,
 } from '../../domain/metronome/ClickSoundCatalog';
@@ -21,7 +23,9 @@ import {
 export type SettingsState = {
   normalClickSound: NormalClickSoundId;
   accentClickSound: AccentClickSoundId;
+  barClickSound: BarClickSoundId;
   subdivisionClickSound: SubdivisionClickSoundId;
+  barStartEnabled: boolean;
   subdivisionAccentMode: SubdivisionAccentMode;
   subdivisionAccentEveryNth: number;
   subdivisionAccentPattern: SubdivisionAccentPattern;
@@ -31,7 +35,9 @@ export type SettingsState = {
 const initialState: SettingsState = {
   normalClickSound: DEFAULT_NORMAL_CLICK_SOUND,
   accentClickSound: DEFAULT_ACCENT_CLICK_SOUND,
+  barClickSound: DEFAULT_BAR_CLICK_SOUND,
   subdivisionClickSound: DEFAULT_SUBDIVISION_CLICK_SOUND,
+  barStartEnabled: true,
   subdivisionAccentMode: DEFAULT_SUBDIVISION_ACCENT_MODE,
   subdivisionAccentEveryNth: DEFAULT_SUBDIVISION_ACCENT_EVERY_NTH,
   subdivisionAccentPattern: DEFAULT_SUBDIVISION_ACCENT_PATTERN,
@@ -47,7 +53,9 @@ const settingsSlice = createSlice({
       action: PayloadAction<{
         normalClickSound: NormalClickSoundId;
         accentClickSound: AccentClickSoundId;
+        barClickSound: BarClickSoundId;
         subdivisionClickSound: SubdivisionClickSoundId;
+        barStartEnabled: boolean;
         subdivisionAccentMode: SubdivisionAccentMode;
         subdivisionAccentEveryNth: number;
         subdivisionAccentPattern: SubdivisionAccentPattern;
@@ -55,7 +63,9 @@ const settingsSlice = createSlice({
     ) {
       state.normalClickSound = action.payload.normalClickSound;
       state.accentClickSound = action.payload.accentClickSound;
+      state.barClickSound = action.payload.barClickSound;
       state.subdivisionClickSound = action.payload.subdivisionClickSound;
+      state.barStartEnabled = action.payload.barStartEnabled;
       state.subdivisionAccentMode = action.payload.subdivisionAccentMode;
       state.subdivisionAccentEveryNth = action.payload.subdivisionAccentEveryNth;
       state.subdivisionAccentPattern = action.payload.subdivisionAccentPattern;
@@ -67,8 +77,14 @@ const settingsSlice = createSlice({
     accentClickSoundChanged(state, action: PayloadAction<AccentClickSoundId>) {
       state.accentClickSound = action.payload;
     },
+    barClickSoundChanged(state, action: PayloadAction<BarClickSoundId>) {
+      state.barClickSound = action.payload;
+    },
     subdivisionClickSoundChanged(state, action: PayloadAction<SubdivisionClickSoundId>) {
       state.subdivisionClickSound = action.payload;
+    },
+    barStartEnabledChanged(state, action: PayloadAction<boolean>) {
+      state.barStartEnabled = action.payload;
     },
     subdivisionAccentModeChanged(state, action: PayloadAction<SubdivisionAccentMode>) {
       state.subdivisionAccentMode = action.payload;
@@ -86,7 +102,9 @@ export const {
   settingsHydrated,
   normalClickSoundChanged,
   accentClickSoundChanged,
+  barClickSoundChanged,
   subdivisionClickSoundChanged,
+  barStartEnabledChanged,
   subdivisionAccentModeChanged,
   subdivisionAccentEveryNthChanged,
   subdivisionAccentPatternChanged,

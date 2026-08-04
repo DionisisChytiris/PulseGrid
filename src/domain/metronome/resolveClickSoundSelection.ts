@@ -16,15 +16,16 @@ export type ResolvedClickSoundSelection = {
 function resolveSoundIdForType(
   type: ClickSoundType,
   settings: MetronomeSoundSettings,
-  ticksPerBeat: number,
 ): ClickSoundId {
   switch (type) {
-    case ClickSoundType.BeatAccent:
+    case ClickSoundType.Bar:
+      return settings.barClickSound;
+    case ClickSoundType.Accent:
       return settings.accentClickSound;
-    case ClickSoundType.SubdivisionAccent:
+    case ClickSoundType.Click:
+      // Subdivision fills use Click. subdivisionClickSound is retained for
+      // settings/API compatibility but unused for tick playback.
       return settings.normalClickSound;
-    case ClickSoundType.Normal:
-      return ticksPerBeat > 1 ? settings.subdivisionClickSound : settings.normalClickSound;
     default:
       return settings.normalClickSound;
   }
@@ -33,13 +34,14 @@ function resolveSoundIdForType(
 /**
  * Given a click event and user sound settings, returns which sound should play.
  * Does not decide timing — only sound role and catalog id.
+ * Domain mirror; native classification is the runtime authority.
  */
 export function resolveClickSoundSelection(
   event: ResolveClickSoundInput,
   settings: MetronomeSoundSettings,
 ): ResolvedClickSoundSelection {
   const type = resolveClickSoundType(event);
-  const soundId = resolveSoundIdForType(type, settings, event.ticksPerBeat);
+  const soundId = resolveSoundIdForType(type, settings);
 
   return { type, soundId };
 }

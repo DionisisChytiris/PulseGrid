@@ -2,9 +2,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
   normalizeAccentClickSound,
+  normalizeBarClickSound,
   normalizeNormalClickSound,
   normalizeSubdivisionClickSound,
   type AccentClickSoundId,
+  type BarClickSoundId,
   type NormalClickSoundId,
   type SubdivisionClickSoundId,
 } from '../../domain/metronome/ClickSoundCatalog';
@@ -19,11 +21,14 @@ import {
 } from '../../domain/metronome/SubdivisionAccentPattern';
 
 const STORAGE_KEY = '@pulsegrid/metronome-settings/v1';
+const DEFAULT_BAR_START_ENABLED = true;
 
 type StoredMetronomeSettings = {
   normalClickSound?: string;
   accentClickSound?: string;
+  barClickSound?: string;
   subdivisionClickSound?: string;
+  barStartEnabled?: boolean;
   subdivisionAccentMode?: string;
   subdivisionAccentEveryNth?: number;
   subdivisionAccentPattern?: boolean[];
@@ -32,46 +37,48 @@ type StoredMetronomeSettings = {
 export type PersistedMetronomeSettings = {
   normalClickSound: NormalClickSoundId;
   accentClickSound: AccentClickSoundId;
+  barClickSound: BarClickSoundId;
   subdivisionClickSound: SubdivisionClickSoundId;
+  barStartEnabled: boolean;
   subdivisionAccentMode: SubdivisionAccentMode;
   subdivisionAccentEveryNth: number;
   subdivisionAccentPattern: SubdivisionAccentPattern;
 };
 
+function normalizeBarStartEnabled(value: boolean | undefined): boolean {
+  return typeof value === 'boolean' ? value : DEFAULT_BAR_START_ENABLED;
+}
+
+function toPersisted(settings: StoredMetronomeSettings | undefined): PersistedMetronomeSettings {
+  const accentClickSound = normalizeAccentClickSound(settings?.accentClickSound);
+  return {
+    normalClickSound: normalizeNormalClickSound(settings?.normalClickSound),
+    accentClickSound,
+    // Missing barClickSound uses temporary Strong default (≠ classic accent).
+    barClickSound: normalizeBarClickSound(settings?.barClickSound),
+    subdivisionClickSound: normalizeSubdivisionClickSound(settings?.subdivisionClickSound),
+    barStartEnabled: normalizeBarStartEnabled(settings?.barStartEnabled),
+    subdivisionAccentMode: normalizeSubdivisionAccentMode(settings?.subdivisionAccentMode),
+    subdivisionAccentEveryNth: normalizeSubdivisionAccentEveryNth(
+      settings?.subdivisionAccentEveryNth,
+    ),
+    subdivisionAccentPattern: normalizeSubdivisionAccentPattern(
+      settings?.subdivisionAccentPattern,
+    ),
+  };
+}
+
 export async function loadMetronomeSettings(): Promise<PersistedMetronomeSettings> {
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
     if (!raw) {
-      return {
-        normalClickSound: normalizeNormalClickSound(undefined),
-        accentClickSound: normalizeAccentClickSound(undefined),
-        subdivisionClickSound: normalizeSubdivisionClickSound(undefined),
-        subdivisionAccentMode: normalizeSubdivisionAccentMode(undefined),
-        subdivisionAccentEveryNth: normalizeSubdivisionAccentEveryNth(undefined),
-        subdivisionAccentPattern: normalizeSubdivisionAccentPattern(undefined),
-      };
+      return toPersisted(undefined);
     }
 
     const parsed = JSON.parse(raw) as StoredMetronomeSettings;
-    return {
-      normalClickSound: normalizeNormalClickSound(parsed.normalClickSound),
-      accentClickSound: normalizeAccentClickSound(parsed.accentClickSound),
-      subdivisionClickSound: normalizeSubdivisionClickSound(parsed.subdivisionClickSound),
-      subdivisionAccentMode: normalizeSubdivisionAccentMode(parsed.subdivisionAccentMode),
-      subdivisionAccentEveryNth: normalizeSubdivisionAccentEveryNth(parsed.subdivisionAccentEveryNth),
-      subdivisionAccentPattern: normalizeSubdivisionAccentPattern(
-        parsed.subdivisionAccentPattern,
-      ),
-    };
+    return toPersisted(parsed);
   } catch {
-    return {
-      normalClickSound: normalizeNormalClickSound(undefined),
-      accentClickSound: normalizeAccentClickSound(undefined),
-      subdivisionClickSound: normalizeSubdivisionClickSound(undefined),
-      subdivisionAccentMode: normalizeSubdivisionAccentMode(undefined),
-      subdivisionAccentEveryNth: normalizeSubdivisionAccentEveryNth(undefined),
-      subdivisionAccentPattern: normalizeSubdivisionAccentPattern(undefined),
-    };
+    return toPersisted(undefined);
   }
 }
 
@@ -79,7 +86,9 @@ export async function saveMetronomeSettings(settings: PersistedMetronomeSettings
   const payload: StoredMetronomeSettings = {
     normalClickSound: settings.normalClickSound,
     accentClickSound: settings.accentClickSound,
+    barClickSound: settings.barClickSound,
     subdivisionClickSound: settings.subdivisionClickSound,
+    barStartEnabled: settings.barStartEnabled,
     subdivisionAccentMode: settings.subdivisionAccentMode,
     subdivisionAccentEveryNth: settings.subdivisionAccentEveryNth,
     subdivisionAccentPattern: [...settings.subdivisionAccentPattern],

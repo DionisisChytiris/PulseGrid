@@ -20,5 +20,8 @@ internal object ClickSoundMapping {
     }
   }
 
+  /** Bar reuses accent sample IDs until dedicated bar assets exist. */
+  fun barSoundId(value: String): Int = accentSoundId(value)
+
   fun subdivisionSoundId(value: String): Int = normalSoundId(value)
 }

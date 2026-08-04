@@ -4,6 +4,10 @@ export const selectNormalClickSound = (state: RootState) => state.settings.norma
 
 export const selectAccentClickSound = (state: RootState) => state.settings.accentClickSound;
 
+export const selectBarClickSound = (state: RootState) => state.settings.barClickSound;
+
+export const selectBarStartEnabled = (state: RootState) => state.settings.barStartEnabled;
+
 export const selectSubdivisionClickSound = (state: RootState) =>
   state.settings.subdivisionClickSound;
 
@@ -21,5 +25,6 @@ export const selectSettingsHydrated = (state: RootState) => state.settings.hydra
 export const selectMetronomeSoundSettings = (state: RootState) => ({
   normalClickSound: state.settings.normalClickSound,
   accentClickSound: state.settings.accentClickSound,
+  barClickSound: state.settings.barClickSound,
   subdivisionClickSound: state.settings.subdivisionClickSound,
 });

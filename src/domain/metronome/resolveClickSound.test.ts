@@ -5,7 +5,7 @@ import { resolveClickSoundType } from './resolveClickSound';
 const accentPattern = [true, false, false, false];
 
 describe('resolveClickSoundType', () => {
-  it('uses beat accent on quarter-note beats', () => {
+  it('uses Bar on the first pulse of the measure when Bar Start is enabled', () => {
     expect(
       resolveClickSoundType({
         beatIndexInBar: 0,
@@ -13,7 +13,7 @@ describe('resolveClickSoundType', () => {
         accentPattern,
         ticksPerBeat: 1,
       }),
-    ).toBe(ClickSoundType.BeatAccent);
+    ).toBe(ClickSoundType.Bar);
 
     expect(
       resolveClickSoundType({
@@ -22,10 +22,10 @@ describe('resolveClickSoundType', () => {
         accentPattern,
         ticksPerBeat: 1,
       }),
-    ).toBe(ClickSoundType.Normal);
+    ).toBe(ClickSoundType.Click);
   });
 
-  it('uses only beat accent on accented beats when subdivision accent mode is off', () => {
+  it('uses only Bar or Accent on accented beats when subdivision accent mode is off', () => {
     expect(
       resolveClickSoundType({
         beatIndexInBar: 0,
@@ -34,7 +34,7 @@ describe('resolveClickSoundType', () => {
         ticksPerBeat: 3,
         subdivisionAccentMode: SubdivisionAccentMode.OFF,
       }),
-    ).toBe(ClickSoundType.BeatAccent);
+    ).toBe(ClickSoundType.Bar);
 
     expect(
       resolveClickSoundType({
@@ -44,7 +44,7 @@ describe('resolveClickSoundType', () => {
         ticksPerBeat: 3,
         subdivisionAccentMode: SubdivisionAccentMode.OFF,
       }),
-    ).toBe(ClickSoundType.Normal);
+    ).toBe(ClickSoundType.Click);
 
     expect(
       resolveClickSoundType({
@@ -54,10 +54,10 @@ describe('resolveClickSoundType', () => {
         ticksPerBeat: 3,
         subdivisionAccentMode: SubdivisionAccentMode.OFF,
       }),
-    ).toBe(ClickSoundType.Normal);
+    ).toBe(ClickSoundType.Click);
   });
 
-  it('uses normal fills on non-accented beats when mode is off', () => {
+  it('uses Click fills on non-accented beats when mode is off', () => {
     for (let subdivisionIndex = 0; subdivisionIndex < 3; subdivisionIndex += 1) {
       expect(
         resolveClickSoundType({
@@ -67,11 +67,11 @@ describe('resolveClickSoundType', () => {
           ticksPerBeat: 3,
           subdivisionAccentMode: SubdivisionAccentMode.OFF,
         }),
-      ).toBe(ClickSoundType.Normal);
+      ).toBe(ClickSoundType.Click);
     }
   });
 
-  it('prioritizes beat accent over group-start on accented beats', () => {
+  it('prioritizes Bar over group-start on the downbeat', () => {
     expect(
       resolveClickSoundType({
         beatIndexInBar: 0,
@@ -80,10 +80,10 @@ describe('resolveClickSoundType', () => {
         ticksPerBeat: 3,
         subdivisionAccentMode: SubdivisionAccentMode.GROUP_START,
       }),
-    ).toBe(ClickSoundType.BeatAccent);
+    ).toBe(ClickSoundType.Bar);
   });
 
-  it('uses subdivision accent for group starts on non-accented beats', () => {
+  it('uses Accent for group starts on non-downbeat beats', () => {
     expect(
       resolveClickSoundType({
         beatIndexInBar: 1,
@@ -92,7 +92,7 @@ describe('resolveClickSoundType', () => {
         ticksPerBeat: 3,
         subdivisionAccentMode: SubdivisionAccentMode.GROUP_START,
       }),
-    ).toBe(ClickSoundType.SubdivisionAccent);
+    ).toBe(ClickSoundType.Accent);
 
     expect(
       resolveClickSoundType({
@@ -102,19 +102,19 @@ describe('resolveClickSoundType', () => {
         ticksPerBeat: 3,
         subdivisionAccentMode: SubdivisionAccentMode.GROUP_START,
       }),
-    ).toBe(ClickSoundType.Normal);
+    ).toBe(ClickSoundType.Click);
   });
 
-  it('separates beat and subdivision accents across a 4/4 triplet bar with GROUP_START', () => {
+  it('separates Bar, Accent, and Click across a 4/4 triplet bar with GROUP_START', () => {
     const beat1Expected = [
-      ClickSoundType.BeatAccent,
-      ClickSoundType.Normal,
-      ClickSoundType.Normal,
+      ClickSoundType.Bar,
+      ClickSoundType.Click,
+      ClickSoundType.Click,
     ];
     const otherBeatExpected = [
-      ClickSoundType.SubdivisionAccent,
-      ClickSoundType.Normal,
-      ClickSoundType.Normal,
+      ClickSoundType.Accent,
+      ClickSoundType.Click,
+      ClickSoundType.Click,
     ];
 
     for (let subdivisionIndex = 0; subdivisionIndex < 3; subdivisionIndex += 1) {
@@ -144,7 +144,7 @@ describe('resolveClickSoundType', () => {
     }
   });
 
-  it('accents the first sixteenth as beat accent and uses normal fills in GROUP_START mode', () => {
+  it('accents the first sixteenth as Bar and uses Click fills in GROUP_START mode', () => {
     expect(
       resolveClickSoundType({
         beatIndexInBar: 0,
@@ -153,7 +153,7 @@ describe('resolveClickSoundType', () => {
         ticksPerBeat: 4,
         subdivisionAccentMode: SubdivisionAccentMode.GROUP_START,
       }),
-    ).toBe(ClickSoundType.BeatAccent);
+    ).toBe(ClickSoundType.Bar);
 
     for (let subdivisionIndex = 1; subdivisionIndex < 4; subdivisionIndex += 1) {
       expect(
@@ -164,7 +164,7 @@ describe('resolveClickSoundType', () => {
           ticksPerBeat: 4,
           subdivisionAccentMode: SubdivisionAccentMode.GROUP_START,
         }),
-      ).toBe(ClickSoundType.Normal);
+      ).toBe(ClickSoundType.Click);
     }
   });
 
@@ -178,7 +178,7 @@ describe('resolveClickSoundType', () => {
         accentPattern: sevenEightPattern,
         ticksPerBeat: 1,
       }),
-    ).toBe(ClickSoundType.BeatAccent);
+    ).toBe(ClickSoundType.Bar);
 
     expect(
       resolveClickSoundType({
@@ -187,7 +187,7 @@ describe('resolveClickSoundType', () => {
         accentPattern: sevenEightPattern,
         ticksPerBeat: 1,
       }),
-    ).toBe(ClickSoundType.BeatAccent);
+    ).toBe(ClickSoundType.Accent);
 
     expect(
       resolveClickSoundType({
@@ -196,6 +196,61 @@ describe('resolveClickSoundType', () => {
         accentPattern: sevenEightPattern,
         ticksPerBeat: 1,
       }),
-    ).toBe(ClickSoundType.Normal);
+    ).toBe(ClickSoundType.Click);
+  });
+
+  it('lets beat 1 follow accent logic when Bar Start is disabled', () => {
+    expect(
+      resolveClickSoundType({
+        beatIndexInBar: 0,
+        subdivisionIndex: 0,
+        accentPattern,
+        ticksPerBeat: 1,
+        barStartEnabled: false,
+      }),
+    ).toBe(ClickSoundType.Accent);
+
+    expect(
+      resolveClickSoundType({
+        beatIndexInBar: 0,
+        subdivisionIndex: 0,
+        accentPattern: [false, true, false, false],
+        ticksPerBeat: 1,
+        barStartEnabled: false,
+      }),
+    ).toBe(ClickSoundType.Click);
+
+    expect(
+      resolveClickSoundType({
+        beatIndexInBar: 3,
+        subdivisionIndex: 0,
+        accentPattern: [true, false, false, true, false, true, false],
+        ticksPerBeat: 1,
+        barStartEnabled: false,
+      }),
+    ).toBe(ClickSoundType.Accent);
+
+    expect(
+      resolveClickSoundType({
+        beatIndexInBar: 1,
+        subdivisionIndex: 0,
+        accentPattern,
+        ticksPerBeat: 3,
+        subdivisionAccentMode: SubdivisionAccentMode.GROUP_START,
+        barStartEnabled: false,
+      }),
+    ).toBe(ClickSoundType.Accent);
+
+    // Subdivision accents may still apply on beat 1 when Bar Start is off.
+    expect(
+      resolveClickSoundType({
+        beatIndexInBar: 0,
+        subdivisionIndex: 0,
+        accentPattern: [false, false, false, false],
+        ticksPerBeat: 3,
+        subdivisionAccentMode: SubdivisionAccentMode.GROUP_START,
+        barStartEnabled: false,
+      }),
+    ).toBe(ClickSoundType.Accent);
   });
 });

@@ -165,6 +165,9 @@ void OboeStreamDataCallback::drainQueue(
       case ClickType::Subdivision:
         renderer_->subdivisionPlayer().start(frameOffset);
         break;
+      case ClickType::Bar:
+        renderer_->barPlayer().start(frameOffset);
+        break;
     }
 
     __android_log_print(
@@ -310,6 +313,9 @@ void OboeEngine::previewClick(ClickType type) {
       break;
     case ClickType::Subdivision:
       renderer_.previewSubdivision();
+      break;
+    case ClickType::Bar:
+      renderer_.previewBar();
       break;
   }
 }

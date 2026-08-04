@@ -6,6 +6,7 @@ enum class ClickType : uint8_t {
   Accent = 0,
   Normal = 1,
   Subdivision = 2,
+  Bar = 3,
 };
 
 struct ClickEvent {

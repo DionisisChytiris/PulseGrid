@@ -101,6 +101,10 @@ export class NativeAudioEngine implements IAudioEngine {
     NativeAudioModule.setAccentClickSound?.(soundId);
   }
 
+  setBarClickSound(soundId: string): void {
+    NativeAudioModule.setBarClickSound?.(soundId);
+  }
+
   setSubdivisionClickSound(soundId: string): void {
     NativeAudioModule.setSubdivisionClickSound?.(soundId);
   }
@@ -117,12 +121,22 @@ export class NativeAudioEngine implements IAudioEngine {
     NativeAudioModule.setSubdivisionAccentPattern?.(pattern);
   }
 
+  setBarStartEnabled(enabled: boolean): void {
+    // TEMP debug — remove after native barStart propagation diagnosis
+    console.log('[BarStartDebug] NativeAudioEngine.setBarStartEnabled', { enabled });
+    NativeAudioModule.setBarStartEnabled?.(enabled);
+  }
+
   previewNormalClick(): void {
     NativeAudioModule.previewNormalClick?.();
   }
 
   previewAccentClick(): void {
     NativeAudioModule.previewAccentClick?.();
+  }
+
+  previewBarClick(): void {
+    NativeAudioModule.previewBarClick?.();
   }
 
   previewSubdivisionClick(): void {

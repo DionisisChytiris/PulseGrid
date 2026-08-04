@@ -40,6 +40,9 @@ internal class MetronomeEngine(
   private var subdivisionAccentEveryNth: Int = 4
   private var subdivisionAccentPattern: BooleanArray = booleanArrayOf()
 
+  @Volatile
+  private var barStartEnabled: Boolean = true
+
   private var playbackMode: PlaybackMode = PlaybackMode.QUICK_METRONOME
 
   private var eventSource: EventSource = QuickMetronomeEventSource {
@@ -206,6 +209,17 @@ internal class MetronomeEngine(
   fun updateSubdivisionAccentPattern(pattern: BooleanArray) {
     synchronized(lock) {
       subdivisionAccentPattern = pattern.copyOf()
+    }
+  }
+
+  fun updateBarStartEnabled(enabled: Boolean) {
+    synchronized(lock) {
+      // TEMP debug — remove after native barStart propagation diagnosis
+      android.util.Log.d(
+        "BarStartDebug",
+        "Android MetronomeEngine.updateBarStartEnabled previous=$barStartEnabled new=$enabled",
+      )
+      barStartEnabled = enabled
     }
   }
 
@@ -611,7 +625,9 @@ internal class MetronomeEngine(
       if (playbackMode == PlaybackMode.SONG_TIMELINE) {
         AccentClassification.resolveClickSoundKindFromTickAccent(
           isAccent = snapshot.isAccent,
+          beatIndexInBar = snapshot.beatIndexInBar,
           subdivisionIndex = snapshot.subdivisionIndex,
+          barStartEnabled = barStartEnabled,
         )
       } else {
         AccentClassification.resolveClickSoundKind(
@@ -622,14 +638,24 @@ internal class MetronomeEngine(
           subdivisionAccentMode = subdivisionAccentMode,
           subdivisionAccentEveryNth = subdivisionAccentEveryNth,
           subdivisionAccentPattern = subdivisionAccentPattern,
+          barStartEnabled = barStartEnabled,
         )
       }
 
+    // TEMP debug — remove after native barStart propagation diagnosis
+    if (snapshot.beatIndexInBar == 0 && snapshot.subdivisionIndex == 0) {
+      android.util.Log.d(
+        "BarStartDebug",
+        "Android classify beat1 barStartEnabled=$barStartEnabled soundKind=$soundKind",
+      )
+    }
+
     when (soundKind) {
-      ClickSoundKind.BEAT_ACCENT -> clickSoundPlayer?.playAccent(snapshot.scheduledDeadlineNs)
-      ClickSoundKind.SUBDIVISION_ACCENT -> clickSoundPlayer?.playNormal(snapshot.scheduledDeadlineNs)
-      ClickSoundKind.NORMAL -> clickSoundPlayer?.playNormal(snapshot.scheduledDeadlineNs)
-      ClickSoundKind.SUBDIVISION -> clickSoundPlayer?.playSubdivision(snapshot.scheduledDeadlineNs)
+      ClickSoundKind.BAR -> clickSoundPlayer?.playBar(snapshot.scheduledDeadlineNs)
+      ClickSoundKind.ACCENT -> clickSoundPlayer?.playAccent(snapshot.scheduledDeadlineNs)
+      ClickSoundKind.CLICK -> clickSoundPlayer?.playNormal(snapshot.scheduledDeadlineNs)
+      // Compatibility: subdivision bank unused; route to Click.
+      ClickSoundKind.SUBDIVISION -> clickSoundPlayer?.playNormal(snapshot.scheduledDeadlineNs)
     }
   }
 

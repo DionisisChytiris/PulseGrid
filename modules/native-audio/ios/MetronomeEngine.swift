@@ -35,6 +35,7 @@ final class MetronomeEngine {
   private var subdivisionAccentMode: SubdivisionAccentMode = .off
   private var subdivisionAccentEveryNth: Int = 4
   private var subdivisionAccentPattern: [Bool] = []
+  private var barStartEnabled: Bool = true
   private var anchorTimeNs: UInt64 = 0
 
   /// Precompiled song timeline (empty = Quick Metronome).
@@ -214,6 +215,19 @@ final class MetronomeEngine {
     defer { stateLock.unlock() }
 
     subdivisionAccentPattern = pattern
+  }
+
+  func updateBarStartEnabled(_ enabled: Bool) {
+    stateLock.lock()
+    defer { stateLock.unlock() }
+
+    // TEMP debug — remove after native barStart propagation diagnosis
+    NSLog(
+      "[BarStartDebug] iOS MetronomeEngine.updateBarStartEnabled previous=%@ new=%@",
+      barStartEnabled ? "true" : "false",
+      enabled ? "true" : "false"
+    )
+    barStartEnabled = enabled
   }
 
   func stop() {
@@ -562,6 +576,7 @@ final class MetronomeEngine {
     let mode = subdivisionAccentMode
     let everyNth = subdivisionAccentEveryNth
     let subPattern = subdivisionAccentPattern
+    let barStart = barStartEnabled
     let songTimeline = !timelineEvents.isEmpty
 
     if stillActive {
@@ -588,12 +603,28 @@ final class MetronomeEngine {
 
     for snapshot in snapshots {
       if songTimeline {
+        // TEMP debug — remove after native barStart propagation diagnosis
+        if snapshot.beatIndexInBar == 0 && snapshot.subdivisionIndex == 0 {
+          NSLog(
+            "[BarStartDebug] iOS classify song beat1 barStartEnabled=%@",
+            barStart ? "true" : "false"
+          )
+        }
         playClickForSongTick(
           isAccent: snapshot.isAccent,
+          beatIndexInBar: snapshot.beatIndexInBar,
           subdivisionIndex: snapshot.subdivisionIndex,
+          barStartEnabled: barStart,
           scheduledDeadlineNs: snapshot.scheduledDeadlineNs
         )
       } else {
+        // TEMP debug — remove after native barStart propagation diagnosis
+        if snapshot.beatIndexInBar == 0 && snapshot.subdivisionIndex == 0 {
+          NSLog(
+            "[BarStartDebug] iOS classify qm beat1 barStartEnabled=%@",
+            barStart ? "true" : "false"
+          )
+        }
         playClickForTick(
           beatIndexInBar: snapshot.beatIndexInBar,
           subdivisionIndex: snapshot.subdivisionIndex,
@@ -602,6 +633,7 @@ final class MetronomeEngine {
           subdivisionAccentMode: mode,
           subdivisionAccentEveryNth: everyNth,
           subdivisionAccentPattern: subPattern,
+          barStartEnabled: barStart,
           scheduledDeadlineNs: snapshot.scheduledDeadlineNs
         )
       }
@@ -650,21 +682,26 @@ final class MetronomeEngine {
 
   private func playClickForSongTick(
     isAccent: Bool,
+    beatIndexInBar: Int,
     subdivisionIndex: Int,
+    barStartEnabled: Bool,
     scheduledDeadlineNs: UInt64
   ) {
     switch AccentClassification.resolveClickSoundKindFromTickAccent(
       isAccent: isAccent,
-      subdivisionIndex: subdivisionIndex
+      beatIndexInBar: beatIndexInBar,
+      subdivisionIndex: subdivisionIndex,
+      barStartEnabled: barStartEnabled
     ) {
-    case .beatAccent:
+    case .bar:
+      clickSoundPlayer?.playBar(scheduledDeadlineNs: scheduledDeadlineNs)
+    case .accent:
       clickSoundPlayer?.playAccent(scheduledDeadlineNs: scheduledDeadlineNs)
-    case .subdivisionAccent:
-      clickSoundPlayer?.playNormal(scheduledDeadlineNs: scheduledDeadlineNs)
-    case .normal:
+    case .click:
       clickSoundPlayer?.playNormal(scheduledDeadlineNs: scheduledDeadlineNs)
     case .subdivision:
-      clickSoundPlayer?.playSubdivision(scheduledDeadlineNs: scheduledDeadlineNs)
+      // Compatibility: subdivision bank unused; route to Click.
+      clickSoundPlayer?.playNormal(scheduledDeadlineNs: scheduledDeadlineNs)
     }
   }
 
@@ -676,6 +713,7 @@ final class MetronomeEngine {
     subdivisionAccentMode: SubdivisionAccentMode,
     subdivisionAccentEveryNth: Int,
     subdivisionAccentPattern: [Bool],
+    barStartEnabled: Bool,
     scheduledDeadlineNs: UInt64
   ) {
     switch AccentClassification.resolveClickSoundKind(
@@ -685,16 +723,18 @@ final class MetronomeEngine {
       ticksPerBeat: ticksPerBeat,
       subdivisionAccentMode: subdivisionAccentMode,
       subdivisionAccentEveryNth: subdivisionAccentEveryNth,
-      subdivisionAccentPattern: subdivisionAccentPattern
+      subdivisionAccentPattern: subdivisionAccentPattern,
+      barStartEnabled: barStartEnabled
     ) {
-    case .beatAccent:
+    case .bar:
+      clickSoundPlayer?.playBar(scheduledDeadlineNs: scheduledDeadlineNs)
+    case .accent:
       clickSoundPlayer?.playAccent(scheduledDeadlineNs: scheduledDeadlineNs)
-    case .subdivisionAccent:
-      clickSoundPlayer?.playNormal(scheduledDeadlineNs: scheduledDeadlineNs)
-    case .normal:
+    case .click:
       clickSoundPlayer?.playNormal(scheduledDeadlineNs: scheduledDeadlineNs)
     case .subdivision:
-      clickSoundPlayer?.playSubdivision(scheduledDeadlineNs: scheduledDeadlineNs)
+      // Compatibility: subdivision bank unused; route to Click.
+      clickSoundPlayer?.playNormal(scheduledDeadlineNs: scheduledDeadlineNs)
     }
   }
 

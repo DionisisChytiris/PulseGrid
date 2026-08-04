@@ -30,12 +30,15 @@ declare class NativeAudioModule extends NativeModule<{
   setSubdivision(subdivision: NativeSubdivisionKind): void;
   setNormalClickSound(soundId: string): void;
   setAccentClickSound(soundId: string): void;
+  setBarClickSound(soundId: string): void;
   setSubdivisionClickSound(soundId: string): void;
   setSubdivisionAccentMode(mode: string): void;
   setSubdivisionAccentEveryNth(value: number): void;
   setSubdivisionAccentPattern(pattern: boolean[]): void;
+  setBarStartEnabled(enabled: boolean): void;
   previewNormalClick(): void;
   previewAccentClick(): void;
+  previewBarClick(): void;
   previewSubdivisionClick(): void;
 }
 

@@ -15,7 +15,13 @@ export type ResolveClickSoundInput = {
   readonly subdivisionAccentMode?: SubdivisionAccentMode;
   readonly subdivisionAccentEveryNth?: number;
   readonly subdivisionAccentPattern?: SubdivisionAccentPattern;
+  /** When true (default), downbeat plays Bar. When false, only the BAR role is removed. */
+  readonly barStartEnabled?: boolean;
 };
+
+function isBarStartHit(beatIndexInBar: number, subdivisionIndex: number): boolean {
+  return beatIndexInBar === 0 && subdivisionIndex === 0;
+}
 
 function isBeatAccentHit(
   beatIsAccented: boolean,
@@ -34,9 +40,9 @@ function isBeatAccentHit(
 }
 
 /**
- * Selects beat-accent / subdivision-accent / normal role for a pulse.
- * Priority: beat accent pattern → subdivision accent mode → normal.
- * Timing is unchanged — this only affects which sound category plays.
+ * Selects Bar / Accent / Click for a pulse.
+ * Bar Start adds the BAR role on the downbeat when enabled; when disabled, beat 1 uses accent logic.
+ * Domain mirror of native AccentClassification (runtime authority).
  */
 export function resolveClickSoundType({
   beatIndexInBar,
@@ -46,11 +52,16 @@ export function resolveClickSoundType({
   subdivisionAccentMode = DEFAULT_SUBDIVISION_ACCENT_MODE,
   subdivisionAccentEveryNth,
   subdivisionAccentPattern,
+  barStartEnabled = true,
 }: ResolveClickSoundInput): ClickSoundType {
+  if (barStartEnabled && isBarStartHit(beatIndexInBar, subdivisionIndex)) {
+    return ClickSoundType.Bar;
+  }
+
   const beatIsAccented = resolveBeatAccent(beatIndexInBar, accentPattern);
 
   if (isBeatAccentHit(beatIsAccented, subdivisionIndex, ticksPerBeat)) {
-    return ClickSoundType.BeatAccent;
+    return ClickSoundType.Accent;
   }
 
   if (
@@ -64,8 +75,8 @@ export function resolveClickSoundType({
       beatIsAccented,
     })
   ) {
-    return ClickSoundType.SubdivisionAccent;
+    return ClickSoundType.Accent;
   }
 
-  return ClickSoundType.Normal;
+  return ClickSoundType.Click;
 }

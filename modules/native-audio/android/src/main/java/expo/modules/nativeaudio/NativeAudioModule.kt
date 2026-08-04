@@ -108,12 +108,22 @@ class NativeAudioModule : Module() {
       metronomeEngine.updateSubdivisionAccentPattern(readSubdivisionAccentPatternList(pattern))
     }
 
+    Function("setBarStartEnabled") { enabled: Boolean ->
+      // TEMP debug — remove after native barStart propagation diagnosis
+      android.util.Log.d("BarStartDebug", "Android NativeAudioModule.setBarStartEnabled enabled=$enabled")
+      metronomeEngine.updateBarStartEnabled(enabled)
+    }
+
     Function("setNormalClickSound") { soundId: String ->
       clickSoundPlayer?.setNormalClickSound(ClickSoundMapping.normalSoundId(soundId))
     }
 
     Function("setAccentClickSound") { soundId: String ->
       clickSoundPlayer?.setAccentClickSound(ClickSoundMapping.accentSoundId(soundId))
+    }
+
+    Function("setBarClickSound") { soundId: String ->
+      clickSoundPlayer?.setBarClickSound(ClickSoundMapping.barSoundId(soundId))
     }
 
     Function("setSubdivisionClickSound") { soundId: String ->
@@ -126,6 +136,10 @@ class NativeAudioModule : Module() {
 
     Function("previewAccentClick") {
       clickSoundPlayer?.previewAccentClick()
+    }
+
+    Function("previewBarClick") {
+      clickSoundPlayer?.previewBarClick()
     }
 
     Function("previewSubdivisionClick") {

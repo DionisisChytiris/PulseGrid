@@ -19,14 +19,17 @@ public:
 
   void selectNormalSound(click_sample_data::NormalSound sound);
   void selectAccentSound(click_sample_data::AccentSound sound);
+  void selectBarSound(click_sample_data::AccentSound sound);
   void selectSubdivisionSound(click_sample_data::NormalSound sound);
   void previewAccent();
   void previewNormal();
+  void previewBar();
   void previewSubdivision();
   void stopAllPlayers();
 
   SamplePlayer& accentPlayer() { return accentPlayer_; }
   SamplePlayer& normalPlayer() { return normalPlayer_; }
+  SamplePlayer& barPlayer() { return barPlayer_; }
   SamplePlayer& subdivisionPlayer() { return subdivisionPlayer_; }
 
   bool isIdle() const;
@@ -34,15 +37,19 @@ public:
 private:
   void loadNormalSound(click_sample_data::NormalSound sound);
   void loadAccentSound(click_sample_data::AccentSound sound);
+  void loadBarSound(click_sample_data::AccentSound sound);
   void loadSubdivisionSound(click_sample_data::NormalSound sound);
 
   SamplePlayer accentPlayer_;
   SamplePlayer normalPlayer_;
+  SamplePlayer barPlayer_;
   SamplePlayer subdivisionPlayer_;
   click_sample_data::NormalSound selectedNormalSound_ =
       click_sample_data::NormalSound::Classic;
   click_sample_data::AccentSound selectedAccentSound_ =
       click_sample_data::AccentSound::Classic;
+  click_sample_data::AccentSound selectedBarSound_ =
+      click_sample_data::AccentSound::Strong;
   click_sample_data::NormalSound selectedSubdivisionSound_ =
       click_sample_data::NormalSound::Classic;
 };

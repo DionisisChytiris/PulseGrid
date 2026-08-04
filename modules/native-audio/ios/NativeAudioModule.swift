@@ -81,12 +81,22 @@ public class NativeAudioModule: Module {
       self.metronomeEngine.updateSubdivisionAccentPattern(pattern)
     }
 
+    Function("setBarStartEnabled") { (enabled: Bool) in
+      // TEMP debug — remove after native barStart propagation diagnosis
+      NSLog("[BarStartDebug] iOS NativeAudioModule.setBarStartEnabled enabled=%@", enabled ? "true" : "false")
+      self.metronomeEngine.updateBarStartEnabled(enabled)
+    }
+
     Function("setNormalClickSound") { (soundId: String) in
       self.clickSoundPlayer.setNormalClickSound(soundId)
     }
 
     Function("setAccentClickSound") { (soundId: String) in
       self.clickSoundPlayer.setAccentClickSound(soundId)
+    }
+
+    Function("setBarClickSound") { (soundId: String) in
+      self.clickSoundPlayer.setBarClickSound(soundId)
     }
 
     Function("setSubdivisionClickSound") { (soundId: String) in
@@ -99,6 +109,10 @@ public class NativeAudioModule: Module {
 
     Function("previewAccentClick") {
       self.clickSoundPlayer.previewAccentClick()
+    }
+
+    Function("previewBarClick") {
+      self.clickSoundPlayer.previewBarClick()
     }
 
     Function("previewSubdivisionClick") {

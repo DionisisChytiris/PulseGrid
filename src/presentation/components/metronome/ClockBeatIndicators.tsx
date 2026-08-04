@@ -1,12 +1,14 @@
 import { memo, useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { clickSoundService } from '../../../application/services/clickSoundServiceInstance';
 import {
   selectAccentPattern,
   selectCurrentBeat,
   selectIsPlaying,
   selectTimeSignature,
 } from '../../../features/metronome/metronomeSelectors';
+import { selectBarStartEnabled } from '../../../features/settings/settingsSelectors';
 import { useAppSelector } from '../../../store/hooks';
 import { useResponsiveLayout } from '../../layout/useResponsiveLayout';
 import { studioColors } from '../../theme';
@@ -18,15 +20,20 @@ type LedAppearance = {
   opacity: number;
 };
 
+/**
+ * Beat-dot colours. Three states only: Bar, Accent, Click.
+ * Beat 1 never uses the accent pattern — Bar when enabled, Click when disabled.
+ */
 function ledAppearance(
   isPlaying: boolean,
   isCurrentBeat: boolean,
   isPatternAccent: boolean,
-  isBeatOne: boolean,
+  isBarStartBeat: boolean,
 ): LedAppearance {
   if (isPlaying) {
     if (isCurrentBeat) {
-      const color = isPatternAccent || isBeatOne ? studioColors.beatAccent : studioColors.beatActive;
+      const color =
+        isBarStartBeat || isPatternAccent ? studioColors.beatAccent : studioColors.beatActive;
 
       return {
         backgroundColor: color,
@@ -36,15 +43,33 @@ function ledAppearance(
       };
     }
 
+    if (isBarStartBeat) {
+      return {
+        backgroundColor: studioColors.beatActive,
+        borderColor: studioColors.beatActive,
+        borderWidth: 0,
+        opacity: 0.55,
+      };
+    }
+
     return {
-      backgroundColor: isBeatOne ? studioColors.beatActive : studioColors.beatInactivePlaying,
-      borderColor: isBeatOne ? studioColors.beatActive : studioColors.beatInactivePlaying,
+      backgroundColor: studioColors.beatInactivePlaying,
+      borderColor: studioColors.beatInactivePlaying,
       borderWidth: 0,
-      opacity: isBeatOne ? 0.55 : studioColors.beatLedRestingOpacity,
+      opacity: studioColors.beatLedRestingOpacity,
     };
   }
 
-  if (isPatternAccent || isBeatOne) {
+  if (isBarStartBeat) {
+    return {
+      backgroundColor: studioColors.tempoMarking,
+      borderColor: studioColors.tempoMarking,
+      borderWidth: 0,
+      opacity: 1,
+    };
+  }
+
+  if (isPatternAccent) {
     return {
       backgroundColor: studioColors.beatAccent,
       borderColor: studioColors.beatAccent,
@@ -53,7 +78,7 @@ function ledAppearance(
     };
   }
 
-  // Unaccented idle: filled light blue, no border outline.
+  // Click (unaccented): filled light blue, no border outline.
   return {
     backgroundColor: '#7EB6E8',
     borderColor: 'transparent',
@@ -70,6 +95,7 @@ type ClockBeatDotProps = {
   isPlaying: boolean;
   isCurrentBeat: boolean;
   isPatternAccent: boolean;
+  isBarStartEnabled: boolean;
   onPress?: () => void;
 };
 
@@ -81,10 +107,14 @@ const ClockBeatDot = memo(function ClockBeatDot({
   isPlaying,
   isCurrentBeat,
   isPatternAccent,
+  isBarStartEnabled,
   onPress,
 }: ClockBeatDotProps) {
   const isBeatOne = beatNumber === 1;
-  const appearance = ledAppearance(isPlaying, isCurrentBeat, isPatternAccent, isBeatOne);
+  const isBarStartBeat = isBeatOne && isBarStartEnabled;
+  // Match audio: beat 1 is Bar or Click only — never Accent from accentPattern[0].
+  const visualPatternAccent = isBeatOne ? false : isPatternAccent;
+  const appearance = ledAppearance(isPlaying, isCurrentBeat, visualPatternAccent, isBarStartBeat);
   const dotStyle = {
     width: size,
     height: size,
@@ -101,7 +131,15 @@ const ClockBeatDot = memo(function ClockBeatDot({
     top,
   };
 
-  if (isPlaying) {
+  const accessibilityLabel = isBeatOne
+    ? `Beat 1, Bar Start ${isBarStartEnabled ? 'on' : 'off'}`
+    : `Beat ${beatNumber}, ${isPatternAccent ? 'accented' : 'normal'}`;
+  const accessibilityHint = isBeatOne
+    ? 'Double tap to toggle Bar Start'
+    : 'Double tap to toggle accent';
+
+  // Accents stay non-interactive during playback; beat 1 stays tappable for Bar Start.
+  if (isPlaying && !isBeatOne) {
     return (
       <View style={positionStyle} pointerEvents="none">
         <View style={[styles.dot, dotStyle]} />
@@ -111,12 +149,18 @@ const ClockBeatDot = memo(function ClockBeatDot({
 
   return (
     <Pressable
-      onPress={onPress}
+      onPress={() => {
+        // TEMP debug — remove after bar-start hit-test diagnosis
+        if (isBeatOne) {
+          console.log('[BarStartDebug] beat1 Pressable onPress fired');
+        }
+        onPress?.();
+      }}
       hitSlop={6}
       accessibilityRole="button"
-      accessibilityLabel={`Beat ${beatNumber}, ${isPatternAccent ? 'accented' : 'normal'}`}
-      accessibilityHint="Double tap to toggle accent"
-      accessibilityState={{ selected: isPatternAccent }}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
+      accessibilityState={{ selected: isBeatOne ? isBarStartEnabled : isPatternAccent }}
       style={({ pressed }) => [positionStyle, pressed && styles.dotPressed]}
     >
       <View style={[styles.dot, dotStyle]} />
@@ -134,6 +178,7 @@ type ClockBeatIndicatorsProps = {
 /**
  * Clock-face beat indicators around the BPM circle.
  * Beat 1 is always at 12 o'clock; remaining beats are equally spaced clockwise.
+ * Tap beat 1 to toggle Bar Start (idle or playing); tap other beats to toggle accents when idle.
  */
 function ClockBeatIndicatorsComponent({
   diameter,
@@ -143,6 +188,7 @@ function ClockBeatIndicatorsComponent({
   const isPlaying = useAppSelector(selectIsPlaying);
   const currentBeat = useAppSelector(selectCurrentBeat);
   const accentPattern = useAppSelector(selectAccentPattern);
+  const barStartEnabled = useAppSelector(selectBarStartEnabled);
   const timeSignature = useAppSelector(selectTimeSignature);
   const beatCount = timeSignature.numerator;
 
@@ -172,11 +218,19 @@ function ClockBeatIndicatorsComponent({
     });
   }, [baseDotSize, beatCount, beatOneSize, center, orbitRadius]);
 
-  const toggleBeat = (beatIndex: number) => {
+  const toggleAccentBeat = (beatIndex: number) => {
     const next = accentPattern.map((accent, index) =>
       index === beatIndex ? !accent : accent,
     );
     onAccentPatternChange([...next]);
+  };
+
+  const toggleBarStart = () => {
+    // TEMP debug — remove after bar-start hit-test diagnosis
+    const previous = barStartEnabled;
+    const next = !barStartEnabled;
+    console.log('[BarStartDebug] toggleBarStart entered', { previous, next });
+    void clickSoundService.setBarStartEnabled(next);
   };
 
   if (beatCount <= 0) {
@@ -187,7 +241,11 @@ function ClockBeatIndicatorsComponent({
     <View
       pointerEvents="box-none"
       style={[styles.orbit, { width: diameter, height: diameter }]}
-      accessibilityLabel={isPlaying ? 'Beat indicators' : 'Beat indicators, tap to set accents'}
+      accessibilityLabel={
+        isPlaying
+          ? 'Beat indicators, tap beat 1 for Bar Start'
+          : 'Beat indicators, tap beat 1 for Bar Start, other beats for accents'
+      }
     >
       {positions.map(({ beatIndex, size, left, top }) => (
         <ClockBeatDot
@@ -199,7 +257,8 @@ function ClockBeatIndicatorsComponent({
           isPlaying={isPlaying}
           isCurrentBeat={isPlaying && beatIndex === currentBeat}
           isPatternAccent={accentPattern[beatIndex] ?? false}
-          onPress={() => toggleBeat(beatIndex)}
+          isBarStartEnabled={barStartEnabled}
+          onPress={beatIndex === 0 ? toggleBarStart : () => toggleAccentBeat(beatIndex)}
         />
       ))}
     </View>

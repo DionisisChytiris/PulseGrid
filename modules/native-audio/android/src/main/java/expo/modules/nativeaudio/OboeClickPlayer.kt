@@ -50,6 +50,11 @@ internal class OboeClickPlayer : ClickPlayer {
     }
   }
 
+  override fun playBar(scheduledDeadlineNs: Long) {
+    if (!initialized) return
+    nativeEnqueueClick(CLICK_TYPE_BAR, scheduledDeadlineNs)
+  }
+
   override fun playAccent(scheduledDeadlineNs: Long) {
     if (!initialized) return
     nativeEnqueueClick(CLICK_TYPE_ACCENT, scheduledDeadlineNs)
@@ -75,6 +80,11 @@ internal class OboeClickPlayer : ClickPlayer {
     nativeSetAccentClickSound(soundId)
   }
 
+  fun setBarClickSound(soundId: Int) {
+    if (!initialized) return
+    nativeSetBarClickSound(soundId)
+  }
+
   fun setSubdivisionClickSound(soundId: Int) {
     if (!initialized) return
     nativeSetSubdivisionClickSound(soundId)
@@ -88,6 +98,11 @@ internal class OboeClickPlayer : ClickPlayer {
   fun previewAccentClick() {
     if (!initialized) return
     nativePreviewClick(CLICK_TYPE_ACCENT)
+  }
+
+  fun previewBarClick() {
+    if (!initialized) return
+    nativePreviewClick(CLICK_TYPE_BAR)
   }
 
   fun previewSubdivisionClick() {
@@ -109,6 +124,7 @@ internal class OboeClickPlayer : ClickPlayer {
     private const val CLICK_TYPE_ACCENT = 0
     private const val CLICK_TYPE_NORMAL = 1
     private const val CLICK_TYPE_SUBDIVISION = 2
+    private const val CLICK_TYPE_BAR = 3
 
     @JvmStatic
     external fun nativeInitialize(): Boolean
@@ -124,6 +140,9 @@ internal class OboeClickPlayer : ClickPlayer {
 
     @JvmStatic
     external fun nativeSetAccentClickSound(soundId: Int)
+
+    @JvmStatic
+    external fun nativeSetBarClickSound(soundId: Int)
 
     @JvmStatic
     external fun nativeSetSubdivisionClickSound(soundId: Int)

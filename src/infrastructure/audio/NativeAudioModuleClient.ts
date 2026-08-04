@@ -26,12 +26,15 @@ export type NativeAudioModuleSpec = {
   setTimelineLoops?(enabled: boolean): void;
   setNormalClickSound?(soundId: string): void;
   setAccentClickSound?(soundId: string): void;
+  setBarClickSound?(soundId: string): void;
   setSubdivisionClickSound?(soundId: string): void;
   setSubdivisionAccentMode?(mode: string): void;
   setSubdivisionAccentEveryNth?(value: number): void;
   setSubdivisionAccentPattern?(pattern: boolean[]): void;
+  setBarStartEnabled?(enabled: boolean): void;
   previewNormalClick?(): void;
   previewAccentClick?(): void;
+  previewBarClick?(): void;
   previewSubdivisionClick?(): void;
   addListener?(
     eventName: 'onTick',
@@ -54,12 +57,15 @@ const noopModule: NativeAudioModuleSpec = {
   setTimelineLoops() {},
   setNormalClickSound() {},
   setAccentClickSound() {},
+  setBarClickSound() {},
   setSubdivisionClickSound() {},
   setSubdivisionAccentMode() {},
   setSubdivisionAccentEveryNth() {},
   setSubdivisionAccentPattern() {},
+  setBarStartEnabled() {},
   previewNormalClick() {},
   previewAccentClick() {},
+  previewBarClick() {},
   previewSubdivisionClick() {},
 };
 
@@ -181,6 +187,9 @@ const NativeAudioModuleClient: NativeAudioModuleSpec = {
   setAccentClickSound: (soundId) => {
     getModule().setAccentClickSound?.(soundId);
   },
+  setBarClickSound: (soundId) => {
+    getModule().setBarClickSound?.(soundId);
+  },
   setSubdivisionClickSound: (soundId) => {
     getModule().setSubdivisionClickSound?.(soundId);
   },
@@ -193,11 +202,31 @@ const NativeAudioModuleClient: NativeAudioModuleSpec = {
   setSubdivisionAccentPattern: (pattern) => {
     getModule().setSubdivisionAccentPattern?.(pattern);
   },
+  setBarStartEnabled: (enabled) => {
+    // TEMP debug — remove after native barStart propagation diagnosis
+    const mod = getModule();
+    const fn = mod.setBarStartEnabled;
+    console.log('[BarStartDebug] NativeAudioModuleClient.setBarStartEnabled', {
+      enabled,
+      typeofFn: typeof fn,
+      hasOwn: Object.prototype.hasOwnProperty.call(mod, 'setBarStartEnabled'),
+    });
+    if (typeof fn !== 'function') {
+      console.log(
+        '[BarStartDebug] FIRST BREAK: native module has no setBarStartEnabled — call skipped',
+      );
+      return;
+    }
+    fn.call(mod, enabled);
+  },
   previewNormalClick: () => {
     getModule().previewNormalClick?.();
   },
   previewAccentClick: () => {
     getModule().previewAccentClick?.();
+  },
+  previewBarClick: () => {
+    getModule().previewBarClick?.();
   },
   previewSubdivisionClick: () => {
     getModule().previewSubdivisionClick?.();

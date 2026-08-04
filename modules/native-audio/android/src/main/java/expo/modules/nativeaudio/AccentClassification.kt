@@ -11,10 +11,13 @@ internal enum class SubdivisionAccentMode {
   CUSTOM,
 }
 
+/**
+ * Live audible roles. [SUBDIVISION] is retained for compatibility only (unused for ticks).
+ */
 internal enum class ClickSoundKind {
-  BEAT_ACCENT,
-  SUBDIVISION_ACCENT,
-  NORMAL,
+  BAR,
+  ACCENT,
+  CLICK,
   SUBDIVISION,
 }
 
@@ -22,6 +25,7 @@ internal object AccentClassification {
   private val defaultSubdivisionAccentMode = SubdivisionAccentMode.OFF
   private const val defaultSubdivisionAccentEveryNth = 4
   private val defaultSubdivisionAccentPattern = booleanArrayOf()
+  private const val defaultBarStartEnabled = true
 
   fun resolveTickAccent(
     beatIndexInBar: Int,
@@ -46,6 +50,10 @@ internal object AccentClassification {
     return subdivisionIsAccented || (beatIsAccented && subdivisionIndex == 0)
   }
 
+  /**
+   * Priority: Bar Start (downbeat only, when enabled) → accent logic → Click.
+   * Disabling Bar Start removes only the BAR role; beat 1 then uses accent logic like any other beat.
+   */
   fun resolveClickSoundKind(
     beatIndexInBar: Int,
     subdivisionIndex: Int,
@@ -54,11 +62,16 @@ internal object AccentClassification {
     subdivisionAccentMode: SubdivisionAccentMode = defaultSubdivisionAccentMode,
     subdivisionAccentEveryNth: Int = defaultSubdivisionAccentEveryNth,
     subdivisionAccentPattern: BooleanArray = defaultSubdivisionAccentPattern,
+    barStartEnabled: Boolean = defaultBarStartEnabled,
   ): ClickSoundKind {
+    if (barStartEnabled && isBarStartHit(beatIndexInBar, subdivisionIndex)) {
+      return ClickSoundKind.BAR
+    }
+
     val beatIsAccented = resolveBeatAccent(beatIndexInBar, accentPattern)
 
     if (isBeatAccentHit(beatIsAccented, subdivisionIndex, ticksPerBeat)) {
-      return ClickSoundKind.BEAT_ACCENT
+      return ClickSoundKind.ACCENT
     }
 
     if (
@@ -72,37 +85,31 @@ internal object AccentClassification {
         beatIsAccented,
       )
     ) {
-      return ClickSoundKind.SUBDIVISION_ACCENT
+      return ClickSoundKind.ACCENT
     }
 
-    return if (ticksPerBeat <= 1) {
-      ClickSoundKind.NORMAL
-    } else {
-      ClickSoundKind.SUBDIVISION
-    }
+    return ClickSoundKind.CLICK
   }
 
   /**
-   * Song timeline clicks: accent strength comes from the compiled event (`isAccent`),
-   * not from the session accentPattern stub used for Quick Metronome.
+   * Song timeline: accent from compiled event; Bar Start only overrides the downbeat when enabled.
+   * Disabling Bar Start removes only BAR — compiled accent on beat 1 still applies.
    */
   fun resolveClickSoundKindFromTickAccent(
     isAccent: Boolean,
+    beatIndexInBar: Int,
     subdivisionIndex: Int,
+    barStartEnabled: Boolean = defaultBarStartEnabled,
   ): ClickSoundKind {
-    if (isAccent && subdivisionIndex == 0) {
-      return ClickSoundKind.BEAT_ACCENT
+    if (barStartEnabled && isBarStartHit(beatIndexInBar, subdivisionIndex)) {
+      return ClickSoundKind.BAR
     }
 
     if (isAccent) {
-      return ClickSoundKind.BEAT_ACCENT
+      return ClickSoundKind.ACCENT
     }
 
-    return if (subdivisionIndex > 0) {
-      ClickSoundKind.SUBDIVISION
-    } else {
-      ClickSoundKind.NORMAL
-    }
+    return ClickSoundKind.CLICK
   }
 
   fun resolveBeatAccent(beatIndexInBar: Int, accentPattern: BooleanArray): Boolean {
@@ -153,6 +160,13 @@ internal object AccentClassification {
     }
 
     return pattern[subdivisionIndex % pattern.size]
+  }
+
+  private fun isBarStartHit(
+    beatIndexInBar: Int,
+    subdivisionIndex: Int,
+  ): Boolean {
+    return beatIndexInBar == 0 && subdivisionIndex == 0
   }
 
   private fun isBeatAccentHit(

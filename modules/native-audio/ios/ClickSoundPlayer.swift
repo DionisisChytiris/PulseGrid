@@ -2,6 +2,7 @@ import AVFoundation
 import Foundation
 
 final class ClickSoundPlayer {
+  private static let barPoolSize = 2
   private static let accentPoolSize = 2
   private static let normalPoolSize = 4
   private static let subdivisionPoolSize = 12
@@ -12,18 +13,22 @@ final class ClickSoundPlayer {
   private let timeline = AudioTimelineMapper()
   private let lock = NSLock()
 
+  private var barNodes: [AVAudioPlayerNode] = []
   private var accentNodes: [AVAudioPlayerNode] = []
   private var normalNodes: [AVAudioPlayerNode] = []
   private var subdivisionNodes: [AVAudioPlayerNode] = []
 
+  private var barIndex = 0
   private var accentIndex = 0
   private var normalIndex = 0
   private var subdivisionIndex = 0
 
+  private var barBuffer: AVAudioPCMBuffer?
   private var accentBuffer: AVAudioPCMBuffer?
   private var normalBuffer: AVAudioPCMBuffer?
   private var subdivisionBuffer: AVAudioPCMBuffer?
 
+  private var selectedBarSound = "strong"
   private var selectedNormalSound = "classic"
   private var selectedAccentSound = "classic"
   private var selectedSubdivisionSound = "classic"
@@ -33,7 +38,7 @@ final class ClickSoundPlayer {
   var areReady: Bool {
     lock.lock()
     defer { lock.unlock() }
-    return accentBuffer != nil && normalBuffer != nil && subdivisionBuffer != nil
+    return barBuffer != nil && accentBuffer != nil && normalBuffer != nil && subdivisionBuffer != nil
   }
 
   var isTimelineCalibrated: Bool {
@@ -53,7 +58,7 @@ final class ClickSoundPlayer {
     lock.lock()
     setupEngineGraphIfNeeded()
     startEngineLocked()
-    if accentBuffer == nil || normalBuffer == nil || subdivisionBuffer == nil {
+    if barBuffer == nil || accentBuffer == nil || normalBuffer == nil || subdivisionBuffer == nil {
       reloadBuffersLocked()
     }
     flushScheduledLocked()
@@ -101,6 +106,21 @@ final class ClickSoundPlayer {
     )
   }
 
+  func setBarClickSound(_ soundId: String) {
+    // Bar reuses accent WAV resources until dedicated bar assets exist.
+    let nextSound = Self.accentResourceName(for: soundId)
+    lock.lock()
+    defer { lock.unlock() }
+    guard nextSound != selectedBarSound else {
+      return
+    }
+    selectedBarSound = nextSound
+    barBuffer = loadBuffer(
+      named: Self.accentFileName(for: nextSound),
+      volume: 1.0
+    )
+  }
+
   func setSubdivisionClickSound(_ soundId: String) {
     let nextSound = Self.normalResourceName(for: soundId)
     lock.lock()
@@ -123,8 +143,16 @@ final class ClickSoundPlayer {
     scheduleImmediate(kind: .accent)
   }
 
+  func previewBarClick() {
+    scheduleImmediate(kind: .bar)
+  }
+
   func previewSubdivisionClick() {
     scheduleImmediate(kind: .subdivision)
+  }
+
+  func playBar(scheduledDeadlineNs: UInt64) {
+    schedule(kind: .bar, deadlineNs: scheduledDeadlineNs)
   }
 
   func playAccent(scheduledDeadlineNs: UInt64) {
@@ -142,17 +170,19 @@ final class ClickSoundPlayer {
   // MARK: - Engine
 
   private enum ClickKind {
+    case bar
     case accent
     case normal
     case subdivision
   }
 
   private func setupEngineGraphIfNeeded() {
-    guard accentNodes.isEmpty else {
+    guard barNodes.isEmpty else {
       return
     }
 
     let format = engine.mainMixerNode.outputFormat(forBus: 0)
+    barNodes = makeNodePool(count: Self.barPoolSize, format: format)
     accentNodes = makeNodePool(count: Self.accentPoolSize, format: format)
     normalNodes = makeNodePool(count: Self.normalPoolSize, format: format)
     subdivisionNodes = makeNodePool(count: Self.subdivisionPoolSize, format: format)
@@ -182,7 +212,7 @@ final class ClickSoundPlayer {
       }
     }
 
-    for node in accentNodes + normalNodes + subdivisionNodes where !node.isPlaying {
+    for node in barNodes + accentNodes + normalNodes + subdivisionNodes where !node.isPlaying {
       node.play()
     }
 
@@ -192,7 +222,7 @@ final class ClickSoundPlayer {
   }
 
   private func flushScheduledLocked() {
-    for node in accentNodes + normalNodes + subdivisionNodes {
+    for node in barNodes + accentNodes + normalNodes + subdivisionNodes {
       node.stop()
       node.reset()
       if engine.isRunning {
@@ -202,6 +232,10 @@ final class ClickSoundPlayer {
   }
 
   private func reloadBuffersLocked() {
+    barBuffer = loadBuffer(
+      named: Self.accentFileName(for: selectedBarSound),
+      volume: 1.0
+    )
     accentBuffer = loadBuffer(
       named: Self.accentFileName(for: selectedAccentSound),
       volume: 1.0
@@ -215,7 +249,7 @@ final class ClickSoundPlayer {
       volume: 0.65
     )
 
-    if accentBuffer == nil || normalBuffer == nil || subdivisionBuffer == nil {
+    if barBuffer == nil || accentBuffer == nil || normalBuffer == nil || subdivisionBuffer == nil {
       print("ClickSoundPlayer.initialize() — missing one or more click samples")
     }
   }
@@ -252,7 +286,7 @@ final class ClickSoundPlayer {
     let scheduleHostNs = CoreHostTime.toNanos(when.hostTime)
     let lateByNs = Int64(bitPattern: nowHostNs) - Int64(bitPattern: scheduleHostNs)
 
-    let renderAnchor = (accentNodes.first ?? normalNodes.first)?.lastRenderTime
+    let renderAnchor = (barNodes.first ?? accentNodes.first ?? normalNodes.first)?.lastRenderTime
     let estimatedSample = timeline.debugSampleEstimate(
       forDeadlineNs: deadlineNs,
       renderAnchor: renderAnchor
@@ -278,6 +312,8 @@ final class ClickSoundPlayer {
 
   private func buffer(for kind: ClickKind) -> AVAudioPCMBuffer? {
     switch kind {
+    case .bar:
+      return barBuffer
     case .accent:
       return accentBuffer
     case .normal:
@@ -289,6 +325,10 @@ final class ClickSoundPlayer {
 
   private func nextNode(for kind: ClickKind) -> AVAudioPlayerNode {
     switch kind {
+    case .bar:
+      let node = barNodes[barIndex % barNodes.count]
+      barIndex = (barIndex + 1) % barNodes.count
+      return node
     case .accent:
       let node = accentNodes[accentIndex % accentNodes.count]
       accentIndex = (accentIndex + 1) % accentNodes.count
@@ -306,6 +346,8 @@ final class ClickSoundPlayer {
 
   private func label(for kind: ClickKind) -> String {
     switch kind {
+    case .bar:
+      return "bar"
     case .accent:
       return "accent"
     case .normal:
