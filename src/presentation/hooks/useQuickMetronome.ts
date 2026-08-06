@@ -33,7 +33,9 @@ const TAP_TEMPO_INTRO =
 function clampTrainerSettings(settings: TempoTrainerSettings): TempoTrainerSettings {
   return {
     enabled: settings.enabled,
+    increaseMode: settings.increaseMode === 'time' ? 'time' : 'bars',
     barsInterval: Math.min(64, Math.max(1, Math.floor(settings.barsInterval))),
+    timeIntervalSeconds: Math.min(3600, Math.max(1, Math.floor(settings.timeIntervalSeconds))),
     bpmDelta: Math.min(50, Math.max(1, Math.floor(settings.bpmDelta))),
     maxBpm: Math.min(MAX_BPM, Math.max(40, Math.floor(settings.maxBpm))),
   };

@@ -14,6 +14,13 @@ export type NativeTickEvent = {
   timestamp: number;
 };
 
+/** TEMP: native → Metro debug mirror (Logcat TempoRetuneDebug, etc.). */
+export type NativeDebugLogEvent = {
+  tag: string;
+  kind?: string;
+  [key: string]: unknown;
+};
+
 export type NativeAudioModuleSpec = {
   initialize?(): void;
   whenReady?(): Promise<void>;
@@ -37,8 +44,8 @@ export type NativeAudioModuleSpec = {
   previewBarClick?(): void;
   previewSubdivisionClick?(): void;
   addListener?(
-    eventName: 'onTick',
-    listener: (event: NativeTickEvent) => void,
+    eventName: 'onTick' | 'onNativeDebugLog',
+    listener: ((event: NativeTickEvent) => void) | ((event: NativeDebugLogEvent) => void),
   ): { remove: () => void };
 };
 
@@ -47,6 +54,9 @@ let cachedModule: NativeAudioModuleSpec | null | undefined;
 /** Exactly one native onTick subscription; fan-out to JS listeners. */
 let nativeTickSubscription: { remove: () => void } | null = null;
 const tickListeners = new Set<(event: NativeTickEvent) => void>();
+
+/** TEMP: one native onNativeDebugLog subscription → Metro console. */
+let nativeDebugLogSubscription: { remove: () => void } | null = null;
 
 const noopModule: NativeAudioModuleSpec = {
   start() {},
@@ -113,8 +123,26 @@ function ensureNativeTickSubscription(): void {
 
   nativeTickSubscription = module.addListener('onTick', (event) => {
     for (const listener of tickListeners) {
-      listener(event);
+      listener(event as NativeTickEvent);
     }
+  });
+}
+
+/** TEMP: mirror native debug events to Metro beside [TempoInterval]. */
+function ensureNativeDebugLogSubscription(): void {
+  if (nativeDebugLogSubscription) {
+    return;
+  }
+
+  const module = getModule();
+  if (!module.addListener) {
+    return;
+  }
+
+  nativeDebugLogSubscription = module.addListener('onNativeDebugLog', (event) => {
+    const debugEvent = event as NativeDebugLogEvent;
+    const { tag, ...payload } = debugEvent;
+    console.log(`[${tag ?? 'NativeDebug'}]`, payload);
   });
 }
 
@@ -159,6 +187,8 @@ async function waitForSoundsReady(): Promise<void> {
 const NativeAudioModuleClient: NativeAudioModuleSpec = {
   initialize: () => {
     getModule().initialize?.();
+    // TEMP: subscribe early so TempoRetuneDebug reaches Metro even before play.
+    ensureNativeDebugLogSubscription();
   },
   whenReady: async () => {
     await waitForSoundsReady();
@@ -234,6 +264,7 @@ const NativeAudioModuleClient: NativeAudioModuleSpec = {
   addListener: (eventName, listener) => {
     if (eventName === 'onTick') {
       ensureNativeTickSubscription();
+      ensureNativeDebugLogSubscription();
       tickListeners.add(listener as (event: NativeTickEvent) => void);
 
       return {
@@ -242,6 +273,11 @@ const NativeAudioModuleClient: NativeAudioModuleSpec = {
           releaseNativeTickSubscriptionIfIdle();
         },
       };
+    }
+
+    if (eventName === 'onNativeDebugLog') {
+      ensureNativeDebugLogSubscription();
+      return { remove: () => undefined };
     }
 
     return { remove: () => undefined };

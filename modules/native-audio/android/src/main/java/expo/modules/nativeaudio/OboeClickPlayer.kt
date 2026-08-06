@@ -52,22 +52,35 @@ internal class OboeClickPlayer : ClickPlayer {
 
   override fun playBar(scheduledDeadlineNs: Long) {
     if (!initialized) return
+    logNativeEnqueue("BAR", scheduledDeadlineNs)
     nativeEnqueueClick(CLICK_TYPE_BAR, scheduledDeadlineNs)
   }
 
   override fun playAccent(scheduledDeadlineNs: Long) {
     if (!initialized) return
+    logNativeEnqueue("ACCENT", scheduledDeadlineNs)
     nativeEnqueueClick(CLICK_TYPE_ACCENT, scheduledDeadlineNs)
   }
 
   override fun playNormal(scheduledDeadlineNs: Long) {
     if (!initialized) return
+    logNativeEnqueue("NORMAL", scheduledDeadlineNs)
     nativeEnqueueClick(CLICK_TYPE_NORMAL, scheduledDeadlineNs)
   }
 
   override fun playSubdivision(scheduledDeadlineNs: Long) {
     if (!initialized) return
+    logNativeEnqueue("SUBDIVISION", scheduledDeadlineNs)
     nativeEnqueueClick(CLICK_TYPE_SUBDIVISION, scheduledDeadlineNs)
+  }
+
+  /** TEMP: Logcat-only confirmation that JNI enqueue was reached (no sequence metadata here). */
+  private fun logNativeEnqueue(type: String, scheduledDeadlineNs: Long) {
+    Log.d(
+      "TempoPublishDebug",
+      "oboeNativeEnqueue type=$type scheduledDeadlineNs=$scheduledDeadlineNs " +
+        "enqueueTimeNs=${System.nanoTime()}",
+    )
   }
 
   fun setNormalClickSound(soundId: Int) {

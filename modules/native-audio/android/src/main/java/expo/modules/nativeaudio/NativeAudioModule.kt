@@ -20,7 +20,7 @@ class NativeAudioModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("NativeAudioModule")
 
-    Events("onTick")
+    Events("onTick", "onNativeDebugLog")
 
     OnDestroy {
       clickSoundPlayer?.release()
@@ -169,6 +169,13 @@ class NativeAudioModule : Module() {
             "isAccent" to isAccent,
             "timestamp" to timestampMs.toDouble(),
           ),
+        )
+      },
+      onDebugLog = { tag, payload ->
+        // TEMP: mirror native debug lines to Metro via the Expo event bridge.
+        sendEvent(
+          "onNativeDebugLog",
+          mapOf("tag" to tag) + payload,
         )
       },
     )

@@ -233,3 +233,102 @@ describe('TempoTrainerService', () => {
     expect(service.getStatus().completedBars).toBe(0);
   });
 });
+
+describe('TempoTrainerService time mode', () => {
+  let bpm: number;
+  let setBpmCalls: number[];
+  let nowMs: number;
+  let service: TempoTrainerService;
+
+  beforeEach(() => {
+    bpm = 120;
+    setBpmCalls = [];
+    nowMs = 1_000_000;
+    service = new TempoTrainerService({
+      getBpm: () => bpm,
+      setBpm: (next) => {
+        setBpmCalls.push(next);
+        bpm = next;
+      },
+      getBeatsPerMeasure: () => 4,
+      getTicksPerBeat: () => 1,
+      nowMs: () => nowMs,
+    });
+  });
+
+  function playBar4_4(): void {
+    service.onTick(tick({ beatNumber: 1, subdivisionIndex: 0 }));
+    service.onTick(tick({ beatNumber: 2, subdivisionIndex: 0 }));
+    service.onTick(tick({ beatNumber: 3, subdivisionIndex: 0 }));
+    service.onTick(tick({ beatNumber: 4, subdivisionIndex: 0 }));
+  }
+
+  it('queues time-based increase after interval and applies on next beat 1', () => {
+    service.setSettings(
+      enabledSettings({
+        increaseMode: 'time',
+        timeIntervalSeconds: 60,
+        bpmDelta: 5,
+        maxBpm: 200,
+      }),
+    );
+
+    // Arms clock on first downbeat at t=1_000_000; next due at +60s.
+    service.onTick(tick({ beatNumber: 1, subdivisionIndex: 0 }));
+    expect(setBpmCalls).toEqual([]);
+
+    nowMs += 59_000;
+    service.onTick(tick({ beatNumber: 2, subdivisionIndex: 0 }));
+    expect(setBpmCalls).toEqual([]);
+
+    nowMs += 1_000; // hit 60s
+    service.onTick(tick({ beatNumber: 3, subdivisionIndex: 0 }));
+    expect(setBpmCalls).toEqual([]); // pending only — apply on next beat 1
+
+    service.onTick(tick({ beatNumber: 4, subdivisionIndex: 0 }));
+    expect(setBpmCalls).toEqual([]);
+
+    service.onTick(tick({ beatNumber: 1, subdivisionIndex: 0 }));
+    expect(setBpmCalls).toEqual([125]);
+    expect(bpm).toBe(125);
+  });
+
+  it('supports multiple continuous time-based increases', () => {
+    service.setSettings(
+      enabledSettings({
+        increaseMode: 'time',
+        timeIntervalSeconds: 10,
+        bpmDelta: 5,
+        maxBpm: 200,
+      }),
+    );
+
+    service.onTick(tick({ beatNumber: 1, subdivisionIndex: 0 }));
+
+    nowMs += 10_000;
+    service.onTick(tick({ beatNumber: 2, subdivisionIndex: 0 }));
+    service.onTick(tick({ beatNumber: 1, subdivisionIndex: 0 }));
+    expect(setBpmCalls).toEqual([125]);
+
+    nowMs += 10_000;
+    service.onTick(tick({ beatNumber: 2, subdivisionIndex: 0 }));
+    service.onTick(tick({ beatNumber: 1, subdivisionIndex: 0 }));
+    expect(setBpmCalls).toEqual([125, 130]);
+  });
+
+  it('does not use bar completions to increase in time mode', () => {
+    service.setSettings(
+      enabledSettings({
+        increaseMode: 'time',
+        timeIntervalSeconds: 60,
+        barsInterval: 1,
+        bpmDelta: 5,
+        maxBpm: 200,
+      }),
+    );
+
+    playBar4_4();
+    playBar4_4();
+    expect(setBpmCalls).toEqual([]);
+  });
+});
