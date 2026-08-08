@@ -29,12 +29,12 @@ export default function SongLibraryScreen({ navigation }: Props) {
   const { songs, loading, error, createSong, deleteSong } = useSongLibrary();
 
   const onCreateSong = async () => {
-    const created = await createSong(`Song ${songs.length + 1}`);
+    const created = await createSong(`Timeline ${songs.length + 1}`);
     navigation.navigate('SongEditor', { songId: created.id });
   };
 
   const confirmDeleteSong = (song: Song) => {
-    Alert.alert('Delete song?', `"${song.name}" will be permanently deleted.`, [
+    Alert.alert('Delete timeline?', `"${song.name}" will be permanently deleted.`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
@@ -51,7 +51,7 @@ export default function SongLibraryScreen({ navigation }: Props) {
         { paddingTop: insets.top + 16, paddingBottom: insets.bottom - 10 },
       ]}
     >
-      <Text style={styles.title}>Songs</Text>
+      <Text style={styles.title}>Timeline Builder</Text>
 
       <View style={styles.content}>
         {loading ? (
@@ -69,7 +69,7 @@ export default function SongLibraryScreen({ navigation }: Props) {
                 onDelete={() => confirmDeleteSong(item)}
               />
             )}
-            ListEmptyComponent={<Text style={styles.empty}>No songs saved yet.</Text>}
+            ListEmptyComponent={<Text style={styles.empty}>No timelines yet.</Text>}
           />
         )}
 
@@ -78,7 +78,7 @@ export default function SongLibraryScreen({ navigation }: Props) {
 
       <View style={styles.footer}>
         <Pressable style={styles.primaryButton} onPress={() => void onCreateSong()}>
-          <Text style={styles.primaryButtonText}>+ New Song</Text>
+          <Text style={styles.primaryButtonText}>+ New Timeline</Text>
         </Pressable>
       </View>
     </View>
@@ -158,7 +158,7 @@ function SongListItem({
           }}
           accessibilityRole="button"
           accessibilityLabel={`Open ${song.name}`}
-          accessibilityHint="Opens the song editor. Swipe left to delete this song."
+          accessibilityHint="Opens the timeline editor. Swipe left to delete this timeline."
         >
           <Ionicons name="musical-note" size={22} color={studioColors.accent} />
           <Text style={styles.songName}>{song.name}</Text>
@@ -171,7 +171,7 @@ function SongListItem({
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 20, backgroundColor: studioColors.background },
-  title: { fontSize: 28, fontWeight: '700', marginBottom: 12, color: studioColors.textPrimary },
+  title: { fontSize: 22, fontWeight: '700', marginBottom: 12, color: studioColors.textPrimary },
   content: { flex: 1 },
   list: { flex: 1 },
   footer: { alignItems: 'center' },

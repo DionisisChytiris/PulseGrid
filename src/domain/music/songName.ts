@@ -4,7 +4,7 @@
  */
 
 export const MAX_SONG_NAME_LENGTH = 18;
-export const DEFAULT_SONG_NAME = 'New Song';
+export const DEFAULT_SONG_NAME = 'New Timeline';
 
 const INVALID_SONG_NAME_CHARS = /[^A-Za-z0-9 ]/g;
 

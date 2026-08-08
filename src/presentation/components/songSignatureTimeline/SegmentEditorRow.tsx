@@ -257,8 +257,8 @@ export const SegmentEditorRow = memo(function SegmentEditorRow({
                 accessibilityState={{ checked: useSongTempo }}
                 accessibilityLabel={
                   useSongTempo
-                    ? `Use song tempo ${songDefaultBpm} BPM`
-                    : 'Use song tempo'
+                    ? `Use timeline tempo ${songDefaultBpm} BPM`
+                    : 'Use timeline tempo'
                 }
                 style={styles.tempoCheckRow}
               >
@@ -267,8 +267,8 @@ export const SegmentEditorRow = memo(function SegmentEditorRow({
                 </View>
                 <Text style={styles.tempoCheckLabel} numberOfLines={1}>
                   {useSongTempo
-                    ? `Use Song Tempo (${songDefaultBpm} BPM)`
-                    : 'Use Song Tempo'}
+                    ? `Use Timeline Tempo (${songDefaultBpm} BPM)`
+                    : 'Use Timeline Tempo'}
                 </Text>
               </Pressable>
 

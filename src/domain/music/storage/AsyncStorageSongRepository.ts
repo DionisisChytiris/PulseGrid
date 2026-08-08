@@ -74,7 +74,7 @@ export class AsyncStorageSongRepository implements SongRepository {
     const index = songs.findIndex((candidate) => candidate.id === song.id);
 
     if (index < 0) {
-      throw new Error(`Song not found: ${song.id}`);
+      throw new Error(`Timeline not found: ${song.id}`);
     }
 
     const updated: Song = {

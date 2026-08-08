@@ -24,12 +24,31 @@ import {
   type MeterDenominator,
 } from './meterPickerValidation';
 
+const COMMON_METER_PRESETS: readonly {
+  numerator: number;
+  denominator: MeterDenominator;
+  label: string;
+}[] = [
+  { numerator: 2, denominator: 4, label: '2/4' },
+  { numerator: 3, denominator: 4, label: '3/4' },
+  { numerator: 4, denominator: 4, label: '4/4' },
+  { numerator: 5, denominator: 8, label: '5/8' },
+  { numerator: 6, denominator: 8, label: '6/8' },
+];
+
+type DialogStep = 'presets' | 'custom';
+
 type Props = {
   visible: boolean;
   /** Dialog title. Defaults to "New Bar". */
   title?: string;
   /** Seed values when the dialog opens. Defaults to 4/4. */
   initialMeter?: Meter;
+  /**
+   * Start on common time-signature presets (Add Bar).
+   * When false, open directly on the custom editor (e.g. future edit flows).
+   */
+  showPresetsFirst?: boolean;
   /** Accessibility label for the confirm button. */
   confirmAccessibilityLabel?: string;
   /** Confirm icon — add for new bar, checkmark when applying an edit. */
@@ -46,6 +65,7 @@ export function NewBarMeterDialog({
   visible,
   title = 'New Bar',
   initialMeter,
+  showPresetsFirst = true,
   confirmAccessibilityLabel = 'Add Bar',
   confirmIcon = 'add',
   onCancel,
@@ -56,6 +76,7 @@ export function NewBarMeterDialog({
   const landscape = width > height;
   const inputRef = useRef<TextInput>(null);
 
+  const [step, setStep] = useState<DialogStep>('presets');
   const [numeratorText, setNumeratorText] = useState('4');
   const [denominator, setDenominator] = useState<MeterDenominator>(4);
   const [keyboardActive, setKeyboardActive] = useState(false);
@@ -66,6 +87,7 @@ export function NewBarMeterDialog({
       const denom = normalizeDenominator(initialMeter?.denominator ?? 4);
       setNumeratorText(String(clampNumerator(numerator)));
       setDenominator(denom);
+      setStep(showPresetsFirst ? 'presets' : 'custom');
       setKeyboardActive(false);
       return;
     }
@@ -73,11 +95,14 @@ export function NewBarMeterDialog({
     setKeyboardActive(false);
     // Seed only when the dialog opens; ignore identity changes of initialMeter while open.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
-  }, [visible]);
+  }, [visible, showPresetsFirst]);
 
   const panelMaxWidth = useMemo(
-    () => (landscape ? Math.min(280, width * 0.55) : Math.min(260, width * 0.78)),
-    [landscape, width],
+    () =>
+      landscape
+        ? Math.min(step === 'presets' ? 360 : 280, width * 0.72)
+        : Math.min(step === 'presets' ? 340 : 260, width * 0.92),
+    [landscape, step, width],
   );
 
   const dismissKeyboard = () => {
@@ -94,6 +119,11 @@ export function NewBarMeterDialog({
     return next;
   };
 
+  const selectPreset = (numerator: number, denom: MeterDenominator) => {
+    setNumeratorText(String(clampNumerator(numerator)));
+    setDenominator(denom);
+  };
+
   const handleCancel = () => {
     dismissKeyboard();
     onCancel();
@@ -103,6 +133,11 @@ export function NewBarMeterDialog({
     const numerator = finalizeNumerator();
     dismissKeyboard();
     onConfirm(createMeter(numerator, denominator));
+  };
+
+  const handleCustomize = () => {
+    dismissKeyboard();
+    setStep('custom');
   };
 
   return (
@@ -129,73 +164,128 @@ export function NewBarMeterDialog({
         >
           <Text style={styles.title}>{title}</Text>
 
-          <View style={styles.meterRow}>
-            <TextInput
-              ref={inputRef}
-              style={[styles.numeratorInput, keyboardActive && styles.numeratorInputFocused]}
-              value={numeratorText}
-              showSoftInputOnFocus={false}
-              caretHidden={!keyboardActive}
-              disableFullscreenUI
-              selectTextOnFocus
-              maxLength={2}
-              accessibilityLabel="Beats per bar"
-              onFocus={() => {
-                setKeyboardActive(true);
-              }}
-              onChangeText={(text) => {
-                setNumeratorText(sanitizeNumeratorInput(text));
-              }}
-            />
-
-            <Text style={styles.slash}>/</Text>
-
-            <View style={styles.denominatorRow}>
-              {METER_DENOMINATORS.map((value) => {
-                const selected = value === denominator;
-                return (
-                  <Pressable
-                    key={value}
-                    style={[styles.denominatorChip, selected && styles.denominatorChipSelected]}
-                    onPress={() => setDenominator(value)}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    accessibilityLabel={`Denominator ${value}`}
-                  >
-                    <Text
-                      style={[
-                        styles.denominatorText,
-                        selected && styles.denominatorTextSelected,
-                      ]}
+          {step === 'presets' ? (
+            <>
+              <View style={styles.presetRow}>
+                {COMMON_METER_PRESETS.map((preset) => {
+                  const selected =
+                    Number(numeratorText) === preset.numerator &&
+                    denominator === preset.denominator;
+                  return (
+                    <Pressable
+                      key={preset.label}
+                      style={[styles.presetChip, selected && styles.presetChipSelected]}
+                      onPress={() => selectPreset(preset.numerator, preset.denominator)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      accessibilityLabel={`Time signature ${preset.label}`}
                     >
-                      {value}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
+                      <Text
+                        numberOfLines={1}
+                        style={[
+                          styles.presetChipText,
+                          selected && styles.presetChipTextSelected,
+                        ]}
+                      >
+                        {preset.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
 
-          <View style={styles.actions}>
-            <Pressable
-              style={[styles.iconButton, styles.iconButtonCancel]}
-              onPress={handleCancel}
-              accessibilityRole="button"
-              accessibilityLabel="Cancel"
-              hitSlop={8}
-            >
-              <Ionicons name="close" size={22} color="#FF4D4F" />
-            </Pressable>
-            <Pressable
-              style={[styles.iconButton, styles.iconButtonPrimary]}
-              onPress={handleAdd}
-              accessibilityRole="button"
-              accessibilityLabel={confirmAccessibilityLabel}
-              hitSlop={8}
-            >
-              <Ionicons name={confirmIcon} size={24} color="#FFFFFF" />
-            </Pressable>
-          </View>
+              <View style={styles.presetActions}>
+                <Pressable
+                  style={styles.textButton}
+                  onPress={handleCustomize}
+                  accessibilityRole="button"
+                  accessibilityLabel="Customize time signature"
+                  hitSlop={8}
+                >
+                  <Text style={styles.textButtonLabel}>Customize</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.textButton, styles.textButtonPrimary]}
+                  onPress={handleAdd}
+                  accessibilityRole="button"
+                  accessibilityLabel={confirmAccessibilityLabel}
+                  hitSlop={8}
+                >
+                  <Text style={styles.textButtonPrimaryLabel}>Add Bar</Text>
+                </Pressable>
+              </View>
+            </>
+          ) : (
+            <>
+              <View style={styles.meterRow}>
+                <TextInput
+                  ref={inputRef}
+                  style={[styles.numeratorInput, keyboardActive && styles.numeratorInputFocused]}
+                  value={numeratorText}
+                  showSoftInputOnFocus={false}
+                  caretHidden={!keyboardActive}
+                  disableFullscreenUI
+                  selectTextOnFocus
+                  maxLength={2}
+                  accessibilityLabel="Beats per bar"
+                  onFocus={() => {
+                    setKeyboardActive(true);
+                  }}
+                  onChangeText={(text) => {
+                    setNumeratorText(sanitizeNumeratorInput(text));
+                  }}
+                />
+
+                <Text style={styles.slash}>/</Text>
+
+                <View style={styles.denominatorRow}>
+                  {METER_DENOMINATORS.map((value) => {
+                    const selected = value === denominator;
+                    return (
+                      <Pressable
+                        key={value}
+                        style={[styles.denominatorChip, selected && styles.denominatorChipSelected]}
+                        onPress={() => setDenominator(value)}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected }}
+                        accessibilityLabel={`Denominator ${value}`}
+                      >
+                        <Text
+                          style={[
+                            styles.denominatorText,
+                            selected && styles.denominatorTextSelected,
+                          ]}
+                        >
+                          {value}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <View style={styles.actions}>
+                <Pressable
+                  style={[styles.iconButton, styles.iconButtonCancel]}
+                  onPress={handleCancel}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancel"
+                  hitSlop={8}
+                >
+                  <Ionicons name="close" size={22} color="#FF4D4F" />
+                </Pressable>
+                <Pressable
+                  style={[styles.iconButton, styles.iconButtonPrimary]}
+                  onPress={handleAdd}
+                  accessibilityRole="button"
+                  accessibilityLabel={confirmAccessibilityLabel}
+                  hitSlop={8}
+                >
+                  <Ionicons name={confirmIcon} size={24} color="#FFFFFF" />
+                </Pressable>
+              </View>
+            </>
+          )}
         </View>
 
         <CustomKeyboard
@@ -242,6 +332,66 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: studioColors.textPrimary,
     textAlign: 'center',
+  },
+  presetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  presetChip: {
+    flex: 1,
+    minWidth: 0,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: studioColors.background,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: studioColors.border,
+    paddingHorizontal: 2,
+  },
+  presetChipSelected: {
+    backgroundColor: studioColors.accent,
+    borderColor: studioColors.accent,
+  },
+  presetChipText: {
+    fontSize: 14,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+    color: studioColors.textPrimary,
+  },
+  presetChipTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  presetActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 10,
+    paddingTop: 2,
+  },
+  textButton: {
+    minHeight: 40,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  textButtonLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: studioColors.textSecondary,
+  },
+  textButtonPrimary: {
+    backgroundColor: studioColors.accent,
+    paddingHorizontal: 16,
+  },
+  textButtonPrimaryLabel: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   meterRow: {
     flexDirection: 'row',

@@ -170,9 +170,9 @@ function cardsFromStats(stats: SongStatistics): readonly StatCardProps[] {
     },
     {
       accent: STAT_ACCENTS.song,
-      title: 'Song',
+      title: 'Timeline',
       primary: stats.songName,
-      secondary: 'Song Name',
+      secondary: 'Timeline Name',
       tertiary: stats.lastModifiedLabel
         ? `Modified ${stats.lastModifiedLabel}`
         : null,
@@ -233,13 +233,13 @@ export function SongStatisticsBottomSheet({ visible, song, onClose }: Props) {
         >
           <View style={styles.header}>
             <View style={styles.headerTitles}>
-              <Text style={styles.headerTitle}>Song Statistics</Text>
+              <Text style={styles.headerTitle}>Timeline Statistics</Text>
             </View>
             <Pressable
               onPress={onClose}
               hitSlop={10}
               accessibilityRole="button"
-              accessibilityLabel="Close song statistics"
+              accessibilityLabel="Close timeline statistics"
             >
               <Text style={styles.doneLink}>Done</Text>
             </Pressable>

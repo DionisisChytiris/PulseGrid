@@ -96,7 +96,7 @@ export default function SongEditorScreen({ navigation, route }: Props) {
   if (song === null) {
     return (
       <View style={[styles.centered, { paddingTop: insets.top }]}>
-        <Text style={styles.errorText}>{error ?? 'Song not found'}</Text>
+        <Text style={styles.errorText}>{error ?? 'Timeline not found'}</Text>
         <Pressable style={styles.secondaryButton} onPress={() => navigation.goBack()}>
           <Text style={styles.secondaryButtonText}>Back</Text>
         </Pressable>
@@ -150,7 +150,7 @@ export default function SongEditorScreen({ navigation, route }: Props) {
             setSongLoopEnabled((prev) => !prev);
           }}
           accessibilityRole="button"
-          accessibilityLabel={songLoopEnabled ? 'Disable song loop' : 'Enable song loop'}
+          accessibilityLabel={songLoopEnabled ? 'Disable timeline loop' : 'Enable timeline loop'}
           accessibilityState={{ checked: songLoopEnabled }}
           hitSlop={8}
         >
@@ -175,7 +175,7 @@ export default function SongEditorScreen({ navigation, route }: Props) {
           style={styles.toolbarButton}
           onPress={() => setStatsVisible(true)}
           accessibilityRole="button"
-          accessibilityLabel="Song statistics"
+          accessibilityLabel="Timeline statistics"
           hitSlop={8}
         >
           <Ionicons name="stats-chart-outline" size={20} color={studioColors.textSecondary} />
@@ -291,7 +291,7 @@ function SongNameInput({
         onDraftChange(next);
       }}
       onFocus={() => onFocus(local)}
-      placeholder="Song name"
+      placeholder="Timeline name"
       placeholderTextColor={studioColors.textMuted}
       showSoftInputOnFocus={false}
       disableFullscreenUI

@@ -427,7 +427,7 @@ export function SegmentEditBottomSheet({
 
       Alert.alert(
         'Delete Segment?',
-        'This will permanently remove this segment from the song.',
+        'This will permanently remove this segment from the timeline.',
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -582,7 +582,7 @@ export function SegmentEditBottomSheet({
                   disabled={atMinSongBpm}
                   hitSlop={6}
                   accessibilityRole="button"
-                  accessibilityLabel="Decrease song tempo"
+                  accessibilityLabel="Decrease timeline tempo"
                   style={({ pressed }) => [
                     styles.tempoStepButton,
                     atMinSongBpm && styles.tempoStepDisabled,
@@ -603,7 +603,7 @@ export function SegmentEditBottomSheet({
                   disableFullscreenUI
                   selectTextOnFocus
                   maxLength={3}
-                  accessibilityLabel="Song tempo BPM"
+                  accessibilityLabel="Timeline tempo BPM"
                   onFocus={() => {
                     beginEdit({ kind: 'songBpm', text: String(safeSongBpm) });
                   }}
@@ -619,7 +619,7 @@ export function SegmentEditBottomSheet({
                   disabled={atMaxSongBpm}
                   hitSlop={6}
                   accessibilityRole="button"
-                  accessibilityLabel="Increase song tempo"
+                  accessibilityLabel="Increase timeline tempo"
                   style={({ pressed }) => [
                     styles.tempoStepButton,
                     atMaxSongBpm && styles.tempoStepDisabled,

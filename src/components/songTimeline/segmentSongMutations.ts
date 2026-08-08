@@ -307,7 +307,7 @@ export function deleteSegment(
     return {
       song,
       focusStartBarIndex: null,
-      blockedReason: 'Every song must contain at least one segment.',
+      blockedReason: 'Every timeline must contain at least one segment.',
     };
   }
 

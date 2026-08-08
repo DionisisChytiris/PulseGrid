@@ -1,16 +1,11 @@
-import { useCallback, useEffect, useRef } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, Pressable } from 'react-native';
 
 import type { FinerSubdivisionSelection, SubdivisionAvailability } from '../../../domain/metronome/PulseGridSettings';
 import { useResponsiveLayout } from '../../layout/useResponsiveLayout';
 import { studioColors } from '../../theme';
 import { SubdivisionCycleButton } from './SubdivisionCycleButton';
 import { TapTempoButton } from './TapTempoButton';
-
-/** Pause after the first step before auto-repeat begins. */
-const HOLD_REPEAT_DELAY_MS = 400;
-/** Interval between repeated BPM steps while held. */
-const HOLD_REPEAT_INTERVAL_MS = 90;
+import { useHoldRepeatStep } from './useHoldRepeatStep';
 
 type MetronomeToolbarProps = {
   bpm: number;
@@ -24,10 +19,6 @@ type MetronomeToolbarProps = {
   onTapTempoHelp: () => void;
   onSubdivisionChange: (subdivision: FinerSubdivisionSelection) => void;
 };
-
-function clampBpm(value: number, minimumValue: number, maximumValue: number): number {
-  return Math.min(maximumValue, Math.max(minimumValue, Math.round(value)));
-}
 
 type BpmStepButtonProps = {
   label: string;
@@ -109,59 +100,12 @@ export function MetronomeToolbar({
   const atMin = bpm <= minimumValue;
   const atMax = bpm >= maximumValue;
 
-  const bpmRef = useRef(bpm);
-  const minRef = useRef(minimumValue);
-  const maxRef = useRef(maximumValue);
-  const onBpmChangeRef = useRef(onBpmChange);
-  const holdDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const holdIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  bpmRef.current = bpm;
-  minRef.current = minimumValue;
-  maxRef.current = maximumValue;
-  onBpmChangeRef.current = onBpmChange;
-
-  const stopHoldRepeat = useCallback(() => {
-    if (holdDelayRef.current !== null) {
-      clearTimeout(holdDelayRef.current);
-      holdDelayRef.current = null;
-    }
-    if (holdIntervalRef.current !== null) {
-      clearInterval(holdIntervalRef.current);
-      holdIntervalRef.current = null;
-    }
-  }, []);
-
-  const stepBpm = useCallback((delta: number) => {
-    const next = clampBpm(bpmRef.current + delta, minRef.current, maxRef.current);
-    if (next === bpmRef.current) {
-      return false;
-    }
-    // Keep local ref in sync between prop updates so hold-repeat never stalls on stale BPM.
-    bpmRef.current = next;
-    onBpmChangeRef.current(next);
-    return true;
-  }, []);
-
-  const beginHoldRepeat = useCallback(
-    (delta: number) => {
-      stopHoldRepeat();
-      stepBpm(delta);
-
-      holdDelayRef.current = setTimeout(() => {
-        holdDelayRef.current = null;
-        holdIntervalRef.current = setInterval(() => {
-          const stepped = stepBpm(delta);
-          if (!stepped) {
-            stopHoldRepeat();
-          }
-        }, HOLD_REPEAT_INTERVAL_MS);
-      }, HOLD_REPEAT_DELAY_MS);
-    },
-    [stepBpm, stopHoldRepeat],
-  );
-
-  useEffect(() => () => stopHoldRepeat(), [stopHoldRepeat]);
+  const { beginHoldRepeat, stopHoldRepeat } = useHoldRepeatStep({
+    value: bpm,
+    minimumValue,
+    maximumValue,
+    onChange: onBpmChange,
+  });
 
   return (
     <View

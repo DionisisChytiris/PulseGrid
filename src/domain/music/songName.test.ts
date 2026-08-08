@@ -35,7 +35,7 @@ describe('sanitizeSongName', () => {
     expect(sanitizeSongName('  Metal   Intro  ')).toBe('Metal Intro');
   });
 
-  it('falls back to New Song when empty after sanitization', () => {
+  it('falls back to New Timeline when empty after sanitization', () => {
     expect(sanitizeSongName('')).toBe(DEFAULT_SONG_NAME);
     expect(sanitizeSongName('   ')).toBe(DEFAULT_SONG_NAME);
     expect(sanitizeSongName('___')).toBe(DEFAULT_SONG_NAME);

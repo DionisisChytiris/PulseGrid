@@ -179,7 +179,7 @@ describe('deleteSegment', () => {
 
     const only = buildTimelineSegments(song)[0];
     const result = deleteSegment(song, only);
-    expect(result.blockedReason).toBe('Every song must contain at least one segment.');
+    expect(result.blockedReason).toBe('Every timeline must contain at least one segment.');
     expect(result.song).toBe(song);
   });
 });

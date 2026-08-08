@@ -37,14 +37,14 @@ export function useSongEditor(songId: string) {
     try {
       const loaded = await songRepository.getSongById(songId);
       if (loaded === null) {
-        setError('Song not found');
+        setError('Timeline not found');
         setSong(null);
         return;
       }
 
       setSong(cloneEditableSong(loaded));
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Failed to load song');
+      setError(loadError instanceof Error ? loadError.message : 'Failed to load timeline');
     } finally {
       setLoading(false);
     }
@@ -62,7 +62,7 @@ export function useSongEditor(songId: string) {
       const saved = await songRepository.updateSong(nextSong);
       setSong(cloneEditableSong(saved));
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Failed to save song');
+      setError(saveError instanceof Error ? saveError.message : 'Failed to save timeline');
     } finally {
       setSaving(false);
     }

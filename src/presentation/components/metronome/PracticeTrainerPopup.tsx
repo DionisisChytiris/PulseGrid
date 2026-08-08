@@ -17,6 +17,7 @@ import type {
 import { tempoTrainerService } from '../../../application/services/tempoTrainerServiceInstance';
 import { useResponsiveLayout } from '../../layout/useResponsiveLayout';
 import { studioColors } from '../../theme';
+import { useHoldRepeatStep } from './useHoldRepeatStep';
 
 const MIN_BARS = 1;
 const MAX_BARS = 64;
@@ -56,35 +57,41 @@ function minutePresetFromSeconds(seconds: number): number | null {
     : null;
 }
 
-function StepperRow({
+function HoldRepeatStepperRow({
   label,
   value,
-  onDecrement,
-  onIncrement,
-  decrementDisabled,
-  incrementDisabled,
-  valueLabel,
+  minimumValue,
+  maximumValue,
+  onChange,
   unitLabel,
   accessibilityValueLabel,
 }: {
   label: string;
   value: number;
-  onDecrement: () => void;
-  onIncrement: () => void;
-  decrementDisabled: boolean;
-  incrementDisabled: boolean;
-  valueLabel?: string;
+  minimumValue: number;
+  maximumValue: number;
+  onChange: (next: number) => void;
   unitLabel?: string;
   accessibilityValueLabel: string;
 }) {
   const layout = useResponsiveLayout();
+  const decrementDisabled = value <= minimumValue;
+  const incrementDisabled = value >= maximumValue;
+  const { beginHoldRepeat, stopHoldRepeat } = useHoldRepeatStep({
+    value,
+    minimumValue,
+    maximumValue,
+    onChange,
+  });
 
   return (
     <View style={styles.controlBlock}>
       <Text style={[styles.controlLabel, { fontSize: layout.scale(13) }]}>{label}</Text>
       <View style={styles.stepper}>
         <Pressable
-          onPress={onDecrement}
+          onPressIn={() => beginHoldRepeat(-1)}
+          onPressOut={stopHoldRepeat}
+          onResponderTerminate={stopHoldRepeat}
           disabled={decrementDisabled}
           accessibilityRole="button"
           accessibilityLabel={`Decrease ${accessibilityValueLabel}`}
@@ -96,11 +103,11 @@ function StepperRow({
         >
           <Ionicons name="remove" size={layout.scale(16)} color={studioColors.textPrimary} />
         </Pressable>
-        <Text style={[styles.stepperValue, { fontSize: layout.scale(15) }]}>
-          {valueLabel ?? String(value)}
-        </Text>
+        <Text style={[styles.stepperValue, { fontSize: layout.scale(15) }]}>{value}</Text>
         <Pressable
-          onPress={onIncrement}
+          onPressIn={() => beginHoldRepeat(1)}
+          onPressOut={stopHoldRepeat}
+          onResponderTerminate={stopHoldRepeat}
           disabled={incrementDisabled}
           accessibilityRole="button"
           accessibilityLabel={`Increase ${accessibilityValueLabel}`}
@@ -383,24 +390,22 @@ export function PracticeTrainerPopup({
           title="Increase By Time"
           onBack={() => setSetupStep('MAIN')}
         />
-        <StepperRow
+        <HoldRepeatStepperRow
           label="Increase BPM by"
           value={timeSettings.bpmIncrease}
+          minimumValue={MIN_DELTA}
+          maximumValue={MAX_DELTA}
+          onChange={(bpmIncrease) => updateTime({ bpmIncrease })}
           accessibilityValueLabel="BPM increase"
-          onDecrement={() => updateTime({ bpmIncrease: timeSettings.bpmIncrease - 1 })}
-          onIncrement={() => updateTime({ bpmIncrease: timeSettings.bpmIncrease + 1 })}
-          decrementDisabled={timeSettings.bpmIncrease <= MIN_DELTA}
-          incrementDisabled={timeSettings.bpmIncrease >= MAX_DELTA}
         />
-        <StepperRow
+        <HoldRepeatStepperRow
           label="Time interval"
           value={timeSettings.seconds}
+          minimumValue={MIN_SECONDS}
+          maximumValue={MAX_SECONDS}
+          onChange={(seconds) => updateTime({ seconds })}
           unitLabel="seconds"
           accessibilityValueLabel="seconds interval"
-          onDecrement={() => updateTime({ seconds: timeSettings.seconds - 1 })}
-          onIncrement={() => updateTime({ seconds: timeSettings.seconds + 1 })}
-          decrementDisabled={timeSettings.seconds <= MIN_SECONDS}
-          incrementDisabled={timeSettings.seconds >= MAX_SECONDS}
         />
         <MinutePresetRow
           selectedMinutes={timeSettings.minutesPreset}
@@ -417,23 +422,22 @@ export function PracticeTrainerPopup({
           title="Increase By Bar"
           onBack={() => setSetupStep('MAIN')}
         />
-        <StepperRow
+       
+        <HoldRepeatStepperRow
           label="Increase BPM by"
           value={barSettings.bpmIncrease}
+          minimumValue={MIN_DELTA}
+          maximumValue={MAX_DELTA}
+          onChange={(bpmIncrease) => updateBar({ bpmIncrease })}
           accessibilityValueLabel="BPM increase"
-          onDecrement={() => updateBar({ bpmIncrease: barSettings.bpmIncrease - 1 })}
-          onIncrement={() => updateBar({ bpmIncrease: barSettings.bpmIncrease + 1 })}
-          decrementDisabled={barSettings.bpmIncrease <= MIN_DELTA}
-          incrementDisabled={barSettings.bpmIncrease >= MAX_DELTA}
         />
-        <StepperRow
+        <HoldRepeatStepperRow
           label="Every N bars"
           value={barSettings.bars}
+          minimumValue={MIN_BARS}
+          maximumValue={MAX_BARS}
+          onChange={(bars) => updateBar({ bars })}
           accessibilityValueLabel="bars interval"
-          onDecrement={() => updateBar({ bars: barSettings.bars - 1 })}
-          onIncrement={() => updateBar({ bars: barSettings.bars + 1 })}
-          decrementDisabled={barSettings.bars <= MIN_BARS}
-          incrementDisabled={barSettings.bars >= MAX_BARS}
         />
       </>
     );
@@ -595,6 +599,7 @@ const styles = StyleSheet.create({
   backTitle: {
     fontWeight: '600',
     color: studioColors.textPrimary,
+    paddingLeft: 10
   },
   modeChoiceButton: {
     flex: 1,
@@ -626,6 +631,9 @@ const styles = StyleSheet.create({
   },
   controlBlock: {
     gap: 8,
+    flex:1,
+    justifyContent: 'center',
+    alignItems: 'center'
   },
   controlLabel: {
     color: studioColors.textSecondary,

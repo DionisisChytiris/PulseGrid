@@ -17,7 +17,7 @@ export function useSongLibrary() {
       const nextSongs = await songRepository.getAllSongs();
       setSongs(nextSongs);
     } catch (loadError) {
-      const message = loadError instanceof Error ? loadError.message : 'Failed to load songs';
+      const message = loadError instanceof Error ? loadError.message : 'Failed to load timelines';
       setError(message);
     } finally {
       setLoading(false);

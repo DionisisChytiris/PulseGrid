@@ -1,3 +1,4 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
@@ -15,6 +16,7 @@ export default function RootNavigator() {
       screenOptions={{
         tabBarActiveTintColor: studioColors.accent,
         tabBarInactiveTintColor: studioColors.textMuted,
+        tabBarShowLabel: false,
         tabBarStyle: {
           backgroundColor: studioColors.tabBarBackground,
           borderTopColor: studioColors.tabBarBorder,
@@ -26,9 +28,9 @@ export default function RootNavigator() {
         component={HomeStackNavigator}
         options={{
           headerShown: false,
-          tabBarLabel: 'Home',
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color} />
+          tabBarAccessibilityLabel: 'Metronome',
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="metronome" size={size} color={color} />
           ),
         }}
       />
@@ -37,7 +39,7 @@ export default function RootNavigator() {
         component={SongsStackNavigator}
         options={{
           headerShown: false,
-          tabBarLabel: 'Songs',
+          tabBarAccessibilityLabel: 'Timeline Builder',
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
               name={focused ? 'musical-notes' : 'musical-notes-outline'}
@@ -52,7 +54,7 @@ export default function RootNavigator() {
         component={SettingsScreen}
         options={{
           headerShown: false,
-          tabBarLabel: 'Settings',
+          tabBarAccessibilityLabel: 'Settings',
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons name={focused ? 'settings' : 'settings-outline'} size={size} color={color} />
           ),
