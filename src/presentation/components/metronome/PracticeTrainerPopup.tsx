@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useReducer, useState, type ReactNode } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -12,7 +12,9 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import type {
   TempoIncreaseMode,
   TempoTrainerSettings,
+  TempoTrainerStatus,
 } from '../../../application/services/TempoTrainerService';
+import { tempoTrainerService } from '../../../application/services/tempoTrainerServiceInstance';
 import { useResponsiveLayout } from '../../layout/useResponsiveLayout';
 import { studioColors } from '../../theme';
 
@@ -450,41 +452,93 @@ type PracticeTrainerButtonProps = {
   onPress: () => void;
 };
 
+const TIME_STATUS_POLL_MS = 250;
+
+function formatTrainerStatusLabel(status: TempoTrainerStatus): string {
+  const delta = `+${status.bpmDelta}`;
+
+  if (status.increaseMode === 'time') {
+    const seconds =
+      status.secondsUntilNextIncrease === null
+        ? status.timeIntervalSeconds
+        : Math.max(0, Math.ceil(status.secondsUntilNextIncrease));
+    return `${String(seconds).padStart(2, '0')} / ${delta}`;
+  }
+
+  const bars = status.barsUntilNextIncrease;
+  const barsLabel = bars === 1 ? '1 bar' : `${bars} bars`;
+  return `${barsLabel} / ${delta}`;
+}
+
 export function PracticeTrainerButton({
   isActive,
   trainerEnabled,
   onPress,
 }: PracticeTrainerButtonProps) {
   const layout = useResponsiveLayout();
+  const [, rerender] = useReducer((count: number) => count + 1, 0);
+
+  const status = tempoTrainerService.getStatus();
+  const showStatus = trainerEnabled && status.enabled;
+
+  // Trainer events (settings / ticks / enable) and a light TIME poll so the
+  // countdown label tracks secondsUntilNextIncrease from the service deadline.
+  useEffect(() => tempoTrainerService.subscribe(rerender), []);
+
+  useEffect(() => {
+    if (!trainerEnabled || status.increaseMode !== 'time') {
+      return;
+    }
+    const id = setInterval(rerender, TIME_STATUS_POLL_MS);
+    return () => clearInterval(id);
+  }, [trainerEnabled, status.increaseMode]);
+
   const metrics = useMemo(
     () => ({
       fontSize: layout.scale(16),
+      statusFontSize: layout.scale(14),
       iconSize: layout.scale(18, 0.05, 0.05),
+      // Stable slot for longest status e.g. "100 bars / +100".
+      buttonWidth: layout.scale(140, 0.05, 0.05),
     }),
     [layout],
   );
 
+  const label = showStatus ? formatTrainerStatusLabel(status) : 'Trainer';
+
   return (
     <Pressable
-      style={[styles.button, (isActive || trainerEnabled) && styles.buttonArmed]}
+      style={[
+        styles.button,
+        { width: metrics.buttonWidth },
+        (isActive || showStatus) && styles.buttonArmed,
+        showStatus && styles.buttonRunning,
+      ]}
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel="Practice trainer"
-      accessibilityState={{ expanded: isActive, selected: trainerEnabled }}
+      accessibilityLabel={
+        showStatus ? `Practice trainer: ${label}` : 'Practice trainer'
+      }
+      accessibilityState={{ expanded: isActive, selected: showStatus }}
     >
       <Ionicons
         name="trending-up"
         size={metrics.iconSize}
-        color={trainerEnabled ? studioColors.accent : studioColors.textMuted}
+        color={showStatus ? studioColors.accent : studioColors.textMuted}
       />
       <Text
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.65}
         style={[
           styles.buttonLabel,
-          { fontSize: metrics.fontSize },
-          trainerEnabled && styles.buttonLabelActive,
+          {
+            fontSize: showStatus ? metrics.statusFontSize : metrics.fontSize,
+          },
+          showStatus && styles.buttonLabelActive,
         ]}
       >
-        Trainer
+        {label}
       </Text>
     </Pressable>
   );
@@ -642,18 +696,26 @@ const styles = StyleSheet.create({
   button: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-start',
     gap: 6,
     paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     borderRadius: 8,
     alignSelf: 'flex-start',
   },
   buttonArmed: {
     backgroundColor: studioColors.surfaceElevated,
   },
+  buttonRunning: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: studioColors.accentMutedBg,
+  },
   buttonLabel: {
+    flex: 1,
     fontWeight: '600',
     color: studioColors.textMuted,
+    fontVariant: ['tabular-nums'],
+    textAlign: 'left',
   },
   buttonLabelActive: {
     color: studioColors.accent,

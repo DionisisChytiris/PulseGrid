@@ -67,19 +67,7 @@ export class ClickSoundService {
   }
 
   async setBarStartEnabled(enabled: boolean): Promise<void> {
-    // TEMP debug — remove after native barStart propagation diagnosis
-    const previous = this.getState().settings.barStartEnabled;
-    console.log('[BarStartDebug] ClickSoundService.setBarStartEnabled called', {
-      previous,
-      enabled,
-    });
     this.dispatch(barStartEnabledChanged(enabled));
-    const afterDispatch = this.getState().settings.barStartEnabled;
-    console.log('[BarStartDebug] Redux barStartEnabled after dispatch', {
-      previous,
-      afterDispatch,
-      changed: afterDispatch === enabled && afterDispatch !== previous,
-    });
     this.audioEngine.setBarStartEnabled(enabled);
     await this.persistCurrent();
   }

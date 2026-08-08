@@ -140,13 +140,6 @@ export class PlaybackService {
   }
 
   setBpm(bpm: number): void {
-    const oldBpm = this.getState().metronome.bpm;
-    // TEMP debug — measure live tempo transitions (no behavior change)
-    console.log('[TempoChange]', {
-      oldBpm,
-      newBpm: bpm,
-      timestamp: Date.now(),
-    });
     this.dispatch(bpmChanged(bpm));
     this.audioEngine.setTempo(bpm);
     this.timingSource.setTimingTempo(bpm);

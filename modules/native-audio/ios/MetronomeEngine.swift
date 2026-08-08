@@ -221,12 +221,6 @@ final class MetronomeEngine {
     stateLock.lock()
     defer { stateLock.unlock() }
 
-    // TEMP debug — remove after native barStart propagation diagnosis
-    NSLog(
-      "[BarStartDebug] iOS MetronomeEngine.updateBarStartEnabled previous=%@ new=%@",
-      barStartEnabled ? "true" : "false",
-      enabled ? "true" : "false"
-    )
     barStartEnabled = enabled
   }
 
@@ -603,13 +597,6 @@ final class MetronomeEngine {
 
     for snapshot in snapshots {
       if songTimeline {
-        // TEMP debug — remove after native barStart propagation diagnosis
-        if snapshot.beatIndexInBar == 0 && snapshot.subdivisionIndex == 0 {
-          NSLog(
-            "[BarStartDebug] iOS classify song beat1 barStartEnabled=%@",
-            barStart ? "true" : "false"
-          )
-        }
         playClickForSongTick(
           isAccent: snapshot.isAccent,
           beatIndexInBar: snapshot.beatIndexInBar,
@@ -618,13 +605,6 @@ final class MetronomeEngine {
           scheduledDeadlineNs: snapshot.scheduledDeadlineNs
         )
       } else {
-        // TEMP debug — remove after native barStart propagation diagnosis
-        if snapshot.beatIndexInBar == 0 && snapshot.subdivisionIndex == 0 {
-          NSLog(
-            "[BarStartDebug] iOS classify qm beat1 barStartEnabled=%@",
-            barStart ? "true" : "false"
-          )
-        }
         playClickForTick(
           beatIndexInBar: snapshot.beatIndexInBar,
           subdivisionIndex: snapshot.subdivisionIndex,

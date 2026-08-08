@@ -20,8 +20,6 @@ export type NativeTickEvent = {
 
 declare class NativeAudioModule extends NativeModule<{
   onTick: (event: NativeTickEvent) => void;
-  /** TEMP: native debug mirror to Metro. */
-  onNativeDebugLog: (event: { tag: string; [key: string]: unknown }) => void;
 }> {
   initialize(): void;
   areSoundsReady(): boolean;

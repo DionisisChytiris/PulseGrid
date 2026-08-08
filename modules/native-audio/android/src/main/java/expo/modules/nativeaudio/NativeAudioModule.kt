@@ -20,7 +20,7 @@ class NativeAudioModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("NativeAudioModule")
 
-    Events("onTick", "onNativeDebugLog")
+    Events("onTick")
 
     OnDestroy {
       clickSoundPlayer?.release()
@@ -109,8 +109,6 @@ class NativeAudioModule : Module() {
     }
 
     Function("setBarStartEnabled") { enabled: Boolean ->
-      // TEMP debug — remove after native barStart propagation diagnosis
-      android.util.Log.d("BarStartDebug", "Android NativeAudioModule.setBarStartEnabled enabled=$enabled")
       metronomeEngine.updateBarStartEnabled(enabled)
     }
 
@@ -169,13 +167,6 @@ class NativeAudioModule : Module() {
             "isAccent" to isAccent,
             "timestamp" to timestampMs.toDouble(),
           ),
-        )
-      },
-      onDebugLog = { tag, payload ->
-        // TEMP: mirror native debug lines to Metro via the Expo event bridge.
-        sendEvent(
-          "onNativeDebugLog",
-          mapOf("tag" to tag) + payload,
         )
       },
     )

@@ -20,6 +20,7 @@ function enabledSettings(overrides: Partial<TempoTrainerSettings> = {}): TempoTr
   return {
     ...DEFAULT_TEMPO_TRAINER_SETTINGS,
     enabled: true,
+    increaseMode: 'bars',
     barsInterval: 2,
     bpmDelta: 5,
     maxBpm: 130,
@@ -134,6 +135,73 @@ describe('TempoTrainerService', () => {
     service.onTick(tick({ beatNumber: 1, subdivisionIndex: 0 }));
     expect(service.getStatus().completedBars).toBe(0);
     expect(service.getStatus().barsTowardNext).toBe(0);
+    expect(service.getStatus().barsUntilNextIncrease).toBe(2);
+    expect(service.getStatus().bpmDelta).toBe(5);
+  });
+
+  it('exposes bars remaining until the next increase (updates on downbeat only)', () => {
+    service.setSettings(enabledSettings({ barsInterval: 4, bpmDelta: 30 }));
+    expect(service.getStatus().barsUntilNextIncrease).toBe(4);
+
+    playBar3_4(service);
+    // Final tick of the bar must not advance the countdown yet.
+    expect(service.getStatus().completedBars).toBe(1);
+    expect(service.getStatus().barsTowardNext).toBe(0);
+    expect(service.getStatus().barsUntilNextIncrease).toBe(4);
+
+    // Countdown commits at the next bar boundary (beat 1).
+    service.onTick(tick({ beatNumber: 1, subdivisionIndex: 0 }));
+    expect(service.getStatus().barsTowardNext).toBe(1);
+    expect(service.getStatus().barsUntilNextIncrease).toBe(3);
+
+    service.onTick(tick({ beatNumber: 2, subdivisionIndex: 0 }));
+    service.onTick(tick({ beatNumber: 3, subdivisionIndex: 0 })); // completes bar 2
+    expect(service.getStatus().barsUntilNextIncrease).toBe(3);
+    service.onTick(tick({ beatNumber: 1, subdivisionIndex: 0 }));
+    expect(service.getStatus().barsUntilNextIncrease).toBe(2);
+
+    service.onTick(tick({ beatNumber: 2, subdivisionIndex: 0 }));
+    service.onTick(tick({ beatNumber: 3, subdivisionIndex: 0 })); // completes bar 3
+    expect(service.getStatus().barsUntilNextIncrease).toBe(2);
+    service.onTick(tick({ beatNumber: 1, subdivisionIndex: 0 }));
+    expect(service.getStatus().barsUntilNextIncrease).toBe(1);
+
+    service.onTick(tick({ beatNumber: 2, subdivisionIndex: 0 }));
+    service.onTick(tick({ beatNumber: 3, subdivisionIndex: 0 })); // completes bar 4 → queues
+    expect(service.getStatus().barsUntilNextIncrease).toBe(1);
+    expect(setBpmCalls).toEqual([]);
+
+    service.onTick(tick({ beatNumber: 1, subdivisionIndex: 0 })); // apply + reset display
+    expect(setBpmCalls).toEqual([130]);
+    expect(service.getStatus().barsTowardNext).toBe(0);
+    expect(service.getStatus().barsUntilNextIncrease).toBe(4);
+  });
+
+  it('bar countdown does not change during beats of a bar; advances on the next downbeat', () => {
+    service.setSettings(enabledSettings({ barsInterval: 2, bpmDelta: 10, maxBpm: 200 }));
+
+    // Bar 1
+    service.onTick(tick({ beatNumber: 1, subdivisionIndex: 0 }));
+    expect(service.getStatus().barsUntilNextIncrease).toBe(2);
+    service.onTick(tick({ beatNumber: 2, subdivisionIndex: 0 }));
+    expect(service.getStatus().barsUntilNextIncrease).toBe(2);
+    service.onTick(tick({ beatNumber: 3, subdivisionIndex: 0 })); // completes bar 1
+    expect(service.getStatus().completedBars).toBe(1);
+    expect(service.getStatus().barsUntilNextIncrease).toBe(2); // UI still 2 on final beat
+
+    // Bar 2 — countdown drops to 1 at this downbeat
+    service.onTick(tick({ beatNumber: 1, subdivisionIndex: 0 }));
+    expect(service.getStatus().barsUntilNextIncrease).toBe(1);
+    service.onTick(tick({ beatNumber: 2, subdivisionIndex: 0 }));
+    expect(service.getStatus().barsUntilNextIncrease).toBe(1);
+    service.onTick(tick({ beatNumber: 3, subdivisionIndex: 0 })); // completes bar 2, queues BPM
+    expect(service.getStatus().barsUntilNextIncrease).toBe(1);
+    expect(setBpmCalls).toEqual([]);
+
+    // Next downbeat: BPM applies; cycle display resets to 2
+    service.onTick(tick({ beatNumber: 1, subdivisionIndex: 0 }));
+    expect(setBpmCalls).toEqual([110]);
+    expect(service.getStatus().barsUntilNextIncrease).toBe(2);
   });
 
   it('3/4 every 2 bars +5: old BPM through beat 1, then apply', () => {
@@ -276,21 +344,84 @@ describe('TempoTrainerService time mode', () => {
     // Arms clock on first downbeat at t=1_000_000; next due at +60s.
     service.onTick(tick({ beatNumber: 1, subdivisionIndex: 0 }));
     expect(setBpmCalls).toEqual([]);
+    expect(service.getStatus().secondsUntilNextIncrease).toBeCloseTo(60, 5);
+    expect(service.getStatus().bpmDelta).toBe(5);
 
     nowMs += 59_000;
+    expect(service.getStatus().secondsUntilNextIncrease).toBeCloseTo(1, 5);
     service.onTick(tick({ beatNumber: 2, subdivisionIndex: 0 }));
     expect(setBpmCalls).toEqual([]);
 
     nowMs += 1_000; // hit 60s
     service.onTick(tick({ beatNumber: 3, subdivisionIndex: 0 }));
     expect(setBpmCalls).toEqual([]); // pending only — apply on next beat 1
+    expect(service.getStatus().secondsUntilNextIncrease).toBe(0);
 
     service.onTick(tick({ beatNumber: 4, subdivisionIndex: 0 }));
     expect(setBpmCalls).toEqual([]);
+    expect(service.getStatus().secondsUntilNextIncrease).toBe(0);
 
     service.onTick(tick({ beatNumber: 1, subdivisionIndex: 0 }));
     expect(setBpmCalls).toEqual([125]);
     expect(bpm).toBe(125);
+    expect(service.getStatus().secondsUntilNextIncrease).toBeCloseTo(60, 5);
+  });
+
+  it('holds countdown at 0 until musical apply, then rearms interval', () => {
+    service.setSettings(
+      enabledSettings({
+        increaseMode: 'time',
+        timeIntervalSeconds: 10,
+        bpmDelta: 20,
+        maxBpm: 200,
+      }),
+    );
+
+    service.onTick(tick({ beatNumber: 1, subdivisionIndex: 0 }));
+    expect(service.getStatus().secondsUntilNextIncrease).toBeCloseTo(10, 5);
+
+    nowMs += 10_000;
+    // Deadline mid-bar on beat 2 — queue pending, no BPM yet, countdown stays 0.
+    service.onTick(tick({ beatNumber: 2, subdivisionIndex: 0 }));
+    expect(setBpmCalls).toEqual([]);
+    expect(service.getStatus().secondsUntilNextIncrease).toBe(0);
+
+    service.onTick(tick({ beatNumber: 3, subdivisionIndex: 0 }));
+    expect(setBpmCalls).toEqual([]);
+    expect(service.getStatus().secondsUntilNextIncrease).toBe(0);
+
+    service.onTick(tick({ beatNumber: 4, subdivisionIndex: 0 }));
+    expect(setBpmCalls).toEqual([]);
+    expect(service.getStatus().secondsUntilNextIncrease).toBe(0);
+
+    // Musical apply point.
+    service.onTick(tick({ beatNumber: 1, subdivisionIndex: 0 }));
+    expect(setBpmCalls).toEqual([140]);
+    expect(service.getStatus().secondsUntilNextIncrease).toBeCloseTo(10, 5);
+  });
+
+  it('does not run TIME countdown while metronome is stopped', () => {
+    service.setSettings(
+      enabledSettings({
+        increaseMode: 'time',
+        timeIntervalSeconds: 10,
+        bpmDelta: 5,
+        maxBpm: 200,
+      }),
+    );
+
+    // Enabled but never started — schedule unarmed.
+    expect(service.getStatus().secondsUntilNextIncrease).toBeNull();
+    nowMs += 5_000;
+    expect(service.getStatus().secondsUntilNextIncrease).toBeNull();
+
+    service.onTick(tick({ beatNumber: 1, subdivisionIndex: 0 }));
+    expect(service.getStatus().secondsUntilNextIncrease).toBeCloseTo(10, 5);
+
+    service.onPlaybackStopped();
+    expect(service.getStatus().secondsUntilNextIncrease).toBeNull();
+    nowMs += 5_000;
+    expect(service.getStatus().secondsUntilNextIncrease).toBeNull();
   });
 
   it('supports multiple continuous time-based increases', () => {
@@ -307,13 +438,17 @@ describe('TempoTrainerService time mode', () => {
 
     nowMs += 10_000;
     service.onTick(tick({ beatNumber: 2, subdivisionIndex: 0 }));
+    expect(service.getStatus().secondsUntilNextIncrease).toBe(0);
     service.onTick(tick({ beatNumber: 1, subdivisionIndex: 0 }));
     expect(setBpmCalls).toEqual([125]);
+    expect(service.getStatus().secondsUntilNextIncrease).toBeCloseTo(10, 5);
 
     nowMs += 10_000;
     service.onTick(tick({ beatNumber: 2, subdivisionIndex: 0 }));
+    expect(service.getStatus().secondsUntilNextIncrease).toBe(0);
     service.onTick(tick({ beatNumber: 1, subdivisionIndex: 0 }));
     expect(setBpmCalls).toEqual([125, 130]);
+    expect(service.getStatus().secondsUntilNextIncrease).toBeCloseTo(10, 5);
   });
 
   it('does not use bar completions to increase in time mode', () => {

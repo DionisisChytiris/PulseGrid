@@ -122,8 +122,6 @@ export class NativeAudioEngine implements IAudioEngine {
   }
 
   setBarStartEnabled(enabled: boolean): void {
-    // TEMP debug — remove after native barStart propagation diagnosis
-    console.log('[BarStartDebug] NativeAudioEngine.setBarStartEnabled', { enabled });
     NativeAudioModule.setBarStartEnabled?.(enabled);
   }
 

@@ -82,8 +82,6 @@ public class NativeAudioModule: Module {
     }
 
     Function("setBarStartEnabled") { (enabled: Bool) in
-      // TEMP debug — remove after native barStart propagation diagnosis
-      NSLog("[BarStartDebug] iOS NativeAudioModule.setBarStartEnabled enabled=%@", enabled ? "true" : "false")
       self.metronomeEngine.updateBarStartEnabled(enabled)
     }
 

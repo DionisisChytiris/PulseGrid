@@ -150,10 +150,6 @@ const ClockBeatDot = memo(function ClockBeatDot({
   return (
     <Pressable
       onPress={() => {
-        // TEMP debug — remove after bar-start hit-test diagnosis
-        if (isBeatOne) {
-          console.log('[BarStartDebug] beat1 Pressable onPress fired');
-        }
         onPress?.();
       }}
       hitSlop={6}
@@ -226,11 +222,7 @@ function ClockBeatIndicatorsComponent({
   };
 
   const toggleBarStart = () => {
-    // TEMP debug — remove after bar-start hit-test diagnosis
-    const previous = barStartEnabled;
-    const next = !barStartEnabled;
-    console.log('[BarStartDebug] toggleBarStart entered', { previous, next });
-    void clickSoundService.setBarStartEnabled(next);
+    void clickSoundService.setBarStartEnabled(!barStartEnabled);
   };
 
   if (beatCount <= 0) {

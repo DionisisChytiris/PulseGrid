@@ -17,8 +17,6 @@ internal class MetronomeEngine(
     isAccent: Boolean,
     timestampMs: Long,
   ) -> Unit,
-  /** TEMP: mirrors selected Logcat debug lines to JS via Expo sendEvent. */
-  private val onDebugLog: ((tag: String, payload: Map<String, Any?>) -> Unit)? = null,
 ) {
   private val lock = Any()
 
@@ -78,24 +76,6 @@ internal class MetronomeEngine(
   @Volatile
   private var uiDeadlineEpoch: Long = 0
 
-  /**
-   * TEMP debug — increments on each live BPM retune so publications can be correlated
-   * with TempoRetuneDebug. Does not affect scheduling.
-   */
-  private var tempoRetuneEpoch: Long = 0
-
-  /**
-   * TEMP debug — sequence → last enqueued scheduledDeadlineNs for duplicate detection.
-   * Does not affect scheduling.
-   */
-  private val debugPublishedDeadlinesNs = java.util.concurrent.ConcurrentHashMap<Long, Long>()
-
-  /**
-   * TEMP debug — payloads captured under [lock], flushed to Metro outside the lock
-   * (same Expo sendEvent bridge as TempoRetuneDebug).
-   */
-  private val pendingPublishDebug = ArrayList<Map<String, Any?>>(16)
-
   val running: Boolean
     get() = synchronized(lock) { isRunning }
 
@@ -108,11 +88,6 @@ internal class MetronomeEngine(
     val isAccent: Boolean,
     val timestampMs: Long,
     val scheduledDeadlineNs: Long,
-    /** TEMP debug — bpm / ticks used when this snapshot's deadline was computed. */
-    val publishBpm: Double = 0.0,
-    val publishTicksPerBeat: Int = 1,
-    val publishAnchorTimeNs: Long = 0L,
-    val tempoRetuneEpoch: Long = 0L,
   )
 
   /**
@@ -246,11 +221,6 @@ internal class MetronomeEngine(
 
   fun updateBarStartEnabled(enabled: Boolean) {
     synchronized(lock) {
-      // TEMP debug — remove after native barStart propagation diagnosis
-      android.util.Log.d(
-        "BarStartDebug",
-        "Android MetronomeEngine.updateBarStartEnabled previous=$barStartEnabled new=$enabled",
-      )
       barStartEnabled = enabled
     }
   }
@@ -297,7 +267,7 @@ internal class MetronomeEngine(
       anchorTimeNs = now - eventSource.offsetNsForSequence(nextUiSequence)
       rewindPublicationCursorLocked()
       assertSchedulingInvariantsLocked()
-      snapshots = collectLookaheadSnapshotsLocked("resume")
+      snapshots = collectLookaheadSnapshotsLocked()
       activeGeneration = generation
       scheduleNextUiTickLocked(activeGeneration)
     }
@@ -324,7 +294,7 @@ internal class MetronomeEngine(
       rewindPublicationCursorLocked()
       isPaused = false
       assertSchedulingInvariantsLocked()
-      snapshots = collectLookaheadSnapshotsLocked("seekToSequence")
+      snapshots = collectLookaheadSnapshotsLocked()
       activeGeneration = generation
       handler?.removeCallbacksAndMessages(null)
       scheduleNextUiTickLocked(activeGeneration)
@@ -344,8 +314,6 @@ internal class MetronomeEngine(
   private fun applyMusicalStateChange(change: MusicalStateChange) {
     val snapshots: List<TickSnapshot>?
     val activeGeneration: Long
-    var tempoRetuneDebug: Map<String, Any?>? = null
-    var collectReason = "applyMusicalStateChange"
     var discardedStaleSchedule = false
     synchronized(lock) {
       if (playbackMode == PlaybackMode.SONG_TIMELINE) {
@@ -360,43 +328,8 @@ internal class MetronomeEngine(
       if (bpmChange != null) {
         val safeBpm = bpmChange.coerceAtLeast(1.0)
         if (isRunning && !isPaused && safeBpm != this.bpm) {
-          // TEMP debug — remove after live tempo timing diagnosis
-          val oldBpm = this.bpm
-          val oldAnchorTimeNs = anchorTimeNs
-          val pivotSequence = if (nextUiSequence > 0L) nextUiSequence - 1L else 0L
-          val preservedDeadlineNs = deadlineForSequenceLocked(pivotSequence)
           retuneAnchorForContinuityLocked(safeBpm, ticksPerBeat)
-          tempoRetuneEpoch += 1
           anchorRetuned = true
-          Log.d(
-            "TempoRetuneDebug",
-            "updateTempo oldBpm=$oldBpm newBpm=$safeBpm " +
-              "oldAnchorTimeNs=$oldAnchorTimeNs newAnchorTimeNs=$anchorTimeNs " +
-              "preservedDeadlineNs=$preservedDeadlineNs pivotSequence=$pivotSequence " +
-              "nextUiSequence=$nextUiSequence",
-          )
-          queuePublishDebugLocked(
-            mapOf(
-              "kind" to "afterRetune",
-              "epoch" to tempoRetuneEpoch,
-              "oldBpm" to oldBpm,
-              "newBpm" to safeBpm,
-              "lastPublishedSequence" to lastPublishedSequence,
-              "nextUiSequence" to nextUiSequence,
-              "anchorTimeNs" to anchorTimeNs.toString(),
-              "note" to "invalidating UI waiter + republishing pending Oboe clicks",
-            ),
-          )
-          tempoRetuneDebug = mapOf(
-            "kind" to "updateTempo",
-            "oldBpm" to oldBpm,
-            "newBpm" to safeBpm,
-            "oldAnchorTimeNs" to oldAnchorTimeNs.toString(),
-            "newAnchorTimeNs" to anchorTimeNs.toString(),
-            "preservedDeadlineNs" to preservedDeadlineNs.toString(),
-            "pivotSequence" to pivotSequence,
-          )
-          collectReason = "applyMusicalStateChange_afterTempo"
         }
         this.bpm = safeBpm
       }
@@ -432,13 +365,11 @@ internal class MetronomeEngine(
           discardedStaleSchedule = true
         }
         assertSchedulingInvariantsLocked()
-        snapshots = collectLookaheadSnapshotsLocked(collectReason)
+        snapshots = collectLookaheadSnapshotsLocked()
         activeGeneration = generation
       }
     }
 
-    // Emit outside the lock (same pattern as onTick → sendEvent).
-    tempoRetuneDebug?.let { emitDebugLog("TempoRetuneDebug", it) }
     if (discardedStaleSchedule) {
       // Clear clicks queued with old deadlines, then accept republished ones.
       clickSoundPlayer?.flushScheduledClicks()
@@ -464,9 +395,6 @@ internal class MetronomeEngine(
     nextUiSequence = 0
     lastPublishedSequence = -1
     uiDeadlineEpoch = 0
-    tempoRetuneEpoch = 0
-    debugPublishedDeadlinesNs.clear()
-    pendingPublishDebug.clear()
     anchorTimeNs = 0
     playbackMode = PlaybackMode.QUICK_METRONOME
     eventSource = createQuickEventSourceLocked()
@@ -530,7 +458,6 @@ internal class MetronomeEngine(
   private fun fireUiTick(activeGeneration: Long) {
     val snapshot: TickSnapshot?
     val snapshots: List<TickSnapshot>?
-    var fireUiTickDebug: Map<String, Any?>? = null
     var shouldEmitTick = false
     synchronized(lock) {
       if (!isRunning || isPaused || activeGeneration != generation) {
@@ -539,43 +466,21 @@ internal class MetronomeEngine(
 
       val sequence = nextUiSequence
       val nowNs = System.nanoTime()
-      val deadlineNs = deadlineForSequenceLocked(sequence)
-      val currentAnchorTimeNs = anchorTimeNs
-      val timestampMs = (nowNs - currentAnchorTimeNs) / 1_000_000L
+      val timestampMs = (nowNs - anchorTimeNs) / 1_000_000L
       snapshot = snapshotForSequenceLocked(sequence, timestampMs)
       nextUiSequence++
 
-      // TEMP debug — remove after live tempo timing diagnosis
-      Log.d(
-        "TempoRetuneDebug",
-        "fireUiTick sequence=$sequence beatNumber=${snapshot?.beatNumber} " +
-          "nanoTime=$nowNs deadlineNs=$deadlineNs anchorTimeNs=$currentAnchorTimeNs " +
-          "nextUiSequence=$nextUiSequence timestampMs=$timestampMs",
-      )
-      fireUiTickDebug = mapOf(
-        "kind" to "fireUiTick",
-        "sequence" to sequence,
-        "beatNumber" to (snapshot?.beatNumber ?: -1),
-        "nanoTime" to nowNs.toString(),
-        "deadlineNs" to deadlineNs.toString(),
-        "anchorTimeNs" to currentAnchorTimeNs.toString(),
-        "timestampMs" to timestampMs,
-      )
-
       if (!isRunning || activeGeneration != generation) {
-        // Prior behavior: abort emit/schedule; still mirror the debug line to JS.
         snapshots = null
         shouldEmitTick = false
       } else {
         scheduleNextUiTickLocked(activeGeneration)
         assertSchedulingInvariantsLocked()
-        snapshots = collectLookaheadSnapshotsLocked("fireUiTick")
+        snapshots = collectLookaheadSnapshotsLocked()
         shouldEmitTick = true
       }
     }
 
-    // Emit outside the lock (same pattern as onTick → sendEvent).
-    fireUiTickDebug?.let { emitDebugLog("TempoRetuneDebug", it) }
     if (shouldEmitTick) {
       snapshot?.let { emitUiTick(it) }
       if (snapshots != null) {
@@ -584,48 +489,10 @@ internal class MetronomeEngine(
     }
   }
 
-  /** TEMP: Logcat + optional JS mirror. Caller should invoke outside [lock]. */
-  private fun emitDebugLog(tag: String, payload: Map<String, Any?>) {
-    onDebugLog?.invoke(tag, payload)
-  }
-
-  /** TEMP: Logcat always; Metro via [emitDebugLog]. Caller must be outside [lock]. */
-  private fun logPublishDebug(payload: Map<String, Any?>) {
-    Log.d("TempoPublishDebug", formatPublishDebug(payload))
-    emitDebugLog("TempoPublishDebug", payload)
-  }
-
-  /** TEMP: Logcat under lock; Metro deferred until [flushPublishDebug]. Caller must hold [lock]. */
-  private fun queuePublishDebugLocked(payload: Map<String, Any?>) {
-    Log.d("TempoPublishDebug", formatPublishDebug(payload))
-    pendingPublishDebug.add(payload)
-  }
-
-  /** TEMP: flush queued collect/retune publish logs to Metro. Outside [lock]. */
-  private fun flushPublishDebug() {
-    val batch: List<Map<String, Any?>>
-    synchronized(lock) {
-      if (pendingPublishDebug.isEmpty()) {
-        return
-      }
-      batch = ArrayList(pendingPublishDebug)
-      pendingPublishDebug.clear()
-    }
-    for (payload in batch) {
-      emitDebugLog("TempoPublishDebug", payload)
-    }
-  }
-
-  private fun formatPublishDebug(payload: Map<String, Any?>): String {
-    return payload.entries.joinToString(" ") { "${it.key}=${it.value}" }
-  }
-
   /** Caller must hold [lock]. Pure musical snapshot for [sequence], or null past score end. */
   private fun snapshotForSequenceLocked(sequence: Long, timestampMs: Long): TickSnapshot? {
     val tick = eventSource.peekAt(sequence) ?: return null
     val scheduledDeadlineNs = anchorTimeNs + eventSource.offsetNsForSequence(sequence)
-    val publishBpm = eventSource.bpmAt(sequence)
-    val publishTicksPerBeat = eventSource.ticksPerBeatAt(sequence)
 
     return TickSnapshot(
       sequence = sequence,
@@ -636,10 +503,6 @@ internal class MetronomeEngine(
       isAccent = tick.isAccent,
       timestampMs = timestampMs,
       scheduledDeadlineNs = scheduledDeadlineNs,
-      publishBpm = publishBpm,
-      publishTicksPerBeat = publishTicksPerBeat,
-      publishAnchorTimeNs = anchorTimeNs,
-      tempoRetuneEpoch = tempoRetuneEpoch,
     )
   }
 
@@ -655,7 +518,7 @@ internal class MetronomeEngine(
       }
 
       assertSchedulingInvariantsLocked()
-      snapshots = collectLookaheadSnapshotsLocked("publishLookaheadEvents")
+      snapshots = collectLookaheadSnapshotsLocked()
     }
 
     enqueueAudioSnapshots(snapshots, activeGeneration)
@@ -665,24 +528,7 @@ internal class MetronomeEngine(
    * Caller must hold [lock].
    * Collects unpublished snapshots through the current lookahead horizon without enqueueing.
    */
-  private fun collectLookaheadSnapshotsLocked(debugReason: String = "unspecified"): List<TickSnapshot> {
-    // TEMP debug — cursor state before advancing publication.
-    val beforeLastPublished = lastPublishedSequence
-    val beforeNextUi = nextUiSequence
-    queuePublishDebugLocked(
-      mapOf(
-        "kind" to "collectBefore",
-        "reason" to debugReason,
-        "lastPublishedSequence" to beforeLastPublished,
-        "nextUiSequence" to beforeNextUi,
-        "anchorTimeNs" to anchorTimeNs.toString(),
-        "bpm" to eventSource.bpmAt(max(0L, beforeNextUi)),
-        "tempoRetuneEpoch" to tempoRetuneEpoch,
-        "generation" to generation,
-        "startCollectFrom" to (beforeLastPublished + 1),
-      ),
-    )
-
+  private fun collectLookaheadSnapshotsLocked(): List<TickSnapshot> {
     val snapshots = ArrayList<TickSnapshot>(8)
     val horizonNs = System.nanoTime() + computeLookaheadNsLocked()
     var sequence = lastPublishedSequence + 1
@@ -708,23 +554,6 @@ internal class MetronomeEngine(
       previousDeadlineNs = deadlineNs
       sequence++
     }
-
-    val firstSeq = snapshots.firstOrNull()?.sequence
-    val lastSeq = snapshots.lastOrNull()?.sequence
-    queuePublishDebugLocked(
-      mapOf(
-        "kind" to "collectAfter",
-        "reason" to debugReason,
-        "lastPublishedSequence" to lastPublishedSequence,
-        "nextUiSequence" to nextUiSequence,
-        "firstSequenceCollected" to firstSeq,
-        "lastSequenceCollected" to lastSeq,
-        "snapshotCount" to snapshots.size,
-        "horizonNs" to horizonNs.toString(),
-        "tempoRetuneEpoch" to tempoRetuneEpoch,
-        "generation" to generation,
-      ),
-    )
 
     return snapshots
   }
@@ -769,13 +598,6 @@ internal class MetronomeEngine(
   /** Caller must hold [lock]. Only for explicit position changes (seek / resume / live retune). */
   private fun rewindPublicationCursorLocked() {
     lastPublishedSequence = nextUiSequence - 1
-    // Sequences at/after nextUi will be republished; drop old deadline tracking so
-    // regeneration is not mistaken for a duplicate enqueue.
-    val firstFuture = nextUiSequence
-    val staleKeys = debugPublishedDeadlinesNs.keys.filter { it >= firstFuture }
-    for (key in staleKeys) {
-      debugPublishedDeadlinesNs.remove(key)
-    }
   }
 
   /**
@@ -857,67 +679,18 @@ internal class MetronomeEngine(
   }
 
   private fun enqueueAudioSnapshots(snapshots: List<TickSnapshot>, activeGeneration: Long) {
-    // Always flush collect/retune publish logs collected under the lock — even if
-    // this batch is empty (common when lookahead already covers the horizon).
-    flushPublishDebug()
-
     if (snapshots.isEmpty()) {
-      logPublishDebug(
-        mapOf(
-          "kind" to "enqueueBatchEmpty",
-          "activeGeneration" to activeGeneration,
-        ),
-      )
       return
     }
 
-    val latestTempoRetuneEpoch: Long
     synchronized(lock) {
       if (!isRunning || generation != activeGeneration) {
-        logPublishDebug(
-          mapOf(
-            "kind" to "enqueueSkipped",
-            "count" to snapshots.size,
-            "activeGeneration" to activeGeneration,
-            "engineGeneration" to generation,
-            "isRunning" to isRunning,
-          ),
-        )
         return
       }
-      latestTempoRetuneEpoch = tempoRetuneEpoch
     }
 
-    val enqueueTimeNs = System.nanoTime()
-    logPublishDebug(
-      mapOf(
-        "kind" to "enqueueBatchStart",
-        "count" to snapshots.size,
-        "enqueueTimeNs" to enqueueTimeNs.toString(),
-        "firstSeq" to snapshots.first().sequence,
-        "lastSeq" to snapshots.last().sequence,
-        "activeGeneration" to activeGeneration,
-        "latestTempoRetuneEpoch" to latestTempoRetuneEpoch,
-      ),
-    )
-
     for (snapshot in snapshots) {
-      // TEMP: duplicate / conflicting-deadline detection (engine cursor should prevent this).
-      val previousDeadline = debugPublishedDeadlinesNs.put(snapshot.sequence, snapshot.scheduledDeadlineNs)
-      if (previousDeadline != null) {
-        logPublishDebug(
-          mapOf(
-            "kind" to "duplicateSequencePublish",
-            "sequence" to snapshot.sequence,
-            "previousDeadlineNs" to previousDeadline.toString(),
-            "newDeadlineNs" to snapshot.scheduledDeadlineNs.toString(),
-            "sameDeadline" to (previousDeadline == snapshot.scheduledDeadlineNs),
-            "tempoRetuneEpoch" to snapshot.tempoRetuneEpoch,
-          ),
-        )
-      }
-
-      enqueueAudioForTick(snapshot, enqueueTimeNs, latestTempoRetuneEpoch)
+      enqueueAudioForTick(snapshot)
     }
   }
 
@@ -925,11 +698,7 @@ internal class MetronomeEngine(
    * Exact handoff to the audio engine: classify click, then
    * [ClickSoundPlayer] → [OboeClickPlayer.nativeEnqueueClick].
    */
-  private fun enqueueAudioForTick(
-    snapshot: TickSnapshot,
-    enqueueTimeNs: Long,
-    latestTempoRetuneEpoch: Long,
-  ) {
+  private fun enqueueAudioForTick(snapshot: TickSnapshot) {
     // Song timeline: use compiled event accent on the snapshot.
     // Quick Metronome: resolve from the live session accentPattern (unchanged).
     val soundKind =
@@ -952,40 +721,6 @@ internal class MetronomeEngine(
           barStartEnabled = barStartEnabled,
         )
       }
-
-    val relativeToLatestEpoch =
-      if (snapshot.tempoRetuneEpoch == latestTempoRetuneEpoch) {
-        "atOrAfterLatestRetune"
-      } else {
-        "beforeLatestRetune(staleEpoch)"
-      }
-
-    // TEMP: definitive per-click audio enqueue log (not UI scheduling).
-    logPublishDebug(
-      mapOf(
-        "kind" to "audioEnqueue",
-        "sequence" to snapshot.sequence,
-        "beatNumber" to snapshot.beatNumber,
-        "subdivision" to snapshot.subdivisionIndex,
-        "scheduledDeadlineNs" to snapshot.scheduledDeadlineNs.toString(),
-        "enqueueTimeNs" to enqueueTimeNs.toString(),
-        "bpm" to snapshot.publishBpm,
-        "ticksPerBeat" to snapshot.publishTicksPerBeat,
-        "anchorTimeNs" to snapshot.publishAnchorTimeNs.toString(),
-        "tempoRetuneEpoch" to snapshot.tempoRetuneEpoch,
-        "relativeToLatestEpoch" to relativeToLatestEpoch,
-        "soundKind" to soundKind.name,
-        "hasClickSoundPlayer" to (clickSoundPlayer != null),
-      ),
-    )
-
-    // TEMP debug — remove after native barStart propagation diagnosis
-    if (snapshot.beatIndexInBar == 0 && snapshot.subdivisionIndex == 0) {
-      android.util.Log.d(
-        "BarStartDebug",
-        "Android classify beat1 barStartEnabled=$barStartEnabled soundKind=$soundKind",
-      )
-    }
 
     when (soundKind) {
       ClickSoundKind.BAR -> clickSoundPlayer?.playBar(snapshot.scheduledDeadlineNs)
