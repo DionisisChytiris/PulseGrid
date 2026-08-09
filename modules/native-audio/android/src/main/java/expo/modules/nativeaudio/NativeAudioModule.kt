@@ -60,6 +60,7 @@ class NativeAudioModule : Module() {
       }
       val timelineLoops = readBoolean(options["timelineLoops"]) ?: false
       val timelineStartSequence = readLong(options["timelineStartSequence"]) ?: 0L
+      val timelineLoopStartSequence = readInt(options["timelineLoopStartSequence"]) ?: 0
 
       clickSoundPlayer?.resumeScheduledClicks()
 
@@ -72,6 +73,7 @@ class NativeAudioModule : Module() {
         timelineEvents,
         timelineLoops,
         timelineStartSequence,
+        timelineLoopStartSequence,
       )
     }
 

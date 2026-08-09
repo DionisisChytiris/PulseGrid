@@ -1,6 +1,6 @@
 import type { Meter } from '../Meter';
 
-export type PlaybackEventSource = 'song' | 'tempoEvent';
+export type PlaybackEventSource = 'song' | 'tempoEvent' | 'countIn';
 
 /**
  * One primary beat tick in compiled score order.

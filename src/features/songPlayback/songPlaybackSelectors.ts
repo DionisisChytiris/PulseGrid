@@ -14,6 +14,10 @@ export const selectSongCurrentBarIndex = (state: RootState) => state.songPlaybac
 
 export const selectSongTotalBars = (state: RootState) => state.songPlayback.totalBars;
 
+export const selectSongCountIn = (state: RootState) => state.songPlayback.countIn;
+
+export const selectSongIsCountingIn = (state: RootState) => state.songPlayback.countIn !== null;
+
 export const selectSongPlaybackModeLabel = (state: RootState): string => {
   const mode = state.songPlayback.playbackMode;
 

@@ -52,6 +52,14 @@ export {
   sanitizeSongName,
   sanitizeSongNameInput,
 } from './songName';
+export {
+  COUNT_IN_OPTIONS,
+  DEFAULT_COUNT_IN_BARS,
+  countInOptionLabel,
+  isCountInBars,
+  normalizeCountInBars,
+  type CountInBars,
+} from './countIn';
 export { createSong, type Song, type CreateSongInput } from './Song';
 export {
   cloneSong,

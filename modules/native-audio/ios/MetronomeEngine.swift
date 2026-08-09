@@ -46,6 +46,10 @@ final class MetronomeEngine {
   private var timelineLoops = false
   /// Duration of one full song cycle (last deadline offset).
   private var timelineCycleDurationNs: UInt64 = 0
+  /// Duration of the looped score region (excludes leading preparation when loop start > 0).
+  private var timelineScoreCycleDurationNs: UInt64 = 0
+  /// First index included after wrap (0 = wrap entire stream; >0 skips preparation prefix).
+  private var timelineLoopStartIndex: Int = 0
   /// When loops is turned off mid-cycle, halt at this exclusive sequence.
   private var timelineLoopEndExclusive: UInt64? = nil
 
@@ -89,7 +93,8 @@ final class MetronomeEngine {
     ticksPerBeat: Int,
     timelineEvents: [TimelinePlaybackEvent] = [],
     timelineLoops: Bool = false,
-    timelineStartSequence: UInt64 = 0
+    timelineStartSequence: UInt64 = 0,
+    timelineLoopStartSequence: Int = 0
   ) {
     // idle → preparing
     stateLock.lock()
@@ -103,6 +108,16 @@ final class MetronomeEngine {
     self.timelineDeadlineOffsetNs = Self.buildDeadlineOffsets(timelineEvents)
     self.timelineLoops = timelineLoops && !timelineEvents.isEmpty
     self.timelineCycleDurationNs = timelineDeadlineOffsetNs.last ?? 0
+    if timelineEvents.isEmpty {
+      self.timelineLoopStartIndex = 0
+      self.timelineScoreCycleDurationNs = 0
+    } else {
+      let clampedLoopStart = min(max(0, timelineLoopStartSequence), timelineEvents.count - 1)
+      self.timelineLoopStartIndex = clampedLoopStart
+      let full = timelineDeadlineOffsetNs.last ?? 0
+      let loopStartOffset = timelineDeadlineOffsetNs[clampedLoopStart]
+      self.timelineScoreCycleDurationNs = full &- loopStartOffset
+    }
     let startSequence = timelineEvents.isEmpty ? UInt64(0) : timelineStartSequence
     nextUiSequence = startSequence
     lastPublishedSequence = Int64(bitPattern: startSequence) &- 1
@@ -118,7 +133,8 @@ final class MetronomeEngine {
     let modeLabel = timelineEvents.isEmpty ? "QUICK_METRONOME" : "SONG_TIMELINE"
     print(
       "\(Self.logPrefix) — phase=preparing generation=\(activeGeneration) mode=\(modeLabel) " +
-        "events=\(timelineEvents.count) loops=\(self.timelineLoops) startSeq=\(startSequence)"
+        "events=\(timelineEvents.count) loops=\(self.timelineLoops) startSeq=\(startSequence) " +
+        "loopStart=\(self.timelineLoopStartIndex)"
     )
 
     // Preparing: engine + calibrate only — no publish, no UI.
@@ -473,9 +489,7 @@ final class MetronomeEngine {
 
     let wrapping = timelineLoops || timelineLoopEndExclusive != nil
     if wrapping {
-      let cycle = sequence / UInt64(count)
-      let indexInCycle = Int(sequence % UInt64(count))
-      return cycle &* timelineCycleDurationNs &+ timelineDeadlineOffsetNs[indexInCycle]
+      return loopingTimelineOffsetNsLocked(sequence)
     }
 
     let index = Int(sequence)
@@ -499,7 +513,7 @@ final class MetronomeEngine {
     }
 
     if timelineLoops || timelineLoopEndExclusive != nil {
-      return Int(sequence % UInt64(count))
+      return loopingTimelineEventIndexLocked(sequence)
     }
 
     let index = Int(sequence)
@@ -507,6 +521,43 @@ final class MetronomeEngine {
       return nil
     }
     return index
+  }
+
+  /// First pass plays `0 .. count-1`; later wraps within `loopStart .. count-1`.
+  private func loopingTimelineEventIndexLocked(_ sequence: UInt64) -> Int {
+    let count = UInt64(timelineEvents.count)
+    if sequence < count {
+      return Int(sequence)
+    }
+
+    let scoreLen = count &- UInt64(timelineLoopStartIndex)
+    guard scoreLen > 0 else {
+      return 0
+    }
+
+    let wrapped = sequence &- count
+    return timelineLoopStartIndex + Int(wrapped % scoreLen)
+  }
+
+  private func loopingTimelineOffsetNsLocked(_ sequence: UInt64) -> UInt64 {
+    let count = UInt64(timelineEvents.count)
+    if sequence < count {
+      return timelineDeadlineOffsetNs[Int(sequence)]
+    }
+
+    let scoreLen = count &- UInt64(timelineLoopStartIndex)
+    guard scoreLen > 0 else {
+      return timelineDeadlineOffsetNs.last ?? 0
+    }
+
+    let wrapped = sequence &- count
+    let cycle = wrapped / scoreLen
+    let indexInScore = Int(wrapped % scoreLen)
+    let scoreIndex = timelineLoopStartIndex + indexInScore
+    let withinScoreNs =
+      timelineDeadlineOffsetNs[scoreIndex] &- timelineDeadlineOffsetNs[timelineLoopStartIndex]
+    let firstPassEnd = timelineDeadlineOffsetNs.last ?? 0
+    return firstPassEnd &+ cycle &* timelineScoreCycleDurationNs &+ withinScoreNs
   }
 
   private func shouldHaltTimelineSequenceLocked(_ sequence: UInt64) -> Bool {

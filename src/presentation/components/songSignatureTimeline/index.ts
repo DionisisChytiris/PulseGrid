@@ -11,6 +11,8 @@ export { MeterRegionCard } from './MeterRegionCard';
 export { SongSignatureTimeline } from './SongSignatureTimeline';
 export type { SongSignatureTimelineHandle } from './SongSignatureTimeline';
 export { SongStatisticsBottomSheet } from './SongStatisticsBottomSheet';
+export { TimelinePreparationSection } from './TimelinePreparationSection';
+export { CountInPreparationOverlay } from './CountInPreparationOverlay';
 export {
   BEAT_GAP,
   BEAT_SIZE,

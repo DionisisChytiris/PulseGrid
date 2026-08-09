@@ -42,8 +42,10 @@ import {
   type MeterDenominator,
 } from '../../presentation/components/songSignatureTimeline/meterPickerValidation';
 import { overviewTempoMarkings } from '../../presentation/components/songSignatureTimeline/overviewTempoMarkings';
+import { TimelinePreparationSection } from '../../presentation/components/songSignatureTimeline/TimelinePreparationSection';
 import type { TimelineSegmentViewModel } from '../../presentation/viewModels/TimelineSegmentViewModel';
 import { studioColors } from '../../presentation/theme';
+import type { CountInBars } from '../../domain/music/countIn';
 
 import { useBpmStepHold } from './useBpmStepHold';
 
@@ -59,12 +61,14 @@ type Props = {
   segments: readonly TimelineSegmentViewModel[];
   songName: string;
   songDefaultBpm: number;
+  countInBars: CountInBars;
   /** Scroll this segment into view when the sheet opens (tapped region). */
   focusSegmentId?: string | null;
   /** Open song or segment tempo editing when launched from a Song Line marker. */
   focusTempoEdit?: 'song' | 'segment' | null;
   onClose: () => void;
   onSongDefaultBpmChange: (bpm: number) => void;
+  onCountInBarsChange: (bars: CountInBars) => void;
   onBarCountChange: (segmentId: string, count: number) => void;
   onMeterChange: (segmentId: string, meterLabel: string) => void;
   onAccentPatternChange: (segmentId: string, pattern: boolean[]) => void;
@@ -104,10 +108,12 @@ export function SegmentEditBottomSheet({
   segments,
   songName,
   songDefaultBpm,
+  countInBars,
   focusSegmentId = null,
   focusTempoEdit = null,
   onClose,
   onSongDefaultBpmChange,
+  onCountInBarsChange,
   onBarCountChange,
   onMeterChange,
   onAccentPatternChange,
@@ -653,6 +659,13 @@ export function SegmentEditBottomSheet({
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator
           >
+            <TimelinePreparationSection
+              countInBars={countInBars}
+              onChange={onCountInBarsChange}
+            />
+
+            <Text style={styles.barsSectionTitle}>Bars</Text>
+
             {segments.map((segment, index) => (
               <SegmentEditorRow
                 key={segment.id}
@@ -865,5 +878,13 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 8,
     flexGrow: 1,
+    gap: 8,
+  },
+  barsSectionTitle: {
+    marginTop: 8,
+    marginBottom: 2,
+    fontSize: 15,
+    fontWeight: '700',
+    color: studioColors.textPrimary,
   },
 });

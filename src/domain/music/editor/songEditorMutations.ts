@@ -2,6 +2,8 @@ import { defaultAccentPatternFromMeter } from '../AccentPattern';
 import { createBar, type Bar } from '../Bar';
 import { createMeter, formatMeter, type Meter } from '../Meter';
 import { createSection, type Section } from '../Section';
+import type { CountInBars } from '../countIn';
+import { normalizeCountInBars } from '../countIn';
 import type { Song } from '../Song';
 import { clampSongBpm } from '../songBpm';
 import { sanitizeSongName } from '../songName';
@@ -47,6 +49,10 @@ export function updateSongName(song: Song, name: string): Song {
 
 export function updateSongDefaultBpm(song: Song, bpm: number): Song {
   return touchSong({ ...song, defaultBpm: clampSongBpm(bpm) });
+}
+
+export function updateSongCountInBars(song: Song, countInBars: CountInBars): Song {
+  return touchSong({ ...song, countInBars: normalizeCountInBars(countInBars) });
 }
 
 export function addBarToSong(song: Song, meter: Meter = createMeter(4, 4)): Song {

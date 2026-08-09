@@ -109,6 +109,7 @@ internal class MetronomeEngine(
     timelineEvents: List<TimelinePlaybackEvent> = emptyList(),
     timelineLoops: Boolean = false,
     timelineStartSequence: Long = 0L,
+    timelineLoopStartSequence: Int = 0,
   ) {
     val activeGeneration: Long
     val startSequence: Long
@@ -126,7 +127,13 @@ internal class MetronomeEngine(
       this.accentPattern = copyAccentPattern(accentPattern)
       val effectiveMode = resolvePlaybackMode(mode, timelineEvents)
       playbackMode = effectiveMode
-      eventSource = createEventSourceLocked(effectiveMode, timelineEvents, timelineLoops)
+      eventSource =
+        createEventSourceLocked(
+          effectiveMode,
+          timelineEvents,
+          timelineLoops,
+          timelineLoopStartSequence,
+        )
       eventSource.reset()
 
       when (effectiveMode) {
@@ -135,7 +142,7 @@ internal class MetronomeEngine(
           Log.i(
             TAG,
             "Playback mode: SONG_TIMELINE (event source: adapter-fed, events=${timelineEvents.size}, " +
-              "loops=$timelineLoops, startSeq=$timelineStartSequence)",
+              "loops=$timelineLoops, startSeq=$timelineStartSequence, loopStart=$timelineLoopStartSequence)",
           )
           (eventSource as? SongTimelineEventSource)?.logPreviewIfDebug(TAG)
         }
@@ -418,10 +425,12 @@ internal class MetronomeEngine(
     mode: PlaybackMode,
     timelineEvents: List<TimelinePlaybackEvent>,
     timelineLoops: Boolean = false,
+    timelineLoopStartSequence: Int = 0,
   ): EventSource {
     return when (mode) {
       PlaybackMode.QUICK_METRONOME -> createQuickEventSourceLocked()
-      PlaybackMode.SONG_TIMELINE -> SongTimelineEventSource(timelineEvents, timelineLoops)
+      PlaybackMode.SONG_TIMELINE ->
+        SongTimelineEventSource(timelineEvents, timelineLoops, timelineLoopStartSequence)
     }
   }
 

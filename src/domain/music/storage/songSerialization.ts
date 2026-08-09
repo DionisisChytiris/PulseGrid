@@ -10,6 +10,7 @@ import {
   type Meter,
 } from '../Meter';
 import { createSection, type Section } from '../Section';
+import { normalizeCountInBars, type CountInBars } from '../countIn';
 import { createSong, type Song } from '../Song';
 import { clampSongBpm, DEFAULT_SONG_BPM } from '../songBpm';
 import { createTempoDefinition } from '../TempoDefinition';
@@ -72,6 +73,8 @@ export type StoredSong = {
   name: string;
   /** Optional for backward compatibility — missing values load as DEFAULT_SONG_BPM. */
   defaultBpm?: number;
+  /** Optional for backward compatibility — missing values load as 0 (None). */
+  countInBars?: CountInBars | number;
   sections: StoredSection[];
   createdAt: number;
   updatedAt: number;
@@ -170,6 +173,7 @@ export function songToStored(song: Song): StoredSong {
     id: song.id,
     name: song.name,
     defaultBpm: song.defaultBpm,
+    countInBars: song.countInBars,
     createdAt: song.createdAt,
     updatedAt: song.updatedAt,
     sections: song.sections.map((section) => ({
@@ -225,6 +229,9 @@ export function storedToSong(value: StoredSong): Song {
       value.defaultBpm === undefined
         ? DEFAULT_SONG_BPM
         : clampSongBpm(value.defaultBpm),
+    // Missing field = pre-count-in timelines → None. New songs default via createSong.
+    countInBars:
+      value.countInBars === undefined ? 0 : normalizeCountInBars(value.countInBars),
     sections: value.sections.map(parseSection),
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,

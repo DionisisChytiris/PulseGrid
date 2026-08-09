@@ -16,6 +16,8 @@ type Options = {
   songName: string | null;
   isPlaying: boolean;
   isPaused: boolean;
+  /** Preparation phase — timeline follow/LEDs stay idle until count-in completes. */
+  isCountingIn?: boolean;
 };
 
 export function useTimelinePlaybackViewModels({
@@ -25,12 +27,16 @@ export function useTimelinePlaybackViewModels({
   songName,
   isPlaying,
   isPaused,
+  isCountingIn = false,
 }: Options) {
   const debugTick = useAppSelector((state) => state.songPlayback.debugTick);
 
-  const isTimelineActive = useAppSelector((state) =>
+  const songSessionActive = useAppSelector((state) =>
     selectSongTimelineActiveForSong(state, song.name),
   );
+
+  // Keep Signature Timeline idle during count-in; unlock when prep ends.
+  const isTimelineActive = songSessionActive && !isCountingIn;
 
   const playbackContext = useMemo(
     () => ({
@@ -46,7 +52,7 @@ export function useTimelinePlaybackViewModels({
   );
 
   const tickContext: PlaybackTickContext = useMemo(() => {
-    if (debugTick === null) {
+    if (debugTick === null || isCountingIn) {
       return {
         beatIndexInBar: null,
         beatsPerMeasure: null,
@@ -63,7 +69,7 @@ export function useTimelinePlaybackViewModels({
       meterLabel: `${debugTick.meterNumerator}/${debugTick.meterDenominator}`,
       sectionId: debugTick.sectionId,
     };
-  }, [debugTick]);
+  }, [debugTick, isCountingIn]);
 
   const playbackStatus = useMemo(
     () =>

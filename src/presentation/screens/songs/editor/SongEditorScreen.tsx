@@ -16,6 +16,7 @@ import { createSong } from '../../../../domain/music/Song';
 import { sanitizeSongName, sanitizeSongNameInput } from '../../../../domain/music/songName';
 import { CustomKeyboard } from '../../../components/CustomKeyboard';
 import {
+  CountInPreparationOverlay,
   SongSignatureTimeline,
   SongStatisticsBottomSheet,
   type SongSignatureTimelineHandle,
@@ -45,6 +46,7 @@ export default function SongEditorScreen({ navigation, route }: Props) {
     error,
     setSongName,
     setSongDefaultBpm,
+    setCountInBars,
     addBar,
     setSegmentBarCount,
     setSegmentMeter,
@@ -75,6 +77,7 @@ export default function SongEditorScreen({ navigation, route }: Props) {
     songName: playback.songName,
     isPlaying: playback.isPlaying,
     isPaused: playback.isPaused,
+    isCountingIn: playback.isCountingIn,
   });
 
   const songNameKeyboardVisible = keyboard.activeField === 'songName';
@@ -212,9 +215,11 @@ export default function SongEditorScreen({ navigation, route }: Props) {
           song={song}
           segments={timeline.segments}
           isTimelineActive={timeline.isTimelineActive}
-          isPlaying={playback.isPlaying}
+          isPlaying={playback.isPlaying && !playback.isCountingIn}
           currentBarIndex={playback.currentBarIndex}
-          currentBeatIndex={timeline.playbackStatus.currentBeat - 1}
+          currentBeatIndex={
+            playback.isCountingIn ? -1 : timeline.playbackStatus.currentBeat - 1
+          }
           currentBpm={timeline.playbackStatus.tempo}
           currentMeter={timeline.playbackStatus.meter}
           onSegmentBarCountChange={setSegmentBarCount}
@@ -224,12 +229,16 @@ export default function SongEditorScreen({ navigation, route }: Props) {
           onSegmentDuplicate={duplicateSegment}
           onSegmentDelete={deleteSegment}
           onSongDefaultBpmChange={setSongDefaultBpm}
+          onCountInBarsChange={setCountInBars}
           onPlayFromSegment={(segment) => {
             playback.onPlaySongFromBar(song, segment.startBar - 1);
           }}
           onAddBar={addBar}
           songLoopEnabled={songLoopEnabled}
         />
+        {playback.isCountingIn && playback.countIn ? (
+          <CountInPreparationOverlay countIn={playback.countIn} />
+        ) : null}
       </View>
 
       <CustomKeyboard
@@ -372,6 +381,7 @@ const styles = StyleSheet.create({
   timelineArea: {
     flex: 1,
     minHeight: 160,
+    position: 'relative',
   },
   secondaryButton: {
     marginTop: 12,

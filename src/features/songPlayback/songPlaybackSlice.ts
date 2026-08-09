@@ -13,6 +13,15 @@ export type SongDebugTickState = {
   meterDenominator: number;
 };
 
+export type CountInProgressState = {
+  /** 0-based bar within the count-in. */
+  barIndex: number;
+  totalBars: number;
+  /** 0-based beat within the count-in bar. */
+  beatIndexInBar: number;
+  beatsPerMeasure: number;
+};
+
 export type SongPlaybackState = {
   playbackMode: SongPlaybackModeLabel;
   isPlaying: boolean;
@@ -22,6 +31,8 @@ export type SongPlaybackState = {
   currentBarIndex: number;
   totalBars: number;
   debugTick: SongDebugTickState | null;
+  /** Non-null while preparation/count-in ticks are sounding. */
+  countIn: CountInProgressState | null;
 };
 
 const initialState: SongPlaybackState = {
@@ -33,6 +44,7 @@ const initialState: SongPlaybackState = {
   currentBarIndex: 0,
   totalBars: 0,
   debugTick: null,
+  countIn: null,
 };
 
 const songPlaybackSlice = createSlice({
@@ -51,6 +63,7 @@ const songPlaybackSlice = createSlice({
       state.fallbackReason = null;
       state.currentBarIndex = 0;
       state.debugTick = null;
+      state.countIn = null;
     },
     songTimelinePlaybackPaused(state) {
       state.isPlaying = false;
@@ -68,10 +81,12 @@ const songPlaybackSlice = createSlice({
       state.currentBarIndex = 0;
       state.totalBars = 0;
       state.debugTick = null;
+      state.countIn = null;
     },
     quickMetronomeModeActive(state) {
       state.playbackMode = 'QUICK_METRONOME';
       state.fallbackReason = null;
+      state.countIn = null;
     },
     songTimelineFallbackToQuick(
       state,
@@ -83,10 +98,16 @@ const songPlaybackSlice = createSlice({
       state.fallbackReason = action.payload.reason;
       state.songName = action.payload.songName ?? state.songName;
       state.debugTick = null;
+      state.countIn = null;
     },
     songTimelineTickUpdated(
       state,
-      action: PayloadAction<SongDebugTickState & { currentBarIndex: number }>,
+      action: PayloadAction<
+        SongDebugTickState & {
+          currentBarIndex: number;
+          countIn?: CountInProgressState | null;
+        }
+      >,
     ) {
       state.debugTick = {
         barId: action.payload.barId,
@@ -99,6 +120,9 @@ const songPlaybackSlice = createSlice({
         meterDenominator: action.payload.meterDenominator,
       };
       state.currentBarIndex = action.payload.currentBarIndex;
+      if (action.payload.countIn !== undefined) {
+        state.countIn = action.payload.countIn;
+      }
     },
   },
 });

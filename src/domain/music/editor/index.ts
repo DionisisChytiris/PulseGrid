@@ -7,6 +7,7 @@ export {
   moveBarInSong,
   updateBarBpm,
   updateBarMeter,
+  updateSongCountInBars,
   updateSongDefaultBpm,
   updateSongName,
 } from './songEditorMutations';

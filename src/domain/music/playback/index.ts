@@ -1,4 +1,12 @@
 export {
+  buildCountInEvents,
+  buildSeamlessCountInSession,
+  COUNT_IN_SECTION_ID,
+  countInBarId,
+  isCountInEvent,
+  prependCountInToCompiled,
+} from './buildCountInPrefix';
+export {
   createSongPlaybackCursor,
   type SongPlaybackCursor,
   type SongPlaybackCursorOptions,

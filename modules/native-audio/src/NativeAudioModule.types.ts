@@ -21,10 +21,15 @@ export type NativeAudioStartOptions = {
   playbackMode?: NativePlaybackMode;
   timelineEvents?: NativeTimelinePlaybackEvent[];
   /**
-   * When true, song timeline wraps from the last event to the first without
-   * stopping the transport (seamless entire-song / region loop).
+   * When true, song timeline wraps from the last event without stopping.
+   * Optional [timelineLoopStartSequence] skips a leading preparation prefix on wrap.
    */
   timelineLoops?: boolean;
   /** Absolute sequence index to begin at within timelineEvents (default 0). */
   timelineStartSequence?: number;
+  /**
+   * Index of the first event included after a seamless wrap (default 0).
+   * Use to keep count-in / preparation outside the loop body.
+   */
+  timelineLoopStartSequence?: number;
 };

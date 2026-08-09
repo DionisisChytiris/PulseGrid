@@ -1,5 +1,6 @@
 import type { Song } from '../../domain/music/Song';
 import {
+  selectSongCountIn,
   selectSongCurrentBarIndex,
   selectSongDebugTick,
   selectSongPlaybackFallbackReason,
@@ -22,6 +23,8 @@ export function useSongPlayback() {
   const debugTick = useAppSelector(selectSongDebugTick);
   const currentBarIndex = useAppSelector(selectSongCurrentBarIndex);
   const totalBars = useAppSelector(selectSongTotalBars);
+  const countIn = useAppSelector(selectSongCountIn);
+  const isCountingIn = countIn !== null;
 
   return {
     modeLabel,
@@ -32,6 +35,8 @@ export function useSongPlayback() {
     debugTick,
     currentBarIndex,
     totalBars,
+    countIn,
+    isCountingIn,
     onPlaySong: (song: Song) => {
       void songPlaybackService.playSongTimeline(song);
     },

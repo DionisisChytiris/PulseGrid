@@ -32,6 +32,7 @@ export function cloneSong(song: Song): Song {
     id: song.id,
     name: song.name,
     defaultBpm: song.defaultBpm,
+    countInBars: song.countInBars,
     sections: song.sections.map(cloneSection),
     createdAt: song.createdAt,
     updatedAt: song.updatedAt,

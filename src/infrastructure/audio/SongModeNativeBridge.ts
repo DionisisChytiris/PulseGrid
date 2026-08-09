@@ -30,6 +30,8 @@ export type SongModeNativeStartOptions = {
   readonly timelineLoops?: boolean;
   /** Absolute sequence within [compiled] to begin at (default 0). */
   readonly timelineStartSequence?: number;
+  /** First sequence included after wrap (skips preparation prefix). */
+  readonly timelineLoopStartSequence?: number;
 };
 
 export type SongModeNativeStartResult = {
@@ -129,6 +131,10 @@ export function startSongModeNativePlayback(
   const timelineEvents = serializeCompiledSequenceForNative(compiled);
   const startSequence = Math.max(0, Math.floor(options.timelineStartSequence ?? 0));
   const timelineLoops = options.timelineLoops ?? false;
+  const timelineLoopStartSequence = Math.max(
+    0,
+    Math.floor(options.timelineLoopStartSequence ?? 0),
+  );
 
   // Validate the full wire from score start, then seek to the requested entry point.
   cursor.seekTo(0);
@@ -149,7 +155,7 @@ export function startSongModeNativePlayback(
 
   console.log(
     `${tag} Playback mode: SONG_TIMELINE (adapter-fed, events=${timelineEvents.length}, ` +
-      `loops=${timelineLoops}, startSeq=${startSequence})`,
+      `loops=${timelineLoops}, startSeq=${startSequence}, loopStart=${timelineLoopStartSequence})`,
   );
 
   NativeAudioModule.start({
@@ -162,6 +168,7 @@ export function startSongModeNativePlayback(
     timelineEvents,
     timelineLoops,
     timelineStartSequence: startSequence,
+    timelineLoopStartSequence,
   });
 
   return {

@@ -27,6 +27,7 @@ export type MetronomeEngineSongStart = {
   readonly debugLog?: boolean;
   readonly timelineLoops?: boolean;
   readonly timelineStartSequence?: number;
+  readonly timelineLoopStartSequence?: number;
 };
 
 export type MetronomeEngineStartInput = MetronomeEngineQuickStart | MetronomeEngineSongStart;
@@ -130,6 +131,7 @@ export class MetronomeEngine {
       debugLog: input.debugLog,
       timelineLoops: input.timelineLoops,
       timelineStartSequence: input.timelineStartSequence,
+      timelineLoopStartSequence: input.timelineLoopStartSequence,
     });
 
     if (result.mode === PlaybackMode.QUICK_METRONOME) {

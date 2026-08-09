@@ -34,6 +34,8 @@ public class NativeAudioModule: Module {
       let timelineStartSequence = UInt64(
         max(0, (options["timelineStartSequence"] as? NSNumber)?.intValue ?? 0)
       )
+      let timelineLoopStartSequence =
+        (options["timelineLoopStartSequence"] as? NSNumber)?.intValue ?? 0
 
       // Prepare/calibrate happens inside MetronomeEngine.start (preparing phase)
       // before the future anchor and first lookahead publish.
@@ -44,7 +46,8 @@ public class NativeAudioModule: Module {
         ticksPerBeat: ticksPerBeat,
         timelineEvents: timelineEvents,
         timelineLoops: timelineLoops,
-        timelineStartSequence: timelineStartSequence
+        timelineStartSequence: timelineStartSequence,
+        timelineLoopStartSequence: timelineLoopStartSequence
       )
     }
 

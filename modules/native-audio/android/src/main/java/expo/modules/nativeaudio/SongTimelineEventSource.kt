@@ -7,14 +7,25 @@ import kotlin.math.max
  * Deterministic iterator over a precompiled score event stream.
  * Supports sequential peek for publishLookaheadEvents without recomputing the Song.
  * When [loops] is true, sequences wrap forever with continuous deadline offsets.
+ *
+ * Optional [loopStartIndex] skips a leading preparation prefix (e.g. count-in) on wrap:
+ * the first pass plays indices `0 .. size-1`, then wraps into `loopStartIndex .. size-1`.
  */
 internal class SongTimelineEventSource(
   events: List<TimelinePlaybackEvent>,
   private var loops: Boolean = false,
+  loopStartIndex: Int = 0,
 ) : EventSource {
   private val events: List<TimelinePlaybackEvent> = events.toList()
   private val deadlineOffsetNs: LongArray
   private val cycleDurationNs: Long
+  private val loopStartIndex: Int =
+    if (this.events.isEmpty()) {
+      0
+    } else {
+      loopStartIndex.coerceIn(0, this.events.lastIndex)
+    }
+  private val scoreCycleDurationNs: Long
   /** When loops is turned off mid-cycle, play through this exclusive sequence then end. */
   private var loopEndExclusive: Long? = null
 
@@ -29,6 +40,12 @@ internal class SongTimelineEventSource(
 
     deadlineOffsetNs[this.events.size] = offsetNs
     cycleDurationNs = offsetNs
+    scoreCycleDurationNs =
+      if (this.events.isEmpty()) {
+        0L
+      } else {
+        deadlineOffsetNs[this.events.size] - deadlineOffsetNs[this.loopStartIndex]
+      }
   }
 
   fun setLoops(enabled: Boolean, nextSequence: Long = 0L) {
@@ -93,10 +110,7 @@ internal class SongTimelineEventSource(
 
     val end = loopEndExclusive
     if (loops || (end != null && sequence < end)) {
-      val count = events.size.toLong()
-      val cycle = sequence / count
-      val indexInCycle = (sequence % count).toInt()
-      return cycle * cycleDurationNs + deadlineOffsetNs[indexInCycle]
+      return loopingOffsetNs(sequence)
     }
 
     val index = sequence.toInt()
@@ -148,7 +162,7 @@ internal class SongTimelineEventSource(
     }
 
     if (loops || end != null) {
-      return (sequence % events.size).toInt()
+      return loopingEventIndex(sequence)
     }
 
     val index = sequence.toInt()
@@ -156,6 +170,44 @@ internal class SongTimelineEventSource(
       return null
     }
     return index
+  }
+
+  /**
+   * First pass: indices `0 .. count-1` (may include preparation).
+   * Later passes: wrap within `loopStartIndex .. count-1` only.
+   */
+  private fun loopingEventIndex(sequence: Long): Int {
+    val count = events.size.toLong()
+    if (sequence < count) {
+      return sequence.toInt()
+    }
+
+    val scoreLen = count - loopStartIndex.toLong()
+    if (scoreLen <= 0L) {
+      return 0
+    }
+
+    val wrapped = sequence - count
+    return loopStartIndex + (wrapped % scoreLen).toInt()
+  }
+
+  private fun loopingOffsetNs(sequence: Long): Long {
+    val count = events.size.toLong()
+    if (sequence < count) {
+      return deadlineOffsetNs[sequence.toInt()]
+    }
+
+    val scoreLen = count - loopStartIndex.toLong()
+    if (scoreLen <= 0L) {
+      return deadlineOffsetNs[events.size]
+    }
+
+    val wrapped = sequence - count
+    val cycle = wrapped / scoreLen
+    val indexInScore = (wrapped % scoreLen).toInt()
+    val scoreIndex = loopStartIndex + indexInScore
+    val withinScoreNs = deadlineOffsetNs[scoreIndex] - deadlineOffsetNs[loopStartIndex]
+    return deadlineOffsetNs[events.size] + cycle * scoreCycleDurationNs + withinScoreNs
   }
 
   private fun tickDurationNs(event: TimelinePlaybackEvent): Long {

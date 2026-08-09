@@ -21,6 +21,7 @@ import { SegmentEditBottomSheet } from '../../../components/songTimeline/Segment
 import { AUTO_FOLLOW_SUSPEND_MS } from '../../../components/songTimeline/timelineConstants';
 import type { TimelineSegment } from '../../../components/songTimeline/types';
 import type { Meter } from '../../../domain/music/Meter';
+import type { CountInBars } from '../../../domain/music/countIn';
 import type { Song } from '../../../domain/music/Song';
 import { pulseDurationMsFromDisplayBpm } from '../../../domain/metronome/PulseGridSettings';
 import { findDomainSegmentById } from '../../viewModels/buildTimelineSegmentViewModels';
@@ -64,6 +65,7 @@ type Props = {
   onSegmentDuplicate: (segment: TimelineSegment) => void;
   onSegmentDelete: (segment: TimelineSegment) => string | null;
   onSongDefaultBpmChange: (bpm: number) => void;
+  onCountInBarsChange: (bars: CountInBars) => void;
   onPlayFromSegment: (segment: TimelineSegmentViewModel) => void;
   onAddBar: (meter: Meter) => void;
   /** Entire-song loop — subtle highlight on the time-signature lane. */
@@ -152,6 +154,7 @@ export const SongSignatureTimeline = forwardRef<SongSignatureTimelineHandle, Pro
       onSegmentDuplicate,
       onSegmentDelete,
       onSongDefaultBpmChange,
+      onCountInBarsChange,
       onPlayFromSegment,
       onAddBar,
       songLoopEnabled = false,
@@ -502,6 +505,7 @@ export const SongSignatureTimeline = forwardRef<SongSignatureTimelineHandle, Pro
           segments={segments}
           songName={song.name}
           songDefaultBpm={song.defaultBpm}
+          countInBars={song.countInBars}
           focusSegmentId={focusSegmentId}
           focusTempoEdit={focusTempoEdit}
           onClose={() => {
@@ -510,6 +514,7 @@ export const SongSignatureTimeline = forwardRef<SongSignatureTimelineHandle, Pro
             setFocusTempoEdit(null);
           }}
           onSongDefaultBpmChange={onSongDefaultBpmChange}
+          onCountInBarsChange={onCountInBarsChange}
           onBarCountChange={(segmentId, count) => {
             const domain = findDomainSegmentById(song, segmentId);
             if (domain !== null) {
