@@ -520,6 +520,12 @@ final class ClickSoundPlayer {
       return "bright"
     case "cowbell":
       return "cowbell"
+    case "woodblock_medium":
+      return "woodblock_medium"
+    case "woodblock_high":
+      return "woodblock_high"
+    case "woodblock_low":
+      return "woodblock_low"
     default:
       return "classic"
     }
@@ -533,6 +539,12 @@ final class ClickSoundPlayer {
       return "digital"
     case "cowbell_accent":
       return "cowbell"
+    case "woodblock_medium":
+      return "woodblock_medium"
+    case "woodblock_high":
+      return "woodblock_high"
+    case "woodblock_low":
+      return "woodblock_low"
     default:
       return "classic"
     }
@@ -542,8 +554,14 @@ final class ClickSoundPlayer {
     "click_normal_\(resource)"
   }
 
+  /// Accent/Bar woodblock options reuse click_normal_woodblock_*.wav until dedicated accent assets exist.
   private static func accentFileName(for resource: String) -> String {
-    "click_accent_\(resource)"
+    switch resource {
+    case "woodblock_medium", "woodblock_high", "woodblock_low":
+      return "click_normal_\(resource)"
+    default:
+      return "click_accent_\(resource)"
+    }
   }
 
   private static func subdivisionFileName(for normalResource: String) -> String {

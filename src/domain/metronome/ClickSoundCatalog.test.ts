@@ -20,6 +20,9 @@ describe('ClickSoundCatalog', () => {
   it('accepts valid sound ids', () => {
     expect(normalizeNormalClickSound('bright')).toBe('bright');
     expect(normalizeNormalClickSound('cowbell')).toBe('cowbell');
+    expect(normalizeNormalClickSound('woodblock_medium')).toBe('woodblock_medium');
+    expect(normalizeNormalClickSound('woodblock_high')).toBe('woodblock_high');
+    expect(normalizeNormalClickSound('woodblock_low')).toBe('woodblock_low');
     expect(normalizeAccentClickSound('strong_accent')).toBe('strong_accent');
     expect(normalizeAccentClickSound('cowbell_accent')).toBe('cowbell_accent');
     expect(normalizeBarClickSound('digital_accent')).toBe('digital_accent');

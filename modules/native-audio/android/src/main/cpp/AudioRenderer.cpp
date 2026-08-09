@@ -30,6 +30,53 @@ void loadAccentPcm(
       loadSample(player, click_sample_data::kAccentCowbellPcm16Mono,
                  click_sample_data::kAccentCowbellFrameCount);
       break;
+    case click_sample_data::AccentSound::WoodblockMedium:
+      loadSample(player, click_sample_data::kAccentWoodblockMediumPcm16Mono,
+                 click_sample_data::kAccentWoodblockMediumFrameCount);
+      break;
+    case click_sample_data::AccentSound::WoodblockHigh:
+      loadSample(player, click_sample_data::kAccentWoodblockHighPcm16Mono,
+                 click_sample_data::kAccentWoodblockHighFrameCount);
+      break;
+    case click_sample_data::AccentSound::WoodblockLow:
+      loadSample(player, click_sample_data::kAccentWoodblockLowPcm16Mono,
+                 click_sample_data::kAccentWoodblockLowFrameCount);
+      break;
+  }
+}
+
+void loadBarPcm(
+    SamplePlayer& player,
+    click_sample_data::BarSound sound) {
+  switch (sound) {
+    case click_sample_data::BarSound::Classic:
+      loadSample(player, click_sample_data::kBarClassicPcm16Mono,
+                 click_sample_data::kBarClassicFrameCount);
+      break;
+    case click_sample_data::BarSound::Strong:
+      loadSample(player, click_sample_data::kBarStrongPcm16Mono,
+                 click_sample_data::kBarStrongFrameCount);
+      break;
+    case click_sample_data::BarSound::Digital:
+      loadSample(player, click_sample_data::kBarDigitalPcm16Mono,
+                 click_sample_data::kBarDigitalFrameCount);
+      break;
+    case click_sample_data::BarSound::Cowbell:
+      loadSample(player, click_sample_data::kBarCowbellPcm16Mono,
+                 click_sample_data::kBarCowbellFrameCount);
+      break;
+    case click_sample_data::BarSound::WoodblockMedium:
+      loadSample(player, click_sample_data::kBarWoodblockMediumPcm16Mono,
+                 click_sample_data::kBarWoodblockMediumFrameCount);
+      break;
+    case click_sample_data::BarSound::WoodblockHigh:
+      loadSample(player, click_sample_data::kBarWoodblockHighPcm16Mono,
+                 click_sample_data::kBarWoodblockHighFrameCount);
+      break;
+    case click_sample_data::BarSound::WoodblockLow:
+      loadSample(player, click_sample_data::kBarWoodblockLowPcm16Mono,
+                 click_sample_data::kBarWoodblockLowFrameCount);
+      break;
   }
 }
 }  // namespace
@@ -38,7 +85,7 @@ AudioRenderer::AudioRenderer() {
   loadNormalSound(click_sample_data::NormalSound::Classic);
   loadAccentSound(click_sample_data::AccentSound::Classic);
   // Temporary: Strong so BAR buffer content differs from Accent (Classic).
-  loadBarSound(click_sample_data::AccentSound::Strong);
+  loadBarSound(click_sample_data::BarSound::Strong);
   loadSubdivisionSound(click_sample_data::NormalSound::Classic);
 }
 
@@ -65,6 +112,18 @@ void AudioRenderer::loadNormalSound(click_sample_data::NormalSound sound) {
       loadSample(normalPlayer_, click_sample_data::kNormalCowbellPcm16Mono,
                  click_sample_data::kNormalCowbellFrameCount);
       break;
+    case click_sample_data::NormalSound::WoodblockMedium:
+      loadSample(normalPlayer_, click_sample_data::kNormalWoodblockMediumPcm16Mono,
+                 click_sample_data::kNormalWoodblockMediumFrameCount);
+      break;
+    case click_sample_data::NormalSound::WoodblockHigh:
+      loadSample(normalPlayer_, click_sample_data::kNormalWoodblockHighPcm16Mono,
+                 click_sample_data::kNormalWoodblockHighFrameCount);
+      break;
+    case click_sample_data::NormalSound::WoodblockLow:
+      loadSample(normalPlayer_, click_sample_data::kNormalWoodblockLowPcm16Mono,
+                 click_sample_data::kNormalWoodblockLowFrameCount);
+      break;
   }
 }
 
@@ -73,10 +132,9 @@ void AudioRenderer::loadAccentSound(click_sample_data::AccentSound sound) {
   loadAccentPcm(accentPlayer_, sound);
 }
 
-void AudioRenderer::loadBarSound(click_sample_data::AccentSound sound) {
+void AudioRenderer::loadBarSound(click_sample_data::BarSound sound) {
   selectedBarSound_ = sound;
-  // Bar reuses accent PCM until dedicated bar assets exist.
-  loadAccentPcm(barPlayer_, sound);
+  loadBarPcm(barPlayer_, sound);
 }
 
 void AudioRenderer::loadSubdivisionSound(click_sample_data::NormalSound sound) {
@@ -102,6 +160,18 @@ void AudioRenderer::loadSubdivisionSound(click_sample_data::NormalSound sound) {
       loadSample(subdivisionPlayer_, click_sample_data::kSubdivisionCowbellPcm16Mono,
                  click_sample_data::kSubdivisionCowbellFrameCount);
       break;
+    case click_sample_data::NormalSound::WoodblockMedium:
+      loadSample(subdivisionPlayer_, click_sample_data::kSubdivisionWoodblockMediumPcm16Mono,
+                 click_sample_data::kSubdivisionWoodblockMediumFrameCount);
+      break;
+    case click_sample_data::NormalSound::WoodblockHigh:
+      loadSample(subdivisionPlayer_, click_sample_data::kSubdivisionWoodblockHighPcm16Mono,
+                 click_sample_data::kSubdivisionWoodblockHighFrameCount);
+      break;
+    case click_sample_data::NormalSound::WoodblockLow:
+      loadSample(subdivisionPlayer_, click_sample_data::kSubdivisionWoodblockLowPcm16Mono,
+                 click_sample_data::kSubdivisionWoodblockLowFrameCount);
+      break;
   }
 }
 
@@ -119,7 +189,7 @@ void AudioRenderer::selectAccentSound(click_sample_data::AccentSound sound) {
   loadAccentSound(sound);
 }
 
-void AudioRenderer::selectBarSound(click_sample_data::AccentSound sound) {
+void AudioRenderer::selectBarSound(click_sample_data::BarSound sound) {
   if (sound == selectedBarSound_) {
     return;
   }

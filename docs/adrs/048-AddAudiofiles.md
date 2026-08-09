@@ -109,7 +109,51 @@ If you want, I can implement the full clave wiring in a follow-up.
 ====================================================
 
 
+To add a new Click sound (Settings → Click), do more than edit the catalog — native must load the files too.
 
+1. Pick an ID
+Example: clave
+Settings label: Clave
+
+2. Create WAV files (PCM 16-bit mono)
+Naming pattern:
+
+Role	Filename
+Click (normal beat)
+click_normal_clave.wav
+Matching subdivision sample
+click_subdivision_clave.wav
+Put them in the pipeline folders (assets/audio/clicks/, Android res/raw/, iOS Assets/). Easiest: add the variant in scripts/generate_click_variants.py and run that script.
+
+3. Register in the catalog
+In src/domain/metronome/ClickSoundCatalog.ts, under NORMAL_CLICK_SOUNDS:
+
+{ id: 'clave', label: 'Clave' },
+Settings picks this up automatically.
+
+4. Wire Android
+Add files to embed_click_pcm.py sample lists and run it → regenerates embedded PCM
+Map the ID in ClickSoundMapping.kt: "clave" -> <next index>
+Ensure AudioRenderer.cpp has cases for the new normal + subdivision samples (usually covered if embed/script regenerated everything correctly — verify)
+5. Wire iOS
+In ClickSoundPlayer.swift → normalResourceName(for:):
+
+case "clave":
+  return "clave"
+(loads click_normal_clave.wav / click_subdivision_clave.wav)
+
+6. Rebuild native
+Metro reload is not enough:
+
+npx expo run:android
+# and/or
+npx expo run:ios
+You don’t need to change: ClickSoundService, settings slice, MetronomeEngine, or Timeline.
+
+Tip: Subdivision fills already use the Click sound in playback. You still ship a click_subdivision_* sample for that ID because native’s normal/subdivision buffer pair is tied to the Click selection.
+
+
+==============================================================
 
 
 If you want to create a WAV file in PCM16 mono (16-bit PCM, 1 channel), the method depends on the software you're using.

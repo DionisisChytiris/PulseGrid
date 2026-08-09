@@ -82,7 +82,7 @@ Java_expo_modules_nativeaudio_OboeClickPlayer_nativeSetBarClickSound(
     jclass /*clazz*/,
     jint soundId) {
   if (gEngine != nullptr) {
-    gEngine->renderer().selectBarSound(static_cast<click_sample_data::AccentSound>(soundId));
+    gEngine->renderer().selectBarSound(static_cast<click_sample_data::BarSound>(soundId));
   }
 }
 

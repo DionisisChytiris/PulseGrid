@@ -19,7 +19,7 @@ public:
 
   void selectNormalSound(click_sample_data::NormalSound sound);
   void selectAccentSound(click_sample_data::AccentSound sound);
-  void selectBarSound(click_sample_data::AccentSound sound);
+  void selectBarSound(click_sample_data::BarSound sound);
   void selectSubdivisionSound(click_sample_data::NormalSound sound);
   void previewAccent();
   void previewNormal();
@@ -37,7 +37,7 @@ public:
 private:
   void loadNormalSound(click_sample_data::NormalSound sound);
   void loadAccentSound(click_sample_data::AccentSound sound);
-  void loadBarSound(click_sample_data::AccentSound sound);
+  void loadBarSound(click_sample_data::BarSound sound);
   void loadSubdivisionSound(click_sample_data::NormalSound sound);
 
   SamplePlayer accentPlayer_;
@@ -48,8 +48,8 @@ private:
       click_sample_data::NormalSound::Classic;
   click_sample_data::AccentSound selectedAccentSound_ =
       click_sample_data::AccentSound::Classic;
-  click_sample_data::AccentSound selectedBarSound_ =
-      click_sample_data::AccentSound::Strong;
+  click_sample_data::BarSound selectedBarSound_ =
+      click_sample_data::BarSound::Strong;
   click_sample_data::NormalSound selectedSubdivisionSound_ =
       click_sample_data::NormalSound::Classic;
 };

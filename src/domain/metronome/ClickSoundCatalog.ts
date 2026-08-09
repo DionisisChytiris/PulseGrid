@@ -4,6 +4,9 @@ export const NORMAL_CLICK_SOUNDS = [
   { id: 'digital', label: 'Digital' },
   { id: 'bright', label: 'Bright' },
   { id: 'cowbell', label: 'Cowbell' },
+  { id: 'woodblock_medium', label: 'Woodblock Medium' },
+  { id: 'woodblock_high', label: 'Woodblock High' },
+  { id: 'woodblock_low', label: 'Woodblock Low' },
 ] as const;
 
 export const ACCENT_CLICK_SOUNDS = [
@@ -11,6 +14,9 @@ export const ACCENT_CLICK_SOUNDS = [
   { id: 'strong_accent', label: 'Strong Accent' },
   { id: 'digital_accent', label: 'Digital Accent' },
   { id: 'cowbell_accent', label: 'Cowbell Accent' },
+  { id: 'woodblock_medium', label: 'Woodblock Medium' },
+  { id: 'woodblock_high', label: 'Woodblock High' },
+  { id: 'woodblock_low', label: 'Woodblock Low' },
 ] as const;
 
 /** Bar bank reuses accent sample IDs/files until dedicated bar assets exist. */
@@ -19,6 +25,9 @@ export const BAR_CLICK_SOUNDS = [
   { id: 'strong_accent', label: 'Strong Bar' },
   { id: 'digital_accent', label: 'Digital Bar' },
   { id: 'cowbell_accent', label: 'Cowbell Bar' },
+  { id: 'woodblock_medium', label: 'Woodblock Medium' },
+  { id: 'woodblock_high', label: 'Woodblock High' },
+  { id: 'woodblock_low', label: 'Woodblock Low' },
 ] as const;
 
 export const SUBDIVISION_CLICK_SOUNDS = [
@@ -27,6 +36,9 @@ export const SUBDIVISION_CLICK_SOUNDS = [
   { id: 'digital', label: 'Digital' },
   { id: 'bright', label: 'Bright' },
   { id: 'cowbell', label: 'Cowbell' },
+  { id: 'woodblock_medium', label: 'Woodblock Medium' },
+  { id: 'woodblock_high', label: 'Woodblock High' },
+  { id: 'woodblock_low', label: 'Woodblock Low' },
 ] as const;
 
 export type NormalClickSoundId = (typeof NORMAL_CLICK_SOUNDS)[number]['id'];

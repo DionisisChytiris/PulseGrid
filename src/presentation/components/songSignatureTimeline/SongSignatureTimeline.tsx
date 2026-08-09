@@ -75,9 +75,20 @@ type Props = {
 /** Imperative API for toolbar actions (e.g. Edit button). */
 export type SongSignatureTimelineHandle = {
   openEditSegment: () => void;
+  /**
+   * Programmatically scrolls the horizontal timeline to Bar 1 (offset 0).
+   * Resolves immediately if already at the start; otherwise waits until the
+   * animated scroll settles (or a short safety timeout).
+   */
+  scrollToStart: () => Promise<void>;
 };
 
 type TempoEditFocus = 'song' | 'segment' | null;
+
+/** Treat offsets at or below this as “already at Bar 1”. */
+const SCROLL_START_EPSILON_PX = 1;
+/** Max wait for animated scrollToOffset(0) before starting playback anyway. */
+const SCROLL_TO_START_TIMEOUT_MS = 450;
 
 function segmentStride(segment: TimelineSegmentViewModel): number {
   const denominator = parseMeterDenominator(segment.meter);
@@ -164,6 +175,12 @@ export const SongSignatureTimeline = forwardRef<SongSignatureTimelineHandle, Pro
   const listRef = useRef<FlatList<TimelineSegmentViewModel>>(null);
   const autoFollowSuspendedUntil = useRef(0);
   const animationFrameRef = useRef<number | null>(null);
+  /** Last known horizontal content offset (for scroll-to-start waits). */
+  const scrollOffsetRef = useRef(0);
+  /** Shared in-flight scrollToStart promise (dedupes overlapping Play presses). */
+  const scrollToStartPromiseRef = useRef<Promise<void> | null>(null);
+  const scrollToStartResolveRef = useRef<(() => void) | null>(null);
+  const scrollToStartTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Last segment opened via tap / Edit — survives sheet close. */
   const selectedSegmentIdRef = useRef<string | null>(null);
   const playbackCursorRef = useRef<FollowCursorState>(createFollowCursor());
@@ -328,13 +345,58 @@ export const SongSignatureTimeline = forwardRef<SongSignatureTimelineHandle, Pro
       if (animationFrameRef.current !== null) {
         cancelAnimationFrame(animationFrameRef.current);
       }
+      if (scrollToStartTimeoutRef.current !== null) {
+        clearTimeout(scrollToStartTimeoutRef.current);
+        scrollToStartTimeoutRef.current = null;
+      }
+      scrollToStartResolveRef.current = null;
+      scrollToStartPromiseRef.current = null;
     },
     [],
   );
 
+  const finishScrollToStart = useCallback(() => {
+    if (scrollToStartTimeoutRef.current !== null) {
+      clearTimeout(scrollToStartTimeoutRef.current);
+      scrollToStartTimeoutRef.current = null;
+    }
+    const resolve = scrollToStartResolveRef.current;
+    scrollToStartResolveRef.current = null;
+    scrollToStartPromiseRef.current = null;
+    resolve?.();
+  }, []);
+
   const onManualScroll = useCallback(() => {
     autoFollowSuspendedUntil.current = Date.now() + AUTO_FOLLOW_SUSPEND_MS;
   }, []);
+
+  const handleScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const offset = event.nativeEvent.contentOffset.x;
+      scrollOffsetRef.current = offset;
+      if (
+        scrollToStartResolveRef.current !== null &&
+        offset <= SCROLL_START_EPSILON_PX
+      ) {
+        finishScrollToStart();
+      }
+    },
+    [finishScrollToStart],
+  );
+
+  const handleMomentumScrollEnd = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const offset = event.nativeEvent.contentOffset.x;
+      scrollOffsetRef.current = offset;
+      if (
+        scrollToStartResolveRef.current !== null &&
+        offset <= SCROLL_START_EPSILON_PX
+      ) {
+        finishScrollToStart();
+      }
+    },
+    [finishScrollToStart],
+  );
 
   const handleScrollBeginDrag = useCallback(
     (_event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -342,6 +404,29 @@ export const SongSignatureTimeline = forwardRef<SongSignatureTimelineHandle, Pro
     },
     [onManualScroll],
   );
+
+  const scrollToStart = useCallback((): Promise<void> => {
+    if (scrollOffsetRef.current <= SCROLL_START_EPSILON_PX) {
+      return Promise.resolve();
+    }
+
+    if (scrollToStartPromiseRef.current !== null) {
+      return scrollToStartPromiseRef.current;
+    }
+
+    const promise = new Promise<void>((resolve) => {
+      scrollToStartResolveRef.current = resolve;
+      autoFollowSuspendedUntil.current = 0;
+      listRef.current?.scrollToOffset({ offset: 0, animated: true });
+
+      scrollToStartTimeoutRef.current = setTimeout(() => {
+        scrollOffsetRef.current = 0;
+        finishScrollToStart();
+      }, SCROLL_TO_START_TIMEOUT_MS);
+    });
+    scrollToStartPromiseRef.current = promise;
+    return promise;
+  }, [finishScrollToStart]);
 
   const openSegmentEditor = useCallback(
     (segment: TimelineSegmentViewModel, tempoFocus: TempoEditFocus = null) => {
@@ -369,8 +454,9 @@ export const SongSignatureTimeline = forwardRef<SongSignatureTimelineHandle, Pro
           segments[0];
         openSegmentEditor(selected);
       },
+      scrollToStart,
     }),
-    [segments, openSegmentEditor],
+    [segments, openSegmentEditor, scrollToStart],
   );
 
   const openSongTempoEditor = useCallback(() => {
@@ -477,7 +563,10 @@ export const SongSignatureTimeline = forwardRef<SongSignatureTimelineHandle, Pro
             getItemLayout={getItemLayout}
             showsHorizontalScrollIndicator
             decelerationRate="fast"
+            onScroll={handleScroll}
+            onMomentumScrollEnd={handleMomentumScrollEnd}
             onScrollBeginDrag={handleScrollBeginDrag}
+            scrollEventThrottle={16}
             contentContainerStyle={[
               styles.content,
               {

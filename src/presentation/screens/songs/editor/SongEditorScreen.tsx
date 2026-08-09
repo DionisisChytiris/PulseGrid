@@ -39,6 +39,7 @@ export default function SongEditorScreen({ navigation, route }: Props) {
   const [statsVisible, setStatsVisible] = useState(false);
   const [songLoopEnabled, setSongLoopEnabled] = useState(false);
   const timelineRef = useRef<SongSignatureTimelineHandle>(null);
+  const playStartInFlightRef = useRef(false);
   const {
     song,
     loading,
@@ -192,7 +193,20 @@ export default function SongEditorScreen({ navigation, route }: Props) {
           onPress={
             timeline.showTransport
               ? playback.onStop
-              : () => playback.onPlaySong(song)
+              : () => {
+                  if (playStartInFlightRef.current) {
+                    return;
+                  }
+                  playStartInFlightRef.current = true;
+                  void (async () => {
+                    try {
+                      await timelineRef.current?.scrollToStart();
+                      playback.onPlaySong(song);
+                    } finally {
+                      playStartInFlightRef.current = false;
+                    }
+                  })();
+                }
           }
           accessibilityRole="button"
           accessibilityLabel={timeline.showTransport ? 'Stop playback' : 'Start playback'}
