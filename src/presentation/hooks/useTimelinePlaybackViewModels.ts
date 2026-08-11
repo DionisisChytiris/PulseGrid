@@ -1,9 +1,7 @@
 import { useMemo } from 'react';
 
 import {
-  buildPlaybackStatusViewModel,
   buildTimelineSegmentViewModels,
-  type PlaybackTickContext,
 } from '../viewModels';
 import { selectSongTimelineActiveForSong } from '../../features/songPlayback/songPlaybackSelectors';
 import type { Song } from '../../domain/music/Song';
@@ -20,17 +18,21 @@ type Options = {
   isCountingIn?: boolean;
 };
 
+/**
+ * Segment VMs + session flags for the Song Editor.
+ * Does not subscribe to per-beat debugTick — beat follow/LEDs are handled inside
+ * SongSignatureTimeline via a Redux store subscription (avoids FlatList host
+ * reconciliation every pulse).
+ */
 export function useTimelinePlaybackViewModels({
   song,
   currentBarIndex,
-  totalBars,
+  totalBars: _totalBars,
   songName,
   isPlaying,
   isPaused,
   isCountingIn = false,
 }: Options) {
-  const debugTick = useAppSelector((state) => state.songPlayback.debugTick);
-
   const songSessionActive = useAppSelector((state) =>
     selectSongTimelineActiveForSong(state, song.name),
   );
@@ -51,41 +53,10 @@ export function useTimelinePlaybackViewModels({
     [song, playbackContext],
   );
 
-  const tickContext: PlaybackTickContext = useMemo(() => {
-    if (debugTick === null || isCountingIn) {
-      return {
-        beatIndexInBar: null,
-        beatsPerMeasure: null,
-        bpm: null,
-        meterLabel: null,
-        sectionId: null,
-      };
-    }
-
-    return {
-      beatIndexInBar: debugTick.beatIndexInBar,
-      beatsPerMeasure: debugTick.beatsPerMeasure,
-      bpm: debugTick.bpm,
-      meterLabel: `${debugTick.meterNumerator}/${debugTick.meterDenominator}`,
-      sectionId: debugTick.sectionId,
-    };
-  }, [debugTick, isCountingIn]);
-
-  const playbackStatus = useMemo(
-    () =>
-      buildPlaybackStatusViewModel(song, {
-        ...playbackContext,
-        totalBars,
-        tick: tickContext,
-      }),
-    [song, playbackContext, totalBars, tickContext],
-  );
-
   const showTransport = songName === song.name && (isPlaying || isPaused);
 
   return {
     segments,
-    playbackStatus,
     isTimelineActive,
     showTransport,
   };

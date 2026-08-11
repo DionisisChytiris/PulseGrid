@@ -49,121 +49,133 @@ type Props = {
  * │ ● ○ ○ ○      │     │ ● ○ ○ ○ ○  │   ← track tap = edit segment
  * └──────────────┘     └────────────┘
  */
-export const MeterRegion = memo(function MeterRegion({
-  segment,
-  overviewTempoBpm = null,
-  regionTempoBpm,
-  showTimeSignature = true,
-  songLoopEnabled = false,
-  onPress,
-  onPlayFromHere,
-  onTempoPress,
-  onLayout,
-  isPlaying = false,
-}: Props) {
-  const currentBeatIndex = useSongLineBeatIndex();
-  const beatCount = Math.max(1, segment.accentPreview.length);
-  const denominator = parseMeterDenominator(segment.meter);
-  const width = meterRegionWidth(segment.numberOfBars, beatCount, denominator);
-  const regionPlaying = isPlaying && segment.isActive;
-  const regionColors = getSongLineRegionColors(regionTempoBpm);
-  const playHintOpacity = useRef(new Animated.Value(0)).current;
-  const playHintTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const playHintAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+export const MeterRegion = memo(
+  function MeterRegion({
+    segment,
+    overviewTempoBpm = null,
+    regionTempoBpm,
+    showTimeSignature = true,
+    songLoopEnabled = false,
+    onPress,
+    onPlayFromHere,
+    onTempoPress,
+    onLayout,
+    isPlaying = false,
+  }: Props) {
+    const regionPlaying = isPlaying && segment.isActive;
+    // Only the active playing region subscribes — inactive ones skip beat re-renders.
+    const currentBeatIndex = useSongLineBeatIndex(regionPlaying);
+    const beatCount = Math.max(1, segment.accentPreview.length);
+    const denominator = parseMeterDenominator(segment.meter);
+    const width = meterRegionWidth(segment.numberOfBars, beatCount, denominator);
+    const regionColors = getSongLineRegionColors(regionTempoBpm);
+    const playHintOpacity = useRef(new Animated.Value(0)).current;
+    const playHintTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const playHintAnimRef = useRef<Animated.CompositeAnimation | null>(null);
 
-  useEffect(
-    () => () => {
+    useEffect(
+      () => () => {
+        if (playHintTimeoutRef.current !== null) {
+          clearTimeout(playHintTimeoutRef.current);
+        }
+        playHintAnimRef.current?.stop();
+      },
+      [],
+    );
+
+    const handlePlayFromHere = () => {
+      if (onPlayFromHere === undefined) {
+        return;
+      }
+      onPlayFromHere(segment.id);
+
+      playHintAnimRef.current?.stop();
       if (playHintTimeoutRef.current !== null) {
         clearTimeout(playHintTimeoutRef.current);
       }
-      playHintAnimRef.current?.stop();
-    },
-    [],
-  );
+      playHintOpacity.setValue(1);
+      playHintTimeoutRef.current = setTimeout(() => {
+        playHintTimeoutRef.current = null;
+        playHintAnimRef.current = Animated.timing(playHintOpacity, {
+          toValue: 0,
+          duration: PLAY_HINT_FADE_MS,
+          useNativeDriver: true,
+        });
+        playHintAnimRef.current.start();
+      }, PLAY_HINT_VISIBLE_MS);
+    };
 
-  const handlePlayFromHere = () => {
-    if (onPlayFromHere === undefined) {
-      return;
-    }
-    onPlayFromHere(segment.id);
-
-    playHintAnimRef.current?.stop();
-    if (playHintTimeoutRef.current !== null) {
-      clearTimeout(playHintTimeoutRef.current);
-    }
-    playHintOpacity.setValue(1);
-    playHintTimeoutRef.current = setTimeout(() => {
-      playHintTimeoutRef.current = null;
-      playHintAnimRef.current = Animated.timing(playHintOpacity, {
-        toValue: 0,
-        duration: PLAY_HINT_FADE_MS,
-        useNativeDriver: true,
-      });
-      playHintAnimRef.current.start();
-    }, PLAY_HINT_VISIBLE_MS);
-  };
-
-  return (
-    <View
-      style={[styles.region, { width }, segment.isActive && styles.regionActive]}
-      onLayout={(event) => {
-        const { x, width: layoutWidth } = event.nativeEvent.layout;
-        onLayout?.(segment.id, x, layoutWidth);
-      }}
-    >
-      <View style={[styles.header, songLoopEnabled && styles.headerLoopActive]}>
-        {showTimeSignature ? (
-          <Pressable
-            onPress={handlePlayFromHere}
-            disabled={onPlayFromHere === undefined}
-            accessibilityRole="button"
-            accessibilityLabel={`Play from ${segment.meter}`}
-            hitSlop={4}
-            style={({ pressed }) => [
-              styles.meterHitTarget,
-              pressed && onPlayFromHere !== undefined && styles.meterHitPressed,
-            ]}
-          >
-            <Animated.Text style={[styles.playHint, { opacity: playHintOpacity }]}>
-              ▶
-            </Animated.Text>
-            <Text
-              style={[styles.meter, { color: regionColors.timeSignatureColour }]}
-              numberOfLines={1}
-            >
-              {segment.meter}
-            </Text>
-          </Pressable>
-        ) : null}
-      </View>
-
-      <Pressable
-        onPress={() => onPress?.(segment.id)}
-        disabled={onPress === undefined}
-        accessibilityRole="button"
-        accessibilityLabel={`Edit segment ${segment.meter}`}
-        style={[styles.track, segment.isActive && styles.trackActive]}
+    return (
+      <View
+        style={[styles.region, { width }, segment.isActive && styles.regionActive]}
+        onLayout={(event) => {
+          const { x, width: layoutWidth } = event.nativeEvent.layout;
+          onLayout?.(segment.id, x, layoutWidth);
+        }}
       >
-        {segment.barIndicators.map((indicator, barIndex) => (
-          <BarPreview
-            key={`bar-${indicator.barNumber}`}
-            beats={segment.accentPreview}
-            denominator={denominator}
-            isActive={indicator.isActive}
-            isPast={indicator.isPast}
-            isPlaying={regionPlaying}
-            currentBeatIndex={currentBeatIndex}
-            tempoBpm={barIndex === 0 ? overviewTempoBpm : null}
-            onTempoPress={
-              barIndex === 0 && overviewTempoBpm !== null ? onTempoPress : undefined
-            }
-            accentColor={regionColors.accentDotColour}
-          />
-        ))}
-      </Pressable>
-    </View>
-  );
-});
+        <View style={[styles.header, songLoopEnabled && styles.headerLoopActive]}>
+          {showTimeSignature ? (
+            <Pressable
+              onPress={handlePlayFromHere}
+              disabled={onPlayFromHere === undefined}
+              accessibilityRole="button"
+              accessibilityLabel={`Play from ${segment.meter}`}
+              hitSlop={4}
+              style={({ pressed }) => [
+                styles.meterHitTarget,
+                pressed && onPlayFromHere !== undefined && styles.meterHitPressed,
+              ]}
+            >
+              <Animated.Text style={[styles.playHint, { opacity: playHintOpacity }]}>
+                ▶
+              </Animated.Text>
+              <Text
+                style={[styles.meter, { color: regionColors.timeSignatureColour }]}
+                numberOfLines={1}
+              >
+                {segment.meter}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+
+        <Pressable
+          onPress={() => onPress?.(segment.id)}
+          disabled={onPress === undefined}
+          accessibilityRole="button"
+          accessibilityLabel={`Edit segment ${segment.meter}`}
+          style={[styles.track, segment.isActive && styles.trackActive]}
+        >
+          {segment.barIndicators.map((indicator, barIndex) => (
+            <BarPreview
+              key={`bar-${indicator.barNumber}`}
+              beats={segment.accentPreview}
+              denominator={denominator}
+              isActive={indicator.isActive}
+              isPast={indicator.isPast}
+              isPlaying={regionPlaying}
+              currentBeatIndex={currentBeatIndex}
+              tempoBpm={barIndex === 0 ? overviewTempoBpm : null}
+              onTempoPress={
+                barIndex === 0 && overviewTempoBpm !== null ? onTempoPress : undefined
+              }
+              accentColor={regionColors.accentDotColour}
+            />
+          ))}
+        </Pressable>
+      </View>
+    );
+  },
+  // Ignore callback identity — parent arrows change every beat render and would
+  // defeat memo, forcing every region to reconcile and stall follow rAF.
+  (prev, next) =>
+    prev.segment === next.segment &&
+    prev.overviewTempoBpm === next.overviewTempoBpm &&
+    prev.regionTempoBpm === next.regionTempoBpm &&
+    prev.showTimeSignature === next.showTimeSignature &&
+    prev.songLoopEnabled === next.songLoopEnabled &&
+    prev.isPlaying === next.isPlaying,
+);
 
 const styles = StyleSheet.create({
   region: {

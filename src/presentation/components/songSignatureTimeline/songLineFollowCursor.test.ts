@@ -126,6 +126,23 @@ describe('songLineFollowCursor', () => {
     expect(FOLLOW_DRIFT_IGNORE_BEATS).toBe(0.1);
   });
 
+  it('does not ease backward when visual is ahead of audio (late tick)', () => {
+    const cursor = createFollowCursor({
+      barIndex: 0,
+      beatPosition: 2.5,
+      beatDurationMs: 500,
+      lastFrameAt: 0,
+      isPlaying: true,
+      audioAbsAtTick: 2.0,
+      audioTickAt: 0,
+    });
+
+    advanceFollowCursor(cursor, segments, 16);
+    const abs = toAbsoluteBeatPosition(segments, cursor.barIndex, cursor.beatPosition);
+    // Natural advance only: 2.5 + 16/500 — no pull toward the late audio anchor.
+    expect(abs).toBeCloseTo(2.532, 3);
+  });
+
   it('crosses bar boundaries without stalling at beatsInBar - epsilon', () => {
     const cursor = createFollowCursor({
       barIndex: 0,

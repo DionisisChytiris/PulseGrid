@@ -119,7 +119,8 @@ export function createFollowCursor(
 
 /**
  * Advance the visual transport cursor for one frame.
- * Audio remains master via tick anchors; visual only eases when |drift| > threshold.
+ * Audio remains master via tick anchors; visual only eases when it lags behind
+ * (never ease backward after a late tick).
  */
 export function advanceFollowCursor(
   cursor: FollowCursorState,
@@ -147,13 +148,13 @@ export function advanceFollowCursor(
     cursor.audioAbsAtTick + (now - cursor.audioTickAt) / cursor.beatDurationMs,
   );
   const drift = audioAbs - visualAbs;
-  const absDrift = Math.abs(drift);
 
-  if (absDrift > FOLLOW_DRIFT_CORRECT_BEATS) {
+  // Soft-correct only when visual lags behind audio. Never pull backward
+  // after a late tick (that caused a micro pause at each beat).
+  if (drift > FOLLOW_DRIFT_CORRECT_BEATS) {
     const alpha = 1 - Math.exp(-dtMs / FOLLOW_EASE_TAU_MS);
     visualAbs += drift * alpha;
   }
-  // |drift| <= FOLLOW_DRIFT_IGNORE_BEATS (and the band up to CORRECT): allow natural drift.
 
   visualAbs = Math.min(visualAbs, maxAbs);
 

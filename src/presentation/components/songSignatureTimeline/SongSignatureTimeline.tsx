@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  memo,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -26,12 +27,13 @@ import type { Song } from '../../../domain/music/Song';
 import { pulseDurationMsFromDisplayBpm } from '../../../domain/metronome/PulseGridSettings';
 import { findDomainSegmentById } from '../../viewModels/buildTimelineSegmentViewModels';
 import type { TimelineSegmentViewModel } from '../../viewModels/TimelineSegmentViewModel';
+import { store } from '../../../store';
 import { studioColors } from '../../theme';
 
 import { MeterRegion } from './MeterRegion';
 import { NewBarMeterDialog } from './NewBarMeterDialog';
 import { overviewTempoMarkings, effectiveSegmentBpm } from './overviewTempoMarkings';
-import { SongLineBeatContext } from './SongLineBeatContext';
+import { setSongLineBeatIndex } from './SongLineBeatContext';
 import {
   advanceFollowCursor,
   createFollowCursor,
@@ -55,9 +57,6 @@ type Props = {
   isTimelineActive: boolean;
   isPlaying: boolean;
   currentBarIndex: number;
-  currentBeatIndex: number;
-  currentBpm: number | null;
-  currentMeter: string;
   onSegmentBarCountChange: (segment: TimelineSegment, count: number) => void;
   onSegmentMeterChange: (segment: TimelineSegment, meterLabel: string) => void;
   onSegmentBpmOverrideChange: (segment: TimelineSegment, bpm: number | null) => void;
@@ -89,6 +88,14 @@ type TempoEditFocus = 'song' | 'segment' | null;
 const SCROLL_START_EPSILON_PX = 1;
 /** Max wait for animated scrollToOffset(0) before starting playback anyway. */
 const SCROLL_TO_START_TIMEOUT_MS = 450;
+
+/**
+ * TEMP A/B EXPERIMENT — beat-dot highlight kill-switch.
+ * true  = force idle LED appearance (no active-beat update) to test scroll hitch.
+ * false = normal highlighting. Revert by setting false or deleting this flag + gate.
+ * A/B result: disabling highlight reduced hitch slightly but did NOT eliminate it.
+ */
+const TEMP_DISABLE_SONG_LINE_BEAT_HIGHLIGHT = false;
 
 function segmentStride(segment: TimelineSegmentViewModel): number {
   const denominator = parseMeterDenominator(segment.meter);
@@ -146,18 +153,17 @@ function pulseDurationMs(bpm: number | null, meterLabel: string): number {
 
 /**
  * Cubase-style Signature Track: horizontal meter regions from Song segments.
+ * Beat ticks are consumed via Redux store.subscribe (not React props) so the
+ * FlatList host does not reconcile on every pulse; LEDs use SongLineBeatContext.
  */
-export const SongSignatureTimeline = forwardRef<SongSignatureTimelineHandle, Props>(
-  function SongSignatureTimeline(
+export const SongSignatureTimeline = memo(
+  forwardRef<SongSignatureTimelineHandle, Props>(function SongSignatureTimeline(
     {
       song,
       segments,
       isTimelineActive,
       isPlaying,
       currentBarIndex,
-      currentBeatIndex,
-      currentBpm,
-      currentMeter,
       onSegmentBarCountChange,
       onSegmentMeterChange,
       onSegmentBpmOverrideChange,
@@ -185,9 +191,13 @@ export const SongSignatureTimeline = forwardRef<SongSignatureTimelineHandle, Pro
   const selectedSegmentIdRef = useRef<string | null>(null);
   const playbackCursorRef = useRef<FollowCursorState>(createFollowCursor());
   const segmentsRef = useRef(segments);
+  const isTimelineActiveRef = useRef(isTimelineActive);
+  const isPlayingRef = useRef(isPlaying);
+  const currentBarIndexRef = useRef(currentBarIndex);
   const wasTimelineActiveRef = useRef(false);
   const wasPlayingRef = useRef(false);
   const lastTickKeyRef = useRef<string | null>(null);
+  const applyTransportFromStoreRef = useRef<() => void>(() => {});
   const [viewportWidth, setViewportWidth] = useState(0);
   const [segmentEditorVisible, setSegmentEditorVisible] = useState(false);
   const [focusSegmentId, setFocusSegmentId] = useState<string | null>(null);
@@ -200,6 +210,9 @@ export const SongSignatureTimeline = forwardRef<SongSignatureTimelineHandle, Pro
   );
 
   segmentsRef.current = segments;
+  isTimelineActiveRef.current = isTimelineActive;
+  isPlayingRef.current = isPlaying;
+  currentBarIndexRef.current = currentBarIndex;
 
   const scrollToPlaybackPosition = useCallback((animated: boolean) => {
     const cursor = playbackCursorRef.current;
@@ -241,82 +254,113 @@ export const SongSignatureTimeline = forwardRef<SongSignatureTimelineHandle, Pro
   );
 
   useEffect(() => {
-    const meter =
-      currentMeter !== '—' && currentMeter.length > 0
-        ? currentMeter
-        : (segments.find(
-            (segment) =>
-              currentBarIndex >= segment.startBar - 1 &&
-              currentBarIndex <= segment.endBar - 1,
-          )?.meter ?? '4/4');
+    const applyTransportFromStore = () => {
+      const songPlayback = store.getState().songPlayback;
+      const segmentsNow = segmentsRef.current;
+      const isActive = isTimelineActiveRef.current;
+      const playing = isPlayingRef.current;
+      // Bar + beat must come from the same Redux snapshot (subscribe runs before
+      // React updates currentBarIndexRef). Using the ref here falsely treated
+      // every new-bar downbeat as loopRestartSync while the bar ref was still 0.
+      const barIndex = songPlayback.currentBarIndex;
+      const tick = songPlayback.debugTick;
+      const followLive = isActive && playing;
 
-    const tickKey = `${currentBarIndex}:${currentBeatIndex}:${currentBpm ?? 'na'}:${meter}`;
-    const tickChanged = tickKey !== lastTickKeyRef.current;
-    const startingPlayback = isTimelineActive && isPlaying && !wasPlayingRef.current;
-    // Loop restart keeps isPlaying true — hard-sync when transport wraps to bar 1.
-    const loopRestartSync =
-      tickChanged &&
-      isTimelineActive &&
-      isPlaying &&
-      !startingPlayback &&
-      currentBarIndex === 0 &&
-      Math.max(0, currentBeatIndex) === 0;
-    const beatDurationMs = pulseDurationMs(currentBpm, meter);
-    const audioBeat = Math.max(0, currentBeatIndex);
-    const now = performance.now();
+      const meterFromTick =
+        tick !== null
+          ? `${tick.meterNumerator}/${tick.meterDenominator}`
+          : null;
+      const meterFromSegments =
+        segmentsNow.find(
+          (segment) =>
+            barIndex >= segment.startBar - 1 && barIndex <= segment.endBar - 1,
+        )?.meter ?? '4/4';
+      const meter =
+        meterFromTick !== null && meterFromTick.length > 0
+          ? meterFromTick
+          : meterFromSegments;
 
-    wasPlayingRef.current = isTimelineActive && isPlaying;
+      const currentBeatIndex =
+        followLive && tick !== null ? tick.beatIndexInBar : -1;
+      const currentBpm = tick?.bpm ?? null;
+      const tickKey = `${barIndex}:${currentBeatIndex}:${currentBpm ?? 'na'}:${meter}`;
+      const tickChanged = tickKey !== lastTickKeyRef.current;
+      const startingPlayback = isActive && playing && !wasPlayingRef.current;
+      // Loop restart keeps isPlaying true — hard-sync when transport wraps to bar 1.
+      const loopRestartSync =
+        tickChanged &&
+        isActive &&
+        playing &&
+        !startingPlayback &&
+        barIndex === 0 &&
+        Math.max(0, currentBeatIndex) === 0;
+      const beatDurationMs = pulseDurationMs(currentBpm, meter);
+      const audioBeat = Math.max(0, currentBeatIndex);
+      const now = performance.now();
 
-    if (startingPlayback || loopRestartSync) {
-      lastTickKeyRef.current = tickKey;
-      hardSyncFollowCursorToAudio(
-        playbackCursorRef.current,
-        segments,
-        currentBarIndex,
-        audioBeat,
-        beatDurationMs,
-        now,
+      wasPlayingRef.current = isActive && playing;
+
+      if (startingPlayback || loopRestartSync) {
+        lastTickKeyRef.current = tickKey;
+        hardSyncFollowCursorToAudio(
+          playbackCursorRef.current,
+          segmentsNow,
+          barIndex,
+          audioBeat,
+          beatDurationMs,
+          now,
+        );
+        autoFollowSuspendedUntil.current = 0;
+        scrollToPlaybackPosition(false);
+      } else if (tickChanged) {
+        lastTickKeyRef.current = tickKey;
+        const cursor = playbackCursorRef.current;
+        cursor.isPlaying = isActive && playing;
+        // Audio tick updates the master-clock anchor only — no per-beat visual snap.
+        applyAudioTickToFollowCursor(
+          cursor,
+          segmentsNow,
+          barIndex,
+          audioBeat,
+          beatDurationMs,
+          now,
+        );
+      } else {
+        playbackCursorRef.current.isPlaying = isActive && playing;
+        playbackCursorRef.current.beatDurationMs = beatDurationMs;
+      }
+
+      // LED beat store — only active MeterRegion subscribes; host does not re-render.
+      setSongLineBeatIndex(
+        TEMP_DISABLE_SONG_LINE_BEAT_HIGHLIGHT
+          ? -1
+          : followLive
+            ? currentBeatIndex
+            : -1,
       );
-      autoFollowSuspendedUntil.current = 0;
-      scrollToPlaybackPosition(false);
-    } else if (tickChanged) {
-      lastTickKeyRef.current = tickKey;
-      const cursor = playbackCursorRef.current;
-      cursor.isPlaying = isTimelineActive && isPlaying;
-      // Audio tick updates the master-clock anchor only — no per-beat visual snap.
-      applyAudioTickToFollowCursor(
-        cursor,
-        segments,
-        currentBarIndex,
-        audioBeat,
-        beatDurationMs,
-        now,
-      );
-    } else {
-      playbackCursorRef.current.isPlaying = isTimelineActive && isPlaying;
-      playbackCursorRef.current.beatDurationMs = beatDurationMs;
-    }
 
-    if (playbackCursorRef.current.isPlaying && animationFrameRef.current === null) {
-      playbackCursorRef.current.lastFrameAt = performance.now();
-      animationFrameRef.current = requestAnimationFrame(animateFollow);
-    }
+      if (playbackCursorRef.current.isPlaying && animationFrameRef.current === null) {
+        playbackCursorRef.current.lastFrameAt = performance.now();
+        animationFrameRef.current = requestAnimationFrame(animateFollow);
+      }
 
-    if (!playbackCursorRef.current.isPlaying && animationFrameRef.current !== null) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-  }, [
-    animateFollow,
-    currentBarIndex,
-    currentBeatIndex,
-    currentBpm,
-    currentMeter,
-    isPlaying,
-    isTimelineActive,
-    scrollToPlaybackPosition,
-    segments,
-  ]);
+      if (!playbackCursorRef.current.isPlaying && animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+    };
+
+    applyTransportFromStoreRef.current = applyTransportFromStore;
+    const unsubscribe = store.subscribe(applyTransportFromStore);
+    applyTransportFromStore();
+    return unsubscribe;
+  }, [animateFollow, scrollToPlaybackPosition]);
+
+  // After React commits play/bar/segment props, re-run transport (store.listen may have
+  // seen stale refs mid-dispatch). Does not run on beat ticks — those props are stable.
+  useEffect(() => {
+    applyTransportFromStoreRef.current();
+  }, [isPlaying, isTimelineActive, currentBarIndex, segments]);
 
   useEffect(() => {
     const wasActive = wasTimelineActiveRef.current;
@@ -499,7 +543,6 @@ export const SongSignatureTimeline = forwardRef<SongSignatureTimelineHandle, Pro
   );
 
   return (
-    <SongLineBeatContext.Provider value={currentBeatIndex}>
       <View style={styles.wrapper}>
         <View
           style={styles.listContainer}
@@ -654,9 +697,11 @@ export const SongSignatureTimeline = forwardRef<SongSignatureTimelineHandle, Pro
           }}
         />
       </View>
-    </SongLineBeatContext.Provider>
   );
-});
+  }),
+);
+
+SongSignatureTimeline.displayName = 'SongSignatureTimeline';
 
 const styles = StyleSheet.create({
   wrapper: {

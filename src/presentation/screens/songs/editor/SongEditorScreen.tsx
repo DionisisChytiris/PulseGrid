@@ -1,6 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { songPlaybackService } from '../../../../application/services/songPlaybackServiceInstance';
 import { createSong } from '../../../../domain/music/Song';
 import { sanitizeSongName, sanitizeSongNameInput } from '../../../../domain/music/songName';
 import { CustomKeyboard } from '../../../components/CustomKeyboard';
@@ -80,6 +81,17 @@ export default function SongEditorScreen({ navigation, route }: Props) {
     isPaused: playback.isPaused,
     isCountingIn: playback.isCountingIn,
   });
+
+  const onPlayFromSegment = useCallback(
+    (segment: { startBar: number }) => {
+      const activeSong = song;
+      if (activeSong === null) {
+        return;
+      }
+      void songPlaybackService.playSongTimelineFromBar(activeSong, segment.startBar - 1);
+    },
+    [song],
+  );
 
   const songNameKeyboardVisible = keyboard.activeField === 'songName';
   const dockRight = songNameKeyboardVisible && width > height;
@@ -231,11 +243,6 @@ export default function SongEditorScreen({ navigation, route }: Props) {
           isTimelineActive={timeline.isTimelineActive}
           isPlaying={playback.isPlaying && !playback.isCountingIn}
           currentBarIndex={playback.currentBarIndex}
-          currentBeatIndex={
-            playback.isCountingIn ? -1 : timeline.playbackStatus.currentBeat - 1
-          }
-          currentBpm={timeline.playbackStatus.tempo}
-          currentMeter={timeline.playbackStatus.meter}
           onSegmentBarCountChange={setSegmentBarCount}
           onSegmentMeterChange={setSegmentMeter}
           onSegmentBpmOverrideChange={setSegmentBpmOverride}
@@ -244,9 +251,7 @@ export default function SongEditorScreen({ navigation, route }: Props) {
           onSegmentDelete={deleteSegment}
           onSongDefaultBpmChange={setSongDefaultBpm}
           onCountInBarsChange={setCountInBars}
-          onPlayFromSegment={(segment) => {
-            playback.onPlaySongFromBar(song, segment.startBar - 1);
-          }}
+          onPlayFromSegment={onPlayFromSegment}
           onAddBar={addBar}
           songLoopEnabled={songLoopEnabled}
         />

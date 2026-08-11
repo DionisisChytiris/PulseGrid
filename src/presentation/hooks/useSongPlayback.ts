@@ -2,7 +2,6 @@ import type { Song } from '../../domain/music/Song';
 import {
   selectSongCountIn,
   selectSongCurrentBarIndex,
-  selectSongDebugTick,
   selectSongPlaybackFallbackReason,
   selectSongPlaybackIsPaused,
   selectSongPlaybackIsPlaying,
@@ -20,7 +19,8 @@ export function useSongPlayback() {
   const isPaused = useAppSelector(selectSongPlaybackIsPaused);
   const songName = useAppSelector(selectSongPlaybackSongName);
   const fallbackReason = useAppSelector(selectSongPlaybackFallbackReason);
-  const debugTick = useAppSelector(selectSongDebugTick);
+  // Intentionally do NOT select debugTick here — beat ticks must not re-render
+  // SongEditorScreen / FlatList host. SongSignatureTimeline reads ticks via store.
   const currentBarIndex = useAppSelector(selectSongCurrentBarIndex);
   const totalBars = useAppSelector(selectSongTotalBars);
   const countIn = useAppSelector(selectSongCountIn);
@@ -32,7 +32,6 @@ export function useSongPlayback() {
     isPaused,
     songName,
     fallbackReason,
-    debugTick,
     currentBarIndex,
     totalBars,
     countIn,

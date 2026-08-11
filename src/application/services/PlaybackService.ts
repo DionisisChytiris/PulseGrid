@@ -8,6 +8,12 @@ import {
 } from '../../features/metronome/metronomeSlice';
 import { quickMetronomeModeActive } from '../../features/songPlayback/songPlaybackSlice';
 import type { TimeSignature } from '../../domain/entities/Metronome';
+import {
+  clampBpmForSubdivision,
+  maxBpmForSubdivision,
+  type BpmClampAdjustment,
+} from '../../domain/metronome/bpmLimits';
+import { toDisplayBpm, toEngineBpm } from '../../domain/metronome/PulseGridSettings';
 import { DEFAULT_TAP_TEMPO_CONFIG, TapTempoCalculator, type TapTempoResult } from '../../domain/services/TapTempoCalculator';
 import { AccentPattern } from '../../domain/valueObjects/AccentPattern';
 import type { SubdivisionKind } from '../../domain/valueObjects/Subdivision';
@@ -26,6 +32,8 @@ function formatTimeSignature({ numerator, denominator }: TimeSignature): string 
   return `${numerator}/${denominator}`;
 }
 
+type BpmClampListener = (adjustment: BpmClampAdjustment) => void;
+
 /**
  * Coordinates metronome playback.
  *
@@ -40,6 +48,7 @@ export class PlaybackService {
   private readonly tapTempoCalculator: TapTempoCalculator;
   private playbackGeneration = 0;
   private tempoTrainer: TempoTrainerService | null = null;
+  private bpmClampListener: BpmClampListener | null = null;
 
   constructor(
     private readonly dispatch: AppDispatch,
@@ -61,6 +70,16 @@ export class PlaybackService {
    */
   attachTempoTrainer(trainer: TempoTrainerService): void {
     this.tempoTrainer = trainer;
+  }
+
+  /** Subscribe to automatic BPM clamps (subdivision caps). Returns unsubscribe. */
+  setBpmClampListener(listener: BpmClampListener | null): () => void {
+    this.bpmClampListener = listener;
+    return () => {
+      if (this.bpmClampListener === listener) {
+        this.bpmClampListener = null;
+      }
+    };
   }
 
   private getStartConfig(): MetronomeStartConfig {
@@ -90,6 +109,41 @@ export class PlaybackService {
     this.audioEngine.stop();
     this.timingSource.stopTiming();
     void this.startPlayback();
+  }
+
+  private notifyBpmClamped(adjustment: BpmClampAdjustment): void {
+    this.bpmClampListener?.(adjustment);
+  }
+
+  /**
+   * Apply BPM with the active subdivision's maximum enforced.
+   * Callers pass engine BPM; caps are evaluated in display-BPM space (dial units).
+   */
+  setBpm(bpm: number): void {
+    const { subdivision, timeSignature } = this.getState().metronome;
+    const denominator = timeSignature.denominator;
+    const displayRequested = Math.round(toDisplayBpm(bpm, denominator));
+    const displayClamped = clampBpmForSubdivision(displayRequested, subdivision);
+    const clamped = Math.round(toEngineBpm(displayClamped, denominator));
+    const adjusted = displayClamped < displayRequested;
+
+    if (clamped === this.getState().metronome.bpm) {
+      return;
+    }
+
+    this.dispatch(bpmChanged(clamped));
+    this.audioEngine.setTempo(clamped);
+    this.timingSource.setTimingTempo(clamped);
+    void this.persistQuickMetronomePreferences();
+    console.log(`Tempo changed to ${clamped} BPM`);
+
+    if (adjusted) {
+      this.notifyBpmClamped({
+        bpm: displayClamped,
+        maxBpm: maxBpmForSubdivision(subdivision),
+        subdivision,
+      });
+    }
   }
 
   start(): void {
@@ -139,20 +193,14 @@ export class PlaybackService {
     console.log('Playback stopped');
   }
 
-  setBpm(bpm: number): void {
-    this.dispatch(bpmChanged(bpm));
-    this.audioEngine.setTempo(bpm);
-    this.timingSource.setTimingTempo(bpm);
-    void this.persistQuickMetronomePreferences();
-    console.log(`Tempo changed to ${bpm} BPM`);
-  }
-
   private async persistQuickMetronomePreferences(): Promise<void> {
     await saveMetronomeSettings(buildPersistedMetronomeSettingsFromState(this.getState()));
   }
 
   setTimeSignature(timeSignature: TimeSignature): void {
     this.dispatch(timeSignatureChanged(timeSignature));
+    // Enforce caps for the post-change engine subdivision (finer resets to null).
+    this.setBpm(this.getState().metronome.bpm);
     void this.persistQuickMetronomePreferences();
 
     if (this.getState().metronome.isPlaying) {
@@ -175,8 +223,15 @@ export class PlaybackService {
       this.timingSource.setSubdivision(subdivision);
     }
 
-    // finerSubdivision is dispatched by the UI before this call; persist together.
-    void this.persistQuickMetronomePreferences();
+    const bpmBeforeClamp = this.getState().metronome.bpm;
+    // Re-apply BPM so an over-limit tempo is clamped to the new subdivision max.
+    this.setBpm(bpmBeforeClamp);
+
+    // setBpm persists only when BPM changes; always persist subdiv prefs.
+    if (this.getState().metronome.bpm === bpmBeforeClamp) {
+      void this.persistQuickMetronomePreferences();
+    }
+
     console.log(`Subdivision changed to ${subdivision}`);
   }
 

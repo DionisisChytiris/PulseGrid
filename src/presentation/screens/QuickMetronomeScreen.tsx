@@ -5,6 +5,7 @@ import { useResponsiveLayout } from '../layout/useResponsiveLayout';
 import { MetronomeDialSection } from '../components/metronome/MetronomeDialSection';
 import { QuickMetronomeTopBar } from '../components/metronome/QuickMetronomeTopBar';
 import { TapTempoHintModal } from '../components/metronome/TapTempoHintModal';
+import { TempoAdjustedSnackbar } from '../components/metronome/TempoAdjustedSnackbar';
 import { TimeSignaturePicker } from '../components/metronome/TimeSignaturePicker';
 import { studioColors } from '../theme';
 
@@ -28,6 +29,8 @@ export default function QuickMetronomeScreen() {
     tapTempoHintVisible,
     tapTempoHintMessage,
     onDismissTapTempoHint,
+    tempoClampMessage,
+    onDismissTempoClampMessage,
     trainerPopupVisible,
     trainerSettings,
     onTrainerPress,
@@ -125,6 +128,12 @@ export default function QuickMetronomeScreen() {
         visible={tapTempoHintVisible}
         message={tapTempoHintMessage}
         onDismiss={onDismissTapTempoHint}
+      />
+
+      <TempoAdjustedSnackbar
+        visible={tempoClampMessage !== null}
+        message={tempoClampMessage ?? ''}
+        onHide={onDismissTempoClampMessage}
       />
     </View>
   );

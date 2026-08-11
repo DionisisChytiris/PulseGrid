@@ -12,6 +12,8 @@ import type {
   NormalClickSoundId,
   SubdivisionClickSoundId,
 } from '../../domain/metronome/ClickSoundCatalog';
+import { clampBpmForSubdivision } from '../../domain/metronome/bpmLimits';
+import { toDisplayBpm, toEngineBpm } from '../../domain/metronome/PulseGridSettings';
 import { bpmChanged, quickMetronomePreferencesHydrated } from '../../features/metronome/metronomeSlice';
 import type { IAudioEngine } from '../../infrastructure/audio/IAudioEngine';
 import {
@@ -40,6 +42,14 @@ export class ClickSoundService {
         accentPattern: settings.accentPattern,
       }),
     );
+    // Clamp after subdivision is known from hydrated prefs (display-BPM caps).
+    const { bpm, subdivision, timeSignature } = this.getState().metronome;
+    const displayBpm = Math.round(toDisplayBpm(bpm, timeSignature.denominator));
+    const clampedDisplay = clampBpmForSubdivision(displayBpm, subdivision);
+    const clampedBpm = Math.round(toEngineBpm(clampedDisplay, timeSignature.denominator));
+    if (clampedBpm !== bpm) {
+      this.dispatch(bpmChanged(clampedBpm));
+    }
     await this.audioEngine.whenReady();
     this.applyToEngine(settings);
     this.audioEngine.setBarStartEnabled(settings.barStartEnabled);
