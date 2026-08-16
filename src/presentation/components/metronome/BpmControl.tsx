@@ -2,6 +2,7 @@ import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 
 import { AnalyticsService } from '../../../services/AnalyticsService';
+import { playbackService } from '../../../application/services/playbackServiceInstance';
 
 import { useResponsiveLayout } from '../../layout/useResponsiveLayout';
 import { studioColors } from '../../theme';
@@ -140,9 +141,11 @@ export function BpmControl({
         onDialDraggingChange={(dragging) => {
           isDialDraggingRef.current = dragging;
           if (dragging) {
+            playbackService.beginBpmGesture();
             bpmAtDragStartRef.current = valueRef.current;
             return;
           }
+          playbackService.endBpmGesture();
           const nextBpm = valueRef.current;
           if (nextBpm !== bpmAtDragStartRef.current) {
             AnalyticsService.logTempoSet(nextBpm, 'slider');

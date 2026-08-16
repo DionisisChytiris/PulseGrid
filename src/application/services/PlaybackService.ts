@@ -82,6 +82,15 @@ export class PlaybackService {
     };
   }
 
+  /** Dial pan started (tempo follows via setBpm; kept for dial gesture API). */
+  beginBpmGesture(): void {}
+
+  /**
+   * Dial pan ended. Native tempo already followed each setBpm during the drag (iOS soft cutover);
+   * no extra setTempo — avoids a release snap.
+   */
+  endBpmGesture(): void {}
+
   private getStartConfig(): MetronomeStartConfig {
     const { bpm, timeSignature, accentPattern, subdivision } = this.getState().metronome;
 
@@ -132,10 +141,10 @@ export class PlaybackService {
     }
 
     this.dispatch(bpmChanged(clamped));
-    this.audioEngine.setTempo(clamped);
     this.timingSource.setTimingTempo(clamped);
     void this.persistQuickMetronomePreferences();
-    console.log(`Tempo changed to ${clamped} BPM`);
+    // Live setTempo during dial drag: iOS soft-cutover no longer flushes the node pool.
+    this.audioEngine.setTempo(clamped);
 
     if (adjusted) {
       this.notifyBpmClamped({
@@ -185,12 +194,23 @@ export class PlaybackService {
   }
 
   stop(): void {
-    this.playbackGeneration++;
-    this.audioEngine.stop();
-    this.timingSource.stopTiming();
+    const generationAtStop = ++this.playbackGeneration;
+
+    // UI first (mirror start): native flush can block the bridge on iOS.
     this.dispatch(playbackStopped());
+    this.timingSource.stopTiming();
     this.tempoTrainer?.onPlaybackStopped();
     console.log('Playback stopped');
+
+    // After-paint: setTimeout(0) is a macrotask, so React can commit/paint
+    // press-in corona + idle icon/LEDs before iOS flushScheduled blocks JS.
+    // (queueMicrotask / often rAF still run before paint — they would not help.)
+    setTimeout(() => {
+      if (generationAtStop !== this.playbackGeneration) {
+        return;
+      }
+      this.audioEngine.stop();
+    }, 0);
   }
 
   private async persistQuickMetronomePreferences(): Promise<void> {
@@ -207,7 +227,7 @@ export class PlaybackService {
       this.restartPlayback();
     }
 
-    console.log(`Time signature changed to ${formatTimeSignature(timeSignature)}`);
+    // console.log(`Time signature changed to ${formatTimeSignature(timeSignature)}`);
   }
 
   setAccentPattern(accents: boolean[]): void {

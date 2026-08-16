@@ -49,8 +49,19 @@
         }
       ],
       [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ],
+      [
         "@react-native-firebase/app",
         {
+          "ios": {
+            "disableSPM": true
+          },
           "ios_google_services_file": "./GoogleService-Info.plist",
           "android_google_services_file": "./google-services.json"
         }

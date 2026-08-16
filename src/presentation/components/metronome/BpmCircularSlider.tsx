@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   LayoutChangeEvent,
   PanResponder,
-  Platform,
   Pressable,
   StyleSheet,
   View,
@@ -332,13 +331,6 @@ export function BpmCircularSlider({
             onPressIn={() => {
               centerActionHandledOnPressInRef.current = true;
               onCenterPressIn?.();
-              // iOS: let the corona state commit/paint before sync playback work.
-              if (Platform.OS === 'ios') {
-                requestAnimationFrame(() => {
-                  onCenterPress();
-                });
-                return;
-              }
               onCenterPress();
             }}
             onPressOut={onCenterPressOut}

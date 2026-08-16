@@ -38,11 +38,13 @@ final class ClickSoundPlayer {
   private var normalGain: Float = 0.60
 
   private var engineStarted = false
+  private var sessionConfigured = false
+  private var sessionActivated = false
 
   var areReady: Bool {
     lock.lock()
     defer { lock.unlock() }
-    return barBuffer != nil && accentBuffer != nil && normalBuffer != nil && subdivisionBuffer != nil
+    return buffersLoadedLocked
   }
 
   var isTimelineCalibrated: Bool {
@@ -50,24 +52,21 @@ final class ClickSoundPlayer {
   }
 
   func initialize() {
-    activateAudioSession()
     lock.lock()
-    setupEngineGraphIfNeeded()
-    startEngineLocked()
-    reloadBuffersLocked()
-    lock.unlock()
+    defer { lock.unlock() }
+
+    if isFullyReadyLocked() {
+      return
+    }
+
+    ensureReadyLocked()
   }
 
   func prepareForPlayback() {
     lock.lock()
-    setupEngineGraphIfNeeded()
-    startEngineLocked()
-    if barBuffer == nil || accentBuffer == nil || normalBuffer == nil || subdivisionBuffer == nil {
-      reloadBuffersLocked()
-    }
-    flushScheduledLocked()
-    timeline.calibrate(sampleRate: engine.mainMixerNode.outputFormat(forBus: 0).sampleRate)
-    lock.unlock()
+    defer { lock.unlock() }
+
+    ensureReadyLocked()
   }
 
   func flushScheduled() {
@@ -198,6 +197,33 @@ final class ClickSoundPlayer {
     case accent
     case normal
     case subdivision
+  }
+
+  private var buffersLoadedLocked: Bool {
+    barBuffer != nil && accentBuffer != nil && normalBuffer != nil && subdivisionBuffer != nil
+  }
+
+  private func isFullyReadyLocked() -> Bool {
+    sessionActivated && engine.isRunning && !barNodes.isEmpty && buffersLoadedLocked
+  }
+
+  /// Session, graph, engine, and buffers. No-op when already fully ready.
+  /// Does not flush scheduled player nodes (stop() owns that).
+  private func ensureReadyLocked() {
+    if isFullyReadyLocked() {
+      return
+    }
+
+    let engineWasRunning = engine.isRunning
+    if !sessionActivated || !engineWasRunning {
+      activateAudioSessionLocked(forceActive: true)
+    }
+
+    setupEngineGraphIfNeeded()
+    startEngineLocked()
+    if !buffersLoadedLocked {
+      reloadBuffersLocked()
+    }
   }
 
   private func setupEngineGraphIfNeeded() {
@@ -471,11 +497,17 @@ final class ClickSoundPlayer {
     }
   }
 
-  private func activateAudioSession() {
+  private func activateAudioSessionLocked(forceActive: Bool) {
     let session = AVAudioSession.sharedInstance()
     do {
-      try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
-      try session.setActive(true)
+      if !sessionConfigured {
+        try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+        sessionConfigured = true
+      }
+      if forceActive || !sessionActivated {
+        try session.setActive(true)
+        sessionActivated = true
+      }
     } catch {
       print("ClickSoundPlayer — failed to activate audio session: \(error)")
     }

@@ -11,9 +11,11 @@ final class MetronomeEngine {
     _ timestampMs: Double
   ) -> Void
 
-  /// Steady-state lookahead floor and scheduled-startup lead (80 ms).
-  private static let startupLeadNs: UInt64 = 80_000_000
-  private static let minLookaheadNs: UInt64 = startupLeadNs
+  /// Steady-state lookahead floor (unchanged). Independent of startup lead.
+  private static let minLookaheadNs: UInt64 = 80_000_000
+  /// Future schedule lead for tick 0. Matches ClickSoundPlayer preview (5 ms).
+  /// Requires a future AVAudioTime so the first buffer is not scheduled late/ASAP.
+  private static let startupLeadNs: UInt64 = 5_000_000
   private static let logPrefix = "PulseGrid-MetronomeStartup"
 
   private enum PlaybackPhase {
@@ -166,7 +168,8 @@ final class MetronomeEngine {
     stateLock.unlock()
 
     print(
-      "\(Self.logPrefix) — phase=scheduledStartup anchorTimeNs=\(anchorTimeNs) leadMs=80"
+      "\(Self.logPrefix) — phase=scheduledStartup anchorTimeNs=\(anchorTimeNs) " +
+        "leadMs=\(Double(Self.startupLeadNs) / 1_000_000.0)"
     )
 
     publishLookaheadEvents(activeGeneration: activeGeneration)
@@ -253,7 +256,11 @@ final class MetronomeEngine {
 
   // MARK: - Mutations
 
-  /// During preparing/idle: update params only. During scheduledStartup/playing: flush+rewind+retune+republish once.
+  /// Quick Metronome live tempo/subdivision while playing.
+  /// Soft cutover: keep already-scheduled absolute AVAudio buffers, retune the grid so the
+  /// furthest published sequence keeps its deadline, then publish only newer sequences.
+  /// Does not flush the player-node pool (that path is what made iOS dial updates expensive).
+  /// Song timeline ignores live QM mutations.
   private func applyLiveMusicalMutation(bpm newBpm: Double?, ticksPerBeat newTicks: Int?) {
     stateLock.lock()
 
@@ -261,6 +268,20 @@ final class MetronomeEngine {
     if !timelineEvents.isEmpty {
       stateLock.unlock()
       return
+    }
+
+    let playingOrStarting = phase == .scheduledStartup || phase == .playing
+
+    // Capture continuity on the *current* grid before mutating bpm/ticks.
+    var continuitySequence: UInt64 = nextUiSequence
+    var continuityDeadlineNs: UInt64 = 0
+    if playingOrStarting {
+      if lastPublishedSequence >= 0 {
+        continuitySequence = UInt64(bitPattern: lastPublishedSequence)
+        continuityDeadlineNs = deadlineForSequenceLocked(continuitySequence)
+      } else {
+        continuityDeadlineNs = DispatchTime.now().uptimeNanoseconds
+      }
     }
 
     var changed = false
@@ -273,7 +294,7 @@ final class MetronomeEngine {
       changed = true
     }
 
-    guard phase == .scheduledStartup || phase == .playing else {
+    guard playingOrStarting else {
       // idle / preparing: params only — no publish.
       stateLock.unlock()
       return
@@ -284,13 +305,22 @@ final class MetronomeEngine {
       return
     }
 
-    retuneAnchorForContinuityLocked(newBpm: bpm, newTicksPerBeat: ticksPerBeat)
-    rewindPublicationCursorLocked()
-    scheduledAudioSequences.removeAll(keepingCapacity: true)
+    let nowNs = DispatchTime.now().uptimeNanoseconds
+    if lastPublishedSequence >= 0 {
+      // Keep the furthest already-scheduled click's host time; new intervals apply after it.
+      // If that deadline is already past, pivot from now so the next publish is not late-bursted.
+      let pivotDeadline = max(continuityDeadlineNs, nowNs)
+      anchorTimeNs = pivotDeadline &- tickOffsetNs(continuitySequence, bpm, ticksPerBeat)
+    } else {
+      // Nothing published yet — same continuity as before (next UI sequence at now).
+      retuneAnchorForContinuityLocked(newBpm: bpm, newTicksPerBeat: ticksPerBeat)
+    }
+
+    // Do not rewind or clear scheduledAudioSequences — prevents duplicate scheduleBuffer calls.
+    // Do not flushScheduled — already-queued absolute times play out (~lookahead / ~2 ticks).
     let activeGeneration = generation
     stateLock.unlock()
 
-    clickSoundPlayer?.flushScheduled()
     publishLookaheadEvents(activeGeneration: activeGeneration)
   }
 

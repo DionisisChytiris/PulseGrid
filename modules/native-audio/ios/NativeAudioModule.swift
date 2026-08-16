@@ -10,6 +10,7 @@ public class NativeAudioModule: Module {
     Events("onTick")
 
     Function("initialize") {
+      // Idempotent: ClickSoundPlayer.initialize returns immediately when ready.
       self.clickSoundPlayer.initialize()
     }
 
