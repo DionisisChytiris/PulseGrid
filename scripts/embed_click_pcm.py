@@ -1,19 +1,14 @@
-"""Embed all metronome click samples as PCM16 mono C++ constexpr arrays.
+"""Embed metronome click samples as PCM16 mono C++ constexpr arrays.
 
 Banks and order must stay synchronized with
-src/domain/metronome/ClickSoundCatalog.ts:
+src/domain/metronome/ClickSoundCatalog.ts and ClickSoundMapping.kt:
 
-  Normal / Click: classic, soft, digital, bright, cowbell,
-                  woodblock_medium, woodblock_high, woodblock_low
-  Accent / Bar:   classic_accent, strong_accent, digital_accent,
-                  cowbell_accent, woodblock_medium, woodblock_high,
-                  woodblock_low
+  Normal / Subdivision: classic=0, clave=1, bongo=2
+  Accent: classic_accent=0, clave_accent=1, bongo_accent=2
+  Bar: classic_bar=0, clave_bar=1, bongo_bar=2
 
-Bar embeds the same source WAV files as Accent (no click_bar_* assets yet).
-Accent/Bar woodblock options reuse click_normal_woodblock_*.wav.
-
-Subdivision PCM is embedded for the native player; selection continues to
-use NormalSound indices (no SubdivisionSound enum).
+Default Bar uses click_accent_classic.wav (no dedicated click_bar_classic.wav).
+Subdivision clave/bongo reuse the matching click_normal_*.wav (no dedicated files).
 """
 from __future__ import annotations
 
@@ -29,79 +24,31 @@ OUT = ROOT / "modules/native-audio/android/src/main/cpp/ClickSampleData.h"
 # Must match NORMAL_CLICK_SOUNDS / SUBDIVISION_CLICK_SOUNDS order in TypeScript.
 NORMAL_SAMPLES = [
     ("NormalClassic", RAW_DIR / "click_normal_classic.wav"),
-    ("NormalSoft", RAW_DIR / "click_normal_soft.wav"),
-    ("NormalDigital", RAW_DIR / "click_normal_digital.wav"),
-    ("NormalBright", RAW_DIR / "click_normal_bright.wav"),
-    ("NormalCowbell", RAW_DIR / "click_normal_cowbell.wav"),
-    ("NormalWoodblockMedium", RAW_DIR / "click_normal_woodblock_medium.wav"),
-    ("NormalWoodblockHigh", RAW_DIR / "click_normal_woodblock_high.wav"),
-    ("NormalWoodblockLow", RAW_DIR / "click_normal_woodblock_low.wav"),
-]
-
-# Shared Accent/Bar sources (TS ACCENT_CLICK_SOUNDS / BAR_CLICK_SOUNDS).
-# Woodblock slots reuse click_normal_woodblock_*.wav until dedicated accent files exist.
-ACCENT_SOURCE_WAVS = [
-    RAW_DIR / "click_accent_classic.wav",
-    RAW_DIR / "click_accent_strong.wav",
-    RAW_DIR / "click_accent_digital.wav",
-    RAW_DIR / "click_accent_cowbell.wav",
-    RAW_DIR / "click_normal_woodblock_medium.wav",
-    RAW_DIR / "click_normal_woodblock_high.wav",
-    RAW_DIR / "click_normal_woodblock_low.wav",
+    ("NormalClave", RAW_DIR / "click_normal_clave.wav"),
+    ("NormalBongo", RAW_DIR / "click_normal_bongo.wav"),
 ]
 
 ACCENT_SAMPLES = [
-    ("AccentClassic", ACCENT_SOURCE_WAVS[0]),
-    ("AccentStrong", ACCENT_SOURCE_WAVS[1]),
-    ("AccentDigital", ACCENT_SOURCE_WAVS[2]),
-    ("AccentCowbell", ACCENT_SOURCE_WAVS[3]),
-    ("AccentWoodblockMedium", ACCENT_SOURCE_WAVS[4]),
-    ("AccentWoodblockHigh", ACCENT_SOURCE_WAVS[5]),
-    ("AccentWoodblockLow", ACCENT_SOURCE_WAVS[6]),
+    ("AccentClassic", RAW_DIR / "click_accent_classic.wav"),
+    ("AccentClave", RAW_DIR / "click_accent_clave.wav"),
+    ("AccentBongo", RAW_DIR / "click_accent_bongo.wav"),
 ]
 
-# Separate BarSound enum + PCM bank; same WAV sources as Accent.
 BAR_SAMPLES = [
-    ("BarClassic", ACCENT_SOURCE_WAVS[0]),
-    ("BarStrong", ACCENT_SOURCE_WAVS[1]),
-    ("BarDigital", ACCENT_SOURCE_WAVS[2]),
-    ("BarCowbell", ACCENT_SOURCE_WAVS[3]),
-    ("BarWoodblockMedium", ACCENT_SOURCE_WAVS[4]),
-    ("BarWoodblockHigh", ACCENT_SOURCE_WAVS[5]),
-    ("BarWoodblockLow", ACCENT_SOURCE_WAVS[6]),
+    ("BarClassic", RAW_DIR / "click_accent_classic.wav"),
+    ("BarClave", RAW_DIR / "click_bar_clave.wav"),
+    ("BarBongo", RAW_DIR / "click_bar_bongo.wav"),
 ]
 
 SUBDIVISION_SAMPLES = [
     ("SubdivisionClassic", RAW_DIR / "click_subdivision_classic.wav"),
-    ("SubdivisionSoft", RAW_DIR / "click_subdivision_soft.wav"),
-    ("SubdivisionDigital", RAW_DIR / "click_subdivision_digital.wav"),
-    ("SubdivisionBright", RAW_DIR / "click_subdivision_bright.wav"),
-    ("SubdivisionCowbell", RAW_DIR / "click_subdivision_cowbell.wav"),
-    ("SubdivisionWoodblockMedium", RAW_DIR / "click_subdivision_woodblock_medium.wav"),
-    ("SubdivisionWoodblockHigh", RAW_DIR / "click_subdivision_woodblock_high.wav"),
-    ("SubdivisionWoodblockLow", RAW_DIR / "click_subdivision_woodblock_low.wav"),
+    ("SubdivisionClave", RAW_DIR / "click_normal_clave.wav"),
+    ("SubdivisionBongo", RAW_DIR / "click_normal_bongo.wav"),
 ]
 
-EXPECTED_NORMAL_IDS = (
-    "classic",
-    "soft",
-    "digital",
-    "bright",
-    "cowbell",
-    "woodblock_medium",
-    "woodblock_high",
-    "woodblock_low",
-)
-
-EXPECTED_ACCENT_BAR_IDS = (
-    "classic_accent",
-    "strong_accent",
-    "digital_accent",
-    "cowbell_accent",
-    "woodblock_medium",
-    "woodblock_high",
-    "woodblock_low",
-)
+EXPECTED_NORMAL_IDS = ("classic", "clave", "bongo")
+EXPECTED_ACCENT_IDS = ("classic_accent", "clave_accent", "bongo_accent")
+EXPECTED_BAR_IDS = ("classic_bar", "clave_bar", "bongo_bar")
 
 
 def collect_missing(samples: list[tuple[str, Path]]) -> list[Path]:
@@ -118,6 +65,25 @@ def read_pcm16_mono(path: Path) -> tuple[list[int], int]:
     return list(data), rate
 
 
+def resample_linear(samples: list[int], src_rate: int, dst_rate: int) -> list[int]:
+    """Lightweight linear resample so mixed-rate WAV banks can share one engine rate."""
+    if src_rate == dst_rate or len(samples) == 0:
+        return samples
+    out_len = max(1, int(round(len(samples) * dst_rate / src_rate)))
+    if out_len == 1:
+        return [samples[0]]
+    result: list[int] = []
+    last = len(samples) - 1
+    for i in range(out_len):
+        src_pos = i * (last) / (out_len - 1)
+        i0 = int(src_pos)
+        i1 = min(i0 + 1, last)
+        frac = src_pos - i0
+        value = samples[i0] * (1.0 - frac) + samples[i1] * frac
+        result.append(int(max(-32768, min(32767, round(value)))))
+    return result
+
+
 def emit_array(name: str, samples: list[int]) -> list[str]:
     lines = [
         f"inline constexpr std::size_t k{name}FrameCount = {len(samples)};",
@@ -130,18 +96,20 @@ def emit_array(name: str, samples: list[int]) -> list[str]:
     return lines
 
 
-def emit_group(title: str, samples: list[tuple[str, Path]]) -> list[str]:
+def emit_group(
+    title: str,
+    samples: list[tuple[str, Path]],
+    target_rate: int,
+) -> list[str]:
     lines = [f"// {title}"]
-    sample_rate: int | None = None
     for name, path in samples:
         pcm, rate = read_pcm16_mono(path)
-        if sample_rate is None:
-            sample_rate = rate
-        elif rate != sample_rate:
-            raise SystemExit(f"Sample rate mismatch: {path} is {rate}, expected {sample_rate}")
+        if rate != target_rate:
+            print(f"  resampling {path.name}: {rate} Hz -> {target_rate} Hz")
+            pcm = resample_linear(pcm, rate, target_rate)
         lines.append("")
         lines.extend(emit_array(name, pcm))
-        print(f"  {name}: {len(pcm)} frames @ {rate} Hz ({path.name})")
+        print(f"  {name}: {len(pcm)} frames @ {target_rate} Hz ({path.name})")
     return lines
 
 
@@ -166,22 +134,16 @@ def validate_catalog_sync() -> None:
             "Subdivision bank length mismatch vs TypeScript SUBDIVISION_CLICK_SOUNDS: "
             f"{len(SUBDIVISION_SAMPLES)} != {len(EXPECTED_NORMAL_IDS)}"
         )
-    if len(ACCENT_SAMPLES) != len(EXPECTED_ACCENT_BAR_IDS):
+    if len(ACCENT_SAMPLES) != len(EXPECTED_ACCENT_IDS):
         raise SystemExit(
             "Accent bank length mismatch vs TypeScript ACCENT_CLICK_SOUNDS: "
-            f"{len(ACCENT_SAMPLES)} != {len(EXPECTED_ACCENT_BAR_IDS)}"
+            f"{len(ACCENT_SAMPLES)} != {len(EXPECTED_ACCENT_IDS)}"
         )
-    if len(BAR_SAMPLES) != len(EXPECTED_ACCENT_BAR_IDS):
+    if len(BAR_SAMPLES) != len(EXPECTED_BAR_IDS):
         raise SystemExit(
             "Bar bank length mismatch vs TypeScript BAR_CLICK_SOUNDS: "
-            f"{len(BAR_SAMPLES)} != {len(EXPECTED_ACCENT_BAR_IDS)}"
+            f"{len(BAR_SAMPLES)} != {len(EXPECTED_BAR_IDS)}"
         )
-    for accent, bar in zip(ACCENT_SAMPLES, BAR_SAMPLES, strict=True):
-        if accent[1] != bar[1]:
-            raise SystemExit(
-                f"Accent/Bar source WAV mismatch: {accent[0]} -> {accent[1].name}, "
-                f"{bar[0]} -> {bar[1].name}"
-            )
 
 
 def main() -> None:
@@ -204,8 +166,11 @@ def main() -> None:
         raise SystemExit(1)
 
     print("Embedding click samples (TypeScript-synced banks):")
-    print(f"  Normal IDs: {', '.join(EXPECTED_NORMAL_IDS)}")
-    print(f"  Accent/Bar IDs: {', '.join(EXPECTED_ACCENT_BAR_IDS)}")
+    print(f"  Normal/Subdivision IDs: {', '.join(EXPECTED_NORMAL_IDS)}")
+    print(f"  Accent IDs: {', '.join(EXPECTED_ACCENT_IDS)}")
+    print(f"  Bar IDs: {', '.join(EXPECTED_BAR_IDS)}")
+
+    _, rate = read_pcm16_mono(NORMAL_SAMPLES[0][1])
 
     header_lines = [
         "#pragma once",
@@ -228,20 +193,20 @@ def main() -> None:
     header_lines.append(f"inline constexpr int kAccentSoundCount = {len(ACCENT_SAMPLES)};")
     header_lines.append("")
 
-    header_lines.extend(emit_group("Normal click variants", NORMAL_SAMPLES))
+    header_lines.extend(emit_group("Normal click variants", NORMAL_SAMPLES, rate))
     header_lines.append("")
-    header_lines.extend(emit_group("Bar click variants (same sources as Accent)", BAR_SAMPLES))
+    header_lines.extend(emit_group("Bar click variants", BAR_SAMPLES, rate))
     header_lines.append("")
-    header_lines.extend(emit_group("Accent click variants", ACCENT_SAMPLES))
+    header_lines.extend(emit_group("Accent click variants", ACCENT_SAMPLES, rate))
     header_lines.append("")
     header_lines.extend(
         emit_group(
             "Subdivision click variants (selected via NormalSound indices)",
             SUBDIVISION_SAMPLES,
+            rate,
         )
     )
 
-    _, rate = read_pcm16_mono(NORMAL_SAMPLES[0][1])
     header_lines.append("")
     header_lines.append(f"inline constexpr int32_t kSampleRate = {rate};")
     header_lines.extend(["", "}  // namespace click_sample_data", ""])

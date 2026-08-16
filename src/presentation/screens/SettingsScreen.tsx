@@ -2,10 +2,12 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MetronomeSettingsSection } from '../components/settings/MetronomeSettingsSection';
+import { useAnalyticsScreenView } from '../hooks/useAnalyticsScreenView';
 import { useResponsiveLayout } from '../layout/useResponsiveLayout';
 import { studioColors } from '../theme';
 
 export default function SettingsScreen() {
+  useAnalyticsScreenView('settings');
   const insets = useSafeAreaInsets();
   const layout = useResponsiveLayout();
 

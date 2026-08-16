@@ -14,6 +14,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import type { TimeSignature } from '../../../domain/entities/Metronome';
 import { useResponsiveLayout } from '../../layout/useResponsiveLayout';
 import { studioColors } from '../../theme';
+import { AnalyticsService } from '../../../services/AnalyticsService';
 
 export const DEFAULT_TIME_SIGNATURES: TimeSignature[] = [
   { numerator: 2, denominator: 4 },
@@ -177,6 +178,7 @@ export function TimeSignaturePicker({
     }
 
     onValueChange(next);
+    AnalyticsService.logTimeSignatureSelected(formatTimeSignature(next), 'custom');
     setModalVisible(false);
   };
 
@@ -206,7 +208,16 @@ export function TimeSignaturePicker({
           },
           selected && styles.optionSelected,
         ]}
-        onPress={() => onValueChange(option)}
+        onPress={() => {
+          if (isSameTimeSignature(option, value)) {
+            return;
+          }
+          onValueChange(option);
+          AnalyticsService.logTimeSignatureSelected(
+            label,
+            isDefaultTimeSignature(option) ? 'preset' : 'custom',
+          );
+        }}
         accessibilityRole="button"
         accessibilityState={{ selected }}
         accessibilityLabel={`Time signature ${label}`}

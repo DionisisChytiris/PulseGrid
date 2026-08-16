@@ -5,7 +5,8 @@ import type { TimelineSegmentViewModel } from '../../viewModels/TimelineSegmentV
 import { studioColors } from '../../theme';
 
 import { BarPreview } from './BarPreview';
-import { useSongLineBeatIndex } from './SongLineBeatContext';
+import { useSongLineBarIndex, useSongLineBeatIndex } from './SongLineBeatContext';
+import { profileRender } from './songLineFollowProfiler';
 import {
   TRACK_HEIGHT,
   meterRegionWidth,
@@ -62,7 +63,16 @@ export const MeterRegion = memo(
     onLayout,
     isPlaying = false,
   }: Props) {
-    const regionPlaying = isPlaying && segment.isActive;
+    profileRender('MeterRegion');
+    // Bar chrome from external store — segment VMs stay geometry-stable while playing.
+    const currentBarIndex = useSongLineBarIndex(isPlaying);
+    const regionPlaying =
+      isPlaying &&
+      currentBarIndex >= segment.startBar - 1 &&
+      currentBarIndex <= segment.endBar - 1;
+    const activeBarOffset = regionPlaying
+      ? currentBarIndex - (segment.startBar - 1)
+      : -1;
     // Only the active playing region subscribes — inactive ones skip beat re-renders.
     const currentBeatIndex = useSongLineBeatIndex(regionPlaying);
     const beatCount = Math.max(1, segment.accentPreview.length);
@@ -107,7 +117,7 @@ export const MeterRegion = memo(
 
     return (
       <View
-        style={[styles.region, { width }, segment.isActive && styles.regionActive]}
+        style={[styles.region, { width }, regionPlaying && styles.regionActive]}
         onLayout={(event) => {
           const { x, width: layoutWidth } = event.nativeEvent.layout;
           onLayout?.(segment.id, x, layoutWidth);
@@ -144,15 +154,15 @@ export const MeterRegion = memo(
           disabled={onPress === undefined}
           accessibilityRole="button"
           accessibilityLabel={`Edit segment ${segment.meter}`}
-          style={[styles.track, segment.isActive && styles.trackActive]}
+          style={[styles.track, regionPlaying && styles.trackActive]}
         >
           {segment.barIndicators.map((indicator, barIndex) => (
             <BarPreview
               key={`bar-${indicator.barNumber}`}
               beats={segment.accentPreview}
               denominator={denominator}
-              isActive={indicator.isActive}
-              isPast={indicator.isPast}
+              isActive={activeBarOffset === barIndex}
+              isPast={activeBarOffset >= 0 && barIndex < activeBarOffset}
               isPlaying={regionPlaying}
               currentBeatIndex={currentBeatIndex}
               tempoBpm={barIndex === 0 ? overviewTempoBpm : null}

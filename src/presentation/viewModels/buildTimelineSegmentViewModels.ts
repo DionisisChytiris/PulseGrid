@@ -11,9 +11,18 @@ export type TimelinePlaybackContext = {
   readonly isTimelineActive: boolean;
 };
 
+/**
+ * Geometry / content view models for the Signature Track FlatList.
+ *
+ * Playback highlight (`isActive` / bar active|past) is intentionally omitted from
+ * the live timeline path — MeterRegion reads bar index from SongLineBar store so
+ * FlatList `data` identity stays stable while playing.
+ *
+ * Pass `playback` only for status/readout builders that still need baked flags.
+ */
 export function buildTimelineSegmentViewModels(
   song: Song,
-  playback: TimelinePlaybackContext,
+  playback?: TimelinePlaybackContext,
 ): TimelineSegmentViewModel[] {
   const sectionName = song.sections[0]?.name ?? 'Main';
   const domainSegments = buildTimelineSegments(song);
@@ -30,15 +39,16 @@ export function findDomainSegmentById(song: Song, segmentId: string): TimelineSe
 function toViewModel(
   segment: TimelineSegment,
   sectionName: string,
-  playback: TimelinePlaybackContext,
+  playback: TimelinePlaybackContext | undefined,
 ): TimelineSegmentViewModel {
   const isActive =
+    playback !== undefined &&
     playback.isTimelineActive &&
     playback.currentBarIndex >= segment.startBarIndex &&
     playback.currentBarIndex <= segment.endBarIndex;
 
   const activeBarIndex = isActive
-    ? playback.currentBarIndex - segment.startBarIndex
+    ? playback!.currentBarIndex - segment.startBarIndex
     : null;
 
   const barIndicators = Array.from({ length: segment.numberOfBars }, (_, offset) => {

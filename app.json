@@ -16,6 +16,7 @@
       "supportsTablet": true,
       "requireFullScreen": true,
       "bundleIdentifier": "com.dionysischyt.PulseGrid",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -28,6 +29,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.dionysischyt.PulseGrid",
+      "googleServicesFile": "./google-services.json",
       "softwareKeyboardLayoutMode": "resize"
     },
     "web": {
@@ -44,6 +46,19 @@
         "expo-screen-orientation",
         {
           "initialOrientation": "PORTRAIT_UP"
+        }
+      ],
+      [
+        "@react-native-firebase/app",
+        {
+          "ios_google_services_file": "./GoogleService-Info.plist",
+          "android_google_services_file": "./google-services.json"
+        }
+      ],
+      [
+        "@react-native-firebase/analytics",
+        {
+          "withoutAdIdSupport": true
         }
       ]
     ]

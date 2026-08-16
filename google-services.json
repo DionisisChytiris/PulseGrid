@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "118278332251",
+    "project_id": "pulse-grid-8b5fc",
+    "storage_bucket": "pulse-grid-8b5fc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:118278332251:android:2049bdf3aa7aa63c9f047e",
+        "android_client_info": {
+          "package_name": "com.dionysischyt.PulseGrid"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBOWnKwAozgo53lkXEIVfo0J-xlfyANbWs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

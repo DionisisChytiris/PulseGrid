@@ -1,4 +1,8 @@
-"""Generate metronome click sound variants from the classic samples."""
+"""Generate classic metronome click assets from the base samples.
+
+Clave WAVs are authored separately and are not produced by this script.
+Banks must stay aligned with ClickSoundCatalog.ts (classic + clave only).
+"""
 from __future__ import annotations
 
 import array
@@ -15,55 +19,14 @@ TARGET_SAMPLE_RATE = 44100
 
 NORMAL_VARIANTS = {
     "click_normal_classic": ("click_normal.wav", lambda samples: samples),
-    "click_normal_soft": ("click_normal.wav", lambda samples: [int(max(-32768, min(32767, s * 0.55))) for s in samples]),
-    "click_normal_digital": (
-        "click_normal.wav",
-        lambda samples: [
-            int(max(-32768, min(32767, s * (1.8 if i < max(1, len(samples) // 8) else 0.45))))
-            for i, s in enumerate(samples)
-        ],
-    ),
-    "click_normal_bright": (
-        "click_normal.wav",
-        lambda samples: resample_linear(samples, 1.18),
-    ),
-    "click_normal_cowbell": ("cowbell-normal.wav", lambda samples: samples),
 }
 
 ACCENT_VARIANTS = {
     "click_accent_classic": ("click_accent.wav", lambda samples: samples),
-    "click_accent_strong": (
-        "click_accent.wav",
-        lambda samples: resample_linear([int(max(-32768, min(32767, s * 1.25))) for s in samples], 1.08),
-    ),
-    "click_accent_digital": (
-        "click_accent.wav",
-        lambda samples: [
-            int(max(-32768, min(32767, s * (2.0 if i < max(1, len(samples) // 6) else 0.5))))
-            for i, s in enumerate(samples)
-        ],
-    ),
-    "click_accent_cowbell": ("cowbell-accent.wav", lambda samples: samples),
 }
 
 SUBDIVISION_VARIANTS = {
     "click_subdivision_classic": ("click_subdivision.wav", lambda samples: samples),
-    "click_subdivision_soft": ("click_subdivision.wav", lambda samples: [int(max(-32768, min(32767, s * 0.55))) for s in samples]),
-    "click_subdivision_digital": (
-        "click_subdivision.wav",
-        lambda samples: [
-            int(max(-32768, min(32767, s * (1.6 if i < max(1, len(samples) // 8) else 0.4))))
-            for i, s in enumerate(samples)
-        ],
-    ),
-    "click_subdivision_bright": (
-        "click_subdivision.wav",
-        lambda samples: resample_linear(samples, 1.18),
-    ),
-    "click_subdivision_cowbell": (
-        "cowbell-normal.wav",
-        lambda samples: [int(max(-32768, min(32767, s * 0.55))) for s in samples],
-    ),
 }
 
 
@@ -125,7 +88,6 @@ def main() -> None:
     for target in targets:
         target.mkdir(parents=True, exist_ok=True)
 
-    # Keep legacy filenames for existing classic behavior.
     shutil.copy2(SOURCE_DIR / "click_normal.wav", SOURCE_DIR / "clicks/click_normal_classic.wav")
     shutil.copy2(SOURCE_DIR / "click_accent.wav", SOURCE_DIR / "clicks/click_accent_classic.wav")
     shutil.copy2(SOURCE_DIR / "click_subdivision.wav", SOURCE_DIR / "clicks/click_subdivision_classic.wav")
@@ -141,14 +103,6 @@ def main() -> None:
     print("Subdivision variants:")
     for name, (source, transform) in SUBDIVISION_VARIANTS.items():
         emit_variant(name, source, transform, targets)
-
-    # Legacy aliases used by current builds.
-    shutil.copy2(ANDROID_RAW_DIR / "click_normal_classic.wav", ANDROID_RAW_DIR / "click_normal.wav")
-    shutil.copy2(ANDROID_RAW_DIR / "click_accent_classic.wav", ANDROID_RAW_DIR / "click_accent.wav")
-    shutil.copy2(ANDROID_RAW_DIR / "click_subdivision_classic.wav", ANDROID_RAW_DIR / "click_subdivision.wav")
-    shutil.copy2(IOS_ASSETS_DIR / "click_normal_classic.wav", IOS_ASSETS_DIR / "click_normal.wav")
-    shutil.copy2(IOS_ASSETS_DIR / "click_accent_classic.wav", IOS_ASSETS_DIR / "click_accent.wav")
-    shutil.copy2(IOS_ASSETS_DIR / "click_subdivision_classic.wav", IOS_ASSETS_DIR / "click_subdivision.wav")
 
 
 if __name__ == "__main__":

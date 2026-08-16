@@ -3,6 +3,7 @@ import { View } from 'react-native';
 
 import { studioColors } from '../../theme';
 import { beatLedAppearance } from '../metronome/beatLedAppearance';
+import { profileRender } from './songLineFollowProfiler';
 
 type Props = {
   /** Strong/accented beat when true; weak/normal when false. */
@@ -30,6 +31,7 @@ export const BeatAccentIndicator = memo(function BeatAccentIndicator({
   isCurrentBeat = false,
   accentColor = studioColors.beatAccent,
 }: Props) {
+  profileRender('BeatAccentIndicator');
   const borderWidth = Math.max(1, Math.round(size * 0.12));
   const appearance = beatLedAppearance(
     isPlaying,

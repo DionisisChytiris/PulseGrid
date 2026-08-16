@@ -35,6 +35,7 @@ import type { AppDispatch } from '../../store';
 
 import { clickSoundService } from './clickSoundServiceInstance';
 import type { PlaybackService } from './PlaybackService';
+import { AnalyticsService } from '../../services/AnalyticsService';
 
 type ActiveSongPlayback = {
   readonly song: Song;
@@ -236,6 +237,7 @@ export class SongPlaybackService {
         }),
       );
       this.dispatchTick(firstEvent, timelineStartSequence);
+      AnalyticsService.logTimelinePlaybackStarted(scoreCompiled.metadata.totalBars);
     } catch (error) {
       const reason = error instanceof Error ? error.message : 'Unknown song playback error';
       console.warn('[SongPlaybackService] Song mode failed:', reason);
@@ -307,6 +309,8 @@ export class SongPlaybackService {
   }
 
   stop(): void {
+    const barCount = this.activePlayback?.scoreCompiled.metadata.totalBars ?? 0;
+    const wasPlaying = this.activePlayback !== null;
     this.clearNaturalCompletionTimer();
     this.detachTickListener();
     metronomeEngine.stop();
@@ -315,6 +319,9 @@ export class SongPlaybackService {
     this.currentBarIndex = 0;
     clickSoundService.restoreBarStartEnabledToEngine();
     this.dispatch(songTimelinePlaybackStopped());
+    if (wasPlaying) {
+      AnalyticsService.logTimelinePlaybackStopped(barCount);
+    }
   }
 
   seekToBar(globalBarIndex: number): void {

@@ -49,7 +49,7 @@ private:
   click_sample_data::AccentSound selectedAccentSound_ =
       click_sample_data::AccentSound::Classic;
   click_sample_data::BarSound selectedBarSound_ =
-      click_sample_data::BarSound::Strong;
+      click_sample_data::BarSound::Classic;
   click_sample_data::NormalSound selectedSubdivisionSound_ =
       click_sample_data::NormalSound::Classic;
 };

@@ -18,29 +18,13 @@ void loadAccentPcm(
       loadSample(player, click_sample_data::kAccentClassicPcm16Mono,
                  click_sample_data::kAccentClassicFrameCount);
       break;
-    case click_sample_data::AccentSound::Strong:
-      loadSample(player, click_sample_data::kAccentStrongPcm16Mono,
-                 click_sample_data::kAccentStrongFrameCount);
+    case click_sample_data::AccentSound::Clave:
+      loadSample(player, click_sample_data::kAccentClavePcm16Mono,
+                 click_sample_data::kAccentClaveFrameCount);
       break;
-    case click_sample_data::AccentSound::Digital:
-      loadSample(player, click_sample_data::kAccentDigitalPcm16Mono,
-                 click_sample_data::kAccentDigitalFrameCount);
-      break;
-    case click_sample_data::AccentSound::Cowbell:
-      loadSample(player, click_sample_data::kAccentCowbellPcm16Mono,
-                 click_sample_data::kAccentCowbellFrameCount);
-      break;
-    case click_sample_data::AccentSound::WoodblockMedium:
-      loadSample(player, click_sample_data::kAccentWoodblockMediumPcm16Mono,
-                 click_sample_data::kAccentWoodblockMediumFrameCount);
-      break;
-    case click_sample_data::AccentSound::WoodblockHigh:
-      loadSample(player, click_sample_data::kAccentWoodblockHighPcm16Mono,
-                 click_sample_data::kAccentWoodblockHighFrameCount);
-      break;
-    case click_sample_data::AccentSound::WoodblockLow:
-      loadSample(player, click_sample_data::kAccentWoodblockLowPcm16Mono,
-                 click_sample_data::kAccentWoodblockLowFrameCount);
+    case click_sample_data::AccentSound::Bongo:
+      loadSample(player, click_sample_data::kAccentBongoPcm16Mono,
+                 click_sample_data::kAccentBongoFrameCount);
       break;
   }
 }
@@ -53,29 +37,13 @@ void loadBarPcm(
       loadSample(player, click_sample_data::kBarClassicPcm16Mono,
                  click_sample_data::kBarClassicFrameCount);
       break;
-    case click_sample_data::BarSound::Strong:
-      loadSample(player, click_sample_data::kBarStrongPcm16Mono,
-                 click_sample_data::kBarStrongFrameCount);
+    case click_sample_data::BarSound::Clave:
+      loadSample(player, click_sample_data::kBarClavePcm16Mono,
+                 click_sample_data::kBarClaveFrameCount);
       break;
-    case click_sample_data::BarSound::Digital:
-      loadSample(player, click_sample_data::kBarDigitalPcm16Mono,
-                 click_sample_data::kBarDigitalFrameCount);
-      break;
-    case click_sample_data::BarSound::Cowbell:
-      loadSample(player, click_sample_data::kBarCowbellPcm16Mono,
-                 click_sample_data::kBarCowbellFrameCount);
-      break;
-    case click_sample_data::BarSound::WoodblockMedium:
-      loadSample(player, click_sample_data::kBarWoodblockMediumPcm16Mono,
-                 click_sample_data::kBarWoodblockMediumFrameCount);
-      break;
-    case click_sample_data::BarSound::WoodblockHigh:
-      loadSample(player, click_sample_data::kBarWoodblockHighPcm16Mono,
-                 click_sample_data::kBarWoodblockHighFrameCount);
-      break;
-    case click_sample_data::BarSound::WoodblockLow:
-      loadSample(player, click_sample_data::kBarWoodblockLowPcm16Mono,
-                 click_sample_data::kBarWoodblockLowFrameCount);
+    case click_sample_data::BarSound::Bongo:
+      loadSample(player, click_sample_data::kBarBongoPcm16Mono,
+                 click_sample_data::kBarBongoFrameCount);
       break;
   }
 }
@@ -84,8 +52,7 @@ void loadBarPcm(
 AudioRenderer::AudioRenderer() {
   loadNormalSound(click_sample_data::NormalSound::Classic);
   loadAccentSound(click_sample_data::AccentSound::Classic);
-  // Temporary: Strong so BAR buffer content differs from Accent (Classic).
-  loadBarSound(click_sample_data::BarSound::Strong);
+  loadBarSound(click_sample_data::BarSound::Classic);
   loadSubdivisionSound(click_sample_data::NormalSound::Classic);
 }
 
@@ -96,33 +63,13 @@ void AudioRenderer::loadNormalSound(click_sample_data::NormalSound sound) {
       loadSample(normalPlayer_, click_sample_data::kNormalClassicPcm16Mono,
                  click_sample_data::kNormalClassicFrameCount);
       break;
-    case click_sample_data::NormalSound::Soft:
-      loadSample(normalPlayer_, click_sample_data::kNormalSoftPcm16Mono,
-                 click_sample_data::kNormalSoftFrameCount);
+    case click_sample_data::NormalSound::Clave:
+      loadSample(normalPlayer_, click_sample_data::kNormalClavePcm16Mono,
+                 click_sample_data::kNormalClaveFrameCount);
       break;
-    case click_sample_data::NormalSound::Digital:
-      loadSample(normalPlayer_, click_sample_data::kNormalDigitalPcm16Mono,
-                 click_sample_data::kNormalDigitalFrameCount);
-      break;
-    case click_sample_data::NormalSound::Bright:
-      loadSample(normalPlayer_, click_sample_data::kNormalBrightPcm16Mono,
-                 click_sample_data::kNormalBrightFrameCount);
-      break;
-    case click_sample_data::NormalSound::Cowbell:
-      loadSample(normalPlayer_, click_sample_data::kNormalCowbellPcm16Mono,
-                 click_sample_data::kNormalCowbellFrameCount);
-      break;
-    case click_sample_data::NormalSound::WoodblockMedium:
-      loadSample(normalPlayer_, click_sample_data::kNormalWoodblockMediumPcm16Mono,
-                 click_sample_data::kNormalWoodblockMediumFrameCount);
-      break;
-    case click_sample_data::NormalSound::WoodblockHigh:
-      loadSample(normalPlayer_, click_sample_data::kNormalWoodblockHighPcm16Mono,
-                 click_sample_data::kNormalWoodblockHighFrameCount);
-      break;
-    case click_sample_data::NormalSound::WoodblockLow:
-      loadSample(normalPlayer_, click_sample_data::kNormalWoodblockLowPcm16Mono,
-                 click_sample_data::kNormalWoodblockLowFrameCount);
+    case click_sample_data::NormalSound::Bongo:
+      loadSample(normalPlayer_, click_sample_data::kNormalBongoPcm16Mono,
+                 click_sample_data::kNormalBongoFrameCount);
       break;
   }
 }
@@ -144,33 +91,13 @@ void AudioRenderer::loadSubdivisionSound(click_sample_data::NormalSound sound) {
       loadSample(subdivisionPlayer_, click_sample_data::kSubdivisionClassicPcm16Mono,
                  click_sample_data::kSubdivisionClassicFrameCount);
       break;
-    case click_sample_data::NormalSound::Soft:
-      loadSample(subdivisionPlayer_, click_sample_data::kSubdivisionSoftPcm16Mono,
-                 click_sample_data::kSubdivisionSoftFrameCount);
+    case click_sample_data::NormalSound::Clave:
+      loadSample(subdivisionPlayer_, click_sample_data::kSubdivisionClavePcm16Mono,
+                 click_sample_data::kSubdivisionClaveFrameCount);
       break;
-    case click_sample_data::NormalSound::Digital:
-      loadSample(subdivisionPlayer_, click_sample_data::kSubdivisionDigitalPcm16Mono,
-                 click_sample_data::kSubdivisionDigitalFrameCount);
-      break;
-    case click_sample_data::NormalSound::Bright:
-      loadSample(subdivisionPlayer_, click_sample_data::kSubdivisionBrightPcm16Mono,
-                 click_sample_data::kSubdivisionBrightFrameCount);
-      break;
-    case click_sample_data::NormalSound::Cowbell:
-      loadSample(subdivisionPlayer_, click_sample_data::kSubdivisionCowbellPcm16Mono,
-                 click_sample_data::kSubdivisionCowbellFrameCount);
-      break;
-    case click_sample_data::NormalSound::WoodblockMedium:
-      loadSample(subdivisionPlayer_, click_sample_data::kSubdivisionWoodblockMediumPcm16Mono,
-                 click_sample_data::kSubdivisionWoodblockMediumFrameCount);
-      break;
-    case click_sample_data::NormalSound::WoodblockHigh:
-      loadSample(subdivisionPlayer_, click_sample_data::kSubdivisionWoodblockHighPcm16Mono,
-                 click_sample_data::kSubdivisionWoodblockHighFrameCount);
-      break;
-    case click_sample_data::NormalSound::WoodblockLow:
-      loadSample(subdivisionPlayer_, click_sample_data::kSubdivisionWoodblockLowPcm16Mono,
-                 click_sample_data::kSubdivisionWoodblockLowFrameCount);
+    case click_sample_data::NormalSound::Bongo:
+      loadSample(subdivisionPlayer_, click_sample_data::kSubdivisionBongoPcm16Mono,
+                 click_sample_data::kSubdivisionBongoFrameCount);
       break;
   }
 }

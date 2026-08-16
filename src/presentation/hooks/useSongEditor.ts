@@ -15,6 +15,7 @@ import { createMeter, formatMeter } from '../../domain/music/Meter';
 import type { CountInBars } from '../../domain/music/countIn';
 import type { Song } from '../../domain/music/Song';
 import { songRepository } from '../../domain/music/storage';
+import { AnalyticsService } from '../../services/AnalyticsService';
 import {
   setSegmentAccentPattern,
   setSegmentAccentPreset,
@@ -45,6 +46,7 @@ export function useSongEditor(songId: string) {
       }
 
       setSong(cloneEditableSong(loaded));
+      AnalyticsService.logTimelineOpened(loaded.id === 'demo-timeline-song');
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Failed to load timeline');
     } finally {

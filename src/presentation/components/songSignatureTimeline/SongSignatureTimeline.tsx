@@ -1,4 +1,6 @@
 import {
+  Fragment,
+  Profiler,
   forwardRef,
   memo,
   useCallback,
@@ -7,6 +9,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ProfilerOnRenderCallback,
 } from 'react';
 import {
   FlatList,
@@ -16,7 +19,16 @@ import {
   View,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
+  type ViewToken,
 } from 'react-native';
+import Animated, {
+  runOnJS,
+  scrollTo,
+  useAnimatedReaction,
+  useAnimatedRef,
+  useFrameCallback,
+  useSharedValue,
+} from 'react-native-reanimated';
 
 import { SegmentEditBottomSheet } from '../../../components/songTimeline/SegmentEditBottomSheet';
 import { AUTO_FOLLOW_SUSPEND_MS } from '../../../components/songTimeline/timelineConstants';
@@ -33,7 +45,7 @@ import { studioColors } from '../../theme';
 import { MeterRegion } from './MeterRegion';
 import { NewBarMeterDialog } from './NewBarMeterDialog';
 import { overviewTempoMarkings, effectiveSegmentBpm } from './overviewTempoMarkings';
-import { setSongLineBeatIndex } from './SongLineBeatContext';
+import { setSongLineBarIndex, setSongLineBeatIndex } from './SongLineBeatContext';
 import {
   advanceFollowCursor,
   createFollowCursor,
@@ -42,6 +54,16 @@ import {
   applyAudioTickToFollowCursor,
   type FollowCursorState,
 } from './songLineFollowCursor';
+import {
+  TEMP_ENABLE_FOLLOW_SCROLL_PROFILER,
+  TEMP_ENABLE_PROFILER_CONSOLE_LOGS,
+  followProfiler,
+  profileRender,
+} from './songLineFollowProfiler';
+import {
+  TEMP_ENABLE_GET_ITEM_LAYOUT_TRACER,
+  getItemLayoutTracer,
+} from './getItemLayoutTracer';
 import {
   BAR_CELL_PADDING_V,
   REGION_GAP,
@@ -96,6 +118,23 @@ const SCROLL_TO_START_TIMEOUT_MS = 450;
  * A/B result: disabling highlight reduced hitch slightly but did NOT eliminate it.
  */
 const TEMP_DISABLE_SONG_LINE_BEAT_HIGHLIGHT = false;
+
+/**
+ * TEMP A/B EXPERIMENT — UI-thread follow-scroll (Reanimated scrollTo).
+ * true  = rAF advances the follow cursor on JS, then applies offset via UI-thread scrollTo.
+ * false = baseline: rAF + FlatList.scrollToOffset({ animated: false }) on the JS thread.
+ * Requires a native rebuild after adding react-native-reanimated.
+ */
+const USE_UI_THREAD_FOLLOW_SCROLL = true;
+
+/**
+ * TEMP A/B EXPERIMENT — non-virtualized timeline during follow playback only.
+ * true  = while timeline is actively playing, render regions in Animated.ScrollView
+ *         (all items mounted; no FlatList windowing / getItemLayout).
+ * false = always FlatList (current production path).
+ * Editing / stopped timeline keeps FlatList when this is true.
+ */
+const USE_NON_VIRTUALIZED_PLAYBACK_TIMELINE = true;
 
 function segmentStride(segment: TimelineSegmentViewModel): number {
   const denominator = parseMeterDenominator(segment.meter);
@@ -178,9 +217,24 @@ export const SongSignatureTimeline = memo(
     },
     ref,
   ) {
-  const listRef = useRef<FlatList<TimelineSegmentViewModel>>(null);
+  const flatListRef = useAnimatedRef<FlatList<TimelineSegmentViewModel>>();
+  const scrollViewRef = useAnimatedRef<Animated.ScrollView>();
+  /** 1 while non-virtualized ScrollView follow path is mounted. */
+  const useScrollViewFollowSV = useSharedValue(0);
+  /** Desired horizontal follow offset; UI-thread reaction calls Reanimated scrollTo. */
+  const followScrollX = useSharedValue(0);
+  /** DEV profiler SharedValues — drained on JS; no-op work when profiling inactive. */
+  const profileActiveSV = useSharedValue(0);
+  const uiFrameCountSV = useSharedValue(0);
+  const uiFrameSumSV = useSharedValue(0);
+  const uiFrameMaxSV = useSharedValue(0);
+  const uiLong20SV = useSharedValue(0);
+  const uiLong24SV = useSharedValue(0);
+  const uiLong32SV = useSharedValue(0);
+  const uiScrollExecSV = useSharedValue(0);
   const autoFollowSuspendedUntil = useRef(0);
   const animationFrameRef = useRef<number | null>(null);
+  const uiFollowRefVerifiedRef = useRef(false);
   /** Last known horizontal content offset (for scroll-to-start waits). */
   const scrollOffsetRef = useRef(0);
   /** Shared in-flight scrollToStart promise (dedupes overlapping Play presses). */
@@ -214,18 +268,255 @@ export const SongSignatureTimeline = memo(
   isPlayingRef.current = isPlaying;
   currentBarIndexRef.current = currentBarIndex;
 
-  const scrollToPlaybackPosition = useCallback((animated: boolean) => {
-    const cursor = playbackCursorRef.current;
-    const offset = playbackScrollOffset(
-      segmentsRef.current,
-      cursor.barIndex,
-      cursor.beatPosition,
-    );
+  if (TEMP_ENABLE_FOLLOW_SCROLL_PROFILER) {
+    profileRender('SongSignatureTimeline');
+  }
 
-    if (Date.now() >= autoFollowSuspendedUntil.current) {
-      listRef.current?.scrollToOffset({ offset, animated });
+  // DEV: start/stop profiler with follow playback (not count-in-only inactive timeline).
+  useEffect(() => {
+    if (!TEMP_ENABLE_FOLLOW_SCROLL_PROFILER) {
+      return;
     }
+    const drainUiCounters = () => {
+      const count = uiFrameCountSV.value;
+      if (count > 0) {
+        followProfiler.ingestUiFrameStats({
+          count,
+          sumMs: uiFrameSumSV.value,
+          maxMs: uiFrameMaxSV.value,
+          long20: uiLong20SV.value,
+          long24: uiLong24SV.value,
+          long32: uiLong32SV.value,
+        });
+        uiFrameCountSV.value = 0;
+        uiFrameSumSV.value = 0;
+        uiFrameMaxSV.value = 0;
+        uiLong20SV.value = 0;
+        uiLong24SV.value = 0;
+        uiLong32SV.value = 0;
+      }
+      const exec = uiScrollExecSV.value;
+      if (exec > 0) {
+        followProfiler.ingestUiScrollStats(exec, 0);
+        uiScrollExecSV.value = 0;
+      }
+    };
+
+    const followLive = isTimelineActive && isPlaying;
+    if (followLive) {
+      if (TEMP_ENABLE_FOLLOW_SCROLL_PROFILER && !followProfiler.isActive()) {
+        followProfiler.startSession();
+      }
+      if (TEMP_ENABLE_GET_ITEM_LAYOUT_TRACER && !getItemLayoutTracer.isActive()) {
+        getItemLayoutTracer.startSession();
+      }
+      if (TEMP_ENABLE_FOLLOW_SCROLL_PROFILER) {
+        profileActiveSV.value = 1;
+      }
+    } else {
+      if (TEMP_ENABLE_FOLLOW_SCROLL_PROFILER && followProfiler.isActive()) {
+        profileActiveSV.value = 0;
+        drainUiCounters();
+        followProfiler.stopSessionAndPrint();
+      }
+      if (TEMP_ENABLE_GET_ITEM_LAYOUT_TRACER && getItemLayoutTracer.isActive()) {
+        getItemLayoutTracer.stopSessionAndPrint();
+      }
+    }
+  }, [
+    isTimelineActive,
+    isPlaying,
+    profileActiveSV,
+    uiFrameCountSV,
+    uiFrameSumSV,
+    uiFrameMaxSV,
+    uiLong20SV,
+    uiLong24SV,
+    uiLong32SV,
+    uiScrollExecSV,
+  ]);
+
+  // DEV: drain UI SharedValue counters into the JS profiler (~2× per rolling window).
+  useEffect(() => {
+    if (!TEMP_ENABLE_FOLLOW_SCROLL_PROFILER) {
+      return;
+    }
+    const id = setInterval(() => {
+      if (!followProfiler.isActive()) {
+        return;
+      }
+      const count = uiFrameCountSV.value;
+      if (count > 0) {
+        followProfiler.ingestUiFrameStats({
+          count,
+          sumMs: uiFrameSumSV.value,
+          maxMs: uiFrameMaxSV.value,
+          long20: uiLong20SV.value,
+          long24: uiLong24SV.value,
+          long32: uiLong32SV.value,
+        });
+        uiFrameCountSV.value = 0;
+        uiFrameSumSV.value = 0;
+        uiFrameMaxSV.value = 0;
+        uiLong20SV.value = 0;
+        uiLong24SV.value = 0;
+        uiLong32SV.value = 0;
+      }
+      const exec = uiScrollExecSV.value;
+      if (exec > 0) {
+        followProfiler.ingestUiScrollStats(exec, 0);
+        uiScrollExecSV.value = 0;
+      }
+    }, 500);
+    return () => clearInterval(id);
+  }, [
+    uiFrameCountSV,
+    uiFrameSumSV,
+    uiFrameMaxSV,
+    uiLong20SV,
+    uiLong24SV,
+    uiLong32SV,
+    uiScrollExecSV,
+  ]);
+
+  const onUiLongFrame = useCallback((deltaMs: number, timestampMs: number) => {
+    followProfiler.noteUiLongFrame(deltaMs, timestampMs);
   }, []);
+
+  useFrameCallback(
+    (info) => {
+      'worklet';
+      if (profileActiveSV.value !== 1) {
+        return;
+      }
+      const delta = info.timeSincePreviousFrame;
+      if (delta == null) {
+        return;
+      }
+      uiFrameCountSV.value += 1;
+      uiFrameSumSV.value += delta;
+      if (delta > uiFrameMaxSV.value) {
+        uiFrameMaxSV.value = delta;
+      }
+      if (delta >= 20) {
+        uiLong20SV.value += 1;
+      }
+      if (delta >= 24) {
+        uiLong24SV.value += 1;
+      }
+      if (delta >= 32) {
+        uiLong32SV.value += 1;
+      }
+      if (delta >= 20) {
+        runOnJS(onUiLongFrame)(delta, info.timestamp);
+      }
+    },
+    TEMP_ENABLE_FOLLOW_SCROLL_PROFILER,
+  );
+
+  // UI-thread apply path: SharedValue write (JS) → useAnimatedReaction → scrollTo (UI).
+  // Only active while USE_UI_THREAD_FOLLOW_SCROLL is true; inactive when flag is false.
+  useAnimatedReaction(
+    () => followScrollX.value,
+    (offset) => {
+      'worklet';
+      if (!USE_UI_THREAD_FOLLOW_SCROLL) {
+        return;
+      }
+      if (profileActiveSV.value === 1) {
+        uiScrollExecSV.value += 1;
+      }
+      if (useScrollViewFollowSV.value === 1) {
+        scrollTo(scrollViewRef, offset, 0, false);
+      } else {
+        scrollTo(flatListRef, offset, 0, false);
+      }
+    },
+  );
+
+  const scrollContentToOffset = useCallback((offset: number, animated: boolean) => {
+    if (useScrollViewFollowSV.value === 1) {
+      const node = scrollViewRef.current;
+      if (node != null && 'scrollTo' in node) {
+        (node as { scrollTo: (args: { x: number; y: number; animated: boolean }) => void }).scrollTo({
+          x: offset,
+          y: 0,
+          animated,
+        });
+      }
+      return;
+    }
+    flatListRef.current?.scrollToOffset({ offset, animated });
+  }, [flatListRef, scrollViewRef, useScrollViewFollowSV]);
+
+  /**
+   * Instant follow / hard-sync apply.
+   * UI-thread path: write SharedValue only (reaction scrolls on UI).
+   * JS fallback: imperative scroll on the active list container.
+   * Animated scrolls (scrollToStart / edit focus / stop reset) never use this.
+   */
+  const applyInstantFollowOffset = useCallback(
+    (offset: number) => {
+      if (Date.now() < autoFollowSuspendedUntil.current) {
+        return;
+      }
+
+      if (USE_UI_THREAD_FOLLOW_SCROLL) {
+        if (__DEV__ && !uiFollowRefVerifiedRef.current) {
+          uiFollowRefVerifiedRef.current = true;
+          const attached =
+            useScrollViewFollowSV.value === 1
+              ? scrollViewRef.current != null
+              : flatListRef.current != null;
+          if (!attached) {
+            console.warn(
+              '[SongSignatureTimeline] UI-thread follow-scroll: animated ref is null when first applying follow offset.',
+            );
+          }
+        }
+        if (TEMP_ENABLE_FOLLOW_SCROLL_PROFILER) {
+          followProfiler.noteJsScrollRequest(offset);
+        }
+        if (TEMP_ENABLE_GET_ITEM_LAYOUT_TRACER) {
+          getItemLayoutTracer.noteScrollToRequest();
+        }
+        followScrollX.value = offset;
+        return;
+      }
+
+      // Baseline fallback — only reached when USE_UI_THREAD_FOLLOW_SCROLL is false.
+      if (TEMP_ENABLE_FOLLOW_SCROLL_PROFILER) {
+        followProfiler.noteJsScrollRequest(offset);
+      }
+      if (TEMP_ENABLE_GET_ITEM_LAYOUT_TRACER) {
+        getItemLayoutTracer.noteScrollToRequest();
+      }
+      scrollContentToOffset(offset, false);
+    },
+    [followScrollX, scrollContentToOffset, useScrollViewFollowSV, scrollViewRef, flatListRef],
+  );
+
+  const scrollToPlaybackPosition = useCallback(
+    (animated: boolean) => {
+      const cursor = playbackCursorRef.current;
+      const offset = playbackScrollOffset(
+        segmentsRef.current,
+        cursor.barIndex,
+        cursor.beatPosition,
+      );
+
+      if (!animated) {
+        applyInstantFollowOffset(offset);
+        return;
+      }
+
+      if (Date.now() < autoFollowSuspendedUntil.current) {
+        return;
+      }
+      scrollContentToOffset(offset, true);
+    },
+    [applyInstantFollowOffset, scrollContentToOffset],
+  );
 
   const animateFollow = useCallback(
     (_timestamp: number) => {
@@ -240,6 +531,10 @@ export const SongSignatureTimeline = memo(
         return;
       }
 
+      if (TEMP_ENABLE_FOLLOW_SCROLL_PROFILER) {
+        followProfiler.noteJsRaf();
+      }
+
       advanceFollowCursor(cursor, segmentsRef.current, performance.now());
 
       if (!cursor.isPlaying) {
@@ -247,10 +542,18 @@ export const SongSignatureTimeline = memo(
         return;
       }
 
-      scrollToPlaybackPosition(false);
+      // Follow-cursor math unchanged. Apply path:
+      // UI-thread (flag on) → SharedValue → Reanimated scrollTo worklet
+      // JS fallback (flag off) → scrollToOffset inside applyInstantFollowOffset
+      const offset = playbackScrollOffset(
+        segmentsRef.current,
+        cursor.barIndex,
+        cursor.beatPosition,
+      );
+      applyInstantFollowOffset(offset);
       animationFrameRef.current = requestAnimationFrame(animateFollow);
     },
-    [scrollToPlaybackPosition],
+    [applyInstantFollowOffset],
   );
 
   useEffect(() => {
@@ -330,7 +633,11 @@ export const SongSignatureTimeline = memo(
         playbackCursorRef.current.beatDurationMs = beatDurationMs;
       }
 
-      // LED beat store — only active MeterRegion subscribes; host does not re-render.
+      // Highlight stores — MeterRegions subscribe selectively; FlatList data stays stable.
+      setSongLineBarIndex(followLive ? barIndex : -1);
+      if (TEMP_ENABLE_GET_ITEM_LAYOUT_TRACER) {
+        getItemLayoutTracer.noteBarIndex(followLive ? barIndex : -1);
+      }
       setSongLineBeatIndex(
         TEMP_DISABLE_SONG_LINE_BEAT_HIGHLIGHT
           ? -1
@@ -372,6 +679,8 @@ export const SongSignatureTimeline = memo(
       });
       wasPlayingRef.current = false;
       lastTickKeyRef.current = null;
+      setSongLineBarIndex(-1);
+      setSongLineBeatIndex(-1);
 
       if (animationFrameRef.current !== null) {
         cancelAnimationFrame(animationFrameRef.current);
@@ -379,10 +688,10 @@ export const SongSignatureTimeline = memo(
       }
 
       requestAnimationFrame(() => {
-        listRef.current?.scrollToOffset({ offset: 0, animated: true });
+        scrollContentToOffset(0, true);
       });
     }
-  }, [isTimelineActive]);
+  }, [isTimelineActive, scrollContentToOffset]);
 
   useEffect(
     () => () => {
@@ -416,6 +725,12 @@ export const SongSignatureTimeline = memo(
 
   const handleScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (TEMP_ENABLE_FOLLOW_SCROLL_PROFILER) {
+        followProfiler.noteFlatList('onScroll');
+      }
+      if (TEMP_ENABLE_GET_ITEM_LAYOUT_TRACER) {
+        getItemLayoutTracer.noteOnScroll();
+      }
       const offset = event.nativeEvent.contentOffset.x;
       scrollOffsetRef.current = offset;
       if (
@@ -461,7 +776,7 @@ export const SongSignatureTimeline = memo(
     const promise = new Promise<void>((resolve) => {
       scrollToStartResolveRef.current = resolve;
       autoFollowSuspendedUntil.current = 0;
-      listRef.current?.scrollToOffset({ offset: 0, animated: true });
+      scrollContentToOffset(0, true);
 
       scrollToStartTimeoutRef.current = setTimeout(() => {
         scrollOffsetRef.current = 0;
@@ -470,19 +785,19 @@ export const SongSignatureTimeline = memo(
     });
     scrollToStartPromiseRef.current = promise;
     return promise;
-  }, [finishScrollToStart]);
+  }, [finishScrollToStart, scrollContentToOffset]);
 
   const openSegmentEditor = useCallback(
     (segment: TimelineSegmentViewModel, tempoFocus: TempoEditFocus = null) => {
       selectedSegmentIdRef.current = segment.id;
       autoFollowSuspendedUntil.current = Date.now() + AUTO_FOLLOW_SUSPEND_MS;
       const targetOffset = playbackScrollOffset(segments, segment.startBar - 1, 0);
-      listRef.current?.scrollToOffset({ offset: targetOffset, animated: true });
+      scrollContentToOffset(targetOffset, true);
       setFocusSegmentId(segment.id);
       setFocusTempoEdit(tempoFocus);
       setSegmentEditorVisible(true);
     },
-    [segments],
+    [segments, scrollContentToOffset],
   );
 
   useImperativeHandle(
@@ -512,6 +827,12 @@ export const SongSignatureTimeline = memo(
 
   const getItemLayout = useCallback(
     (_data: ArrayLike<TimelineSegmentViewModel> | null | undefined, index: number) => {
+      if (TEMP_ENABLE_FOLLOW_SCROLL_PROFILER) {
+        followProfiler.noteFlatList('itemLayout');
+      }
+      if (TEMP_ENABLE_GET_ITEM_LAYOUT_TRACER) {
+        getItemLayoutTracer.noteCall(index);
+      }
       const segment = segments[index];
       const length = segment ? segmentStride(segment) : REGION_GAP;
       let offset = 0;
@@ -522,6 +843,99 @@ export const SongSignatureTimeline = memo(
     },
     [segments],
   );
+
+  const onTimelineProfilerRender = useCallback<ProfilerOnRenderCallback>(
+    (id, phase, actualDuration) => {
+      if (TEMP_ENABLE_FOLLOW_SCROLL_PROFILER) {
+        followProfiler.noteReactCommit(id, phase, actualDuration);
+      }
+    },
+    [],
+  );
+
+  const onViewableItemsChanged = useCallback(
+    ({ changed }: { viewableItems: Array<ViewToken>; changed: Array<ViewToken> }) => {
+      if (TEMP_ENABLE_FOLLOW_SCROLL_PROFILER && changed.length > 0) {
+        followProfiler.noteFlatList('viewableItemsChanged');
+      }
+    },
+    [],
+  );
+
+  const viewabilityConfig = useMemo(
+    () => ({ itemVisiblePercentThreshold: 10 }),
+    [],
+  );
+
+  /** Playback-only non-virtualized A/B — FlatList remains for idle/editing. */
+  const nonVirtualizedPlayback =
+    USE_NON_VIRTUALIZED_PLAYBACK_TIMELINE && isTimelineActive && isPlaying;
+
+  // Keep worklet scroll target in sync before paint (FlatList unmounts this commit).
+  useScrollViewFollowSV.value = nonVirtualizedPlayback ? 1 : 0;
+
+  useEffect(() => {
+    if (__DEV__ && USE_NON_VIRTUALIZED_PLAYBACK_TIMELINE && TEMP_ENABLE_PROFILER_CONSOLE_LOGS) {
+      console.log(
+        `[SongSignatureTimeline] non-virtualized playback A/B: ${
+          nonVirtualizedPlayback ? 'ON (ScrollView)' : 'OFF (FlatList)'
+        }`,
+      );
+    }
+    if (nonVirtualizedPlayback) {
+      // Preserve offset across FlatList → ScrollView remount at play start.
+      const offset = scrollOffsetRef.current;
+      requestAnimationFrame(() => {
+        scrollContentToOffset(offset, false);
+      });
+    }
+  }, [nonVirtualizedPlayback, scrollContentToOffset]);
+
+  const contentPaddingStyle = useMemo(
+    () => ({
+      paddingLeft: viewportWidth / 2,
+      paddingRight: viewportWidth / 2,
+    }),
+    [viewportWidth],
+  );
+
+  const renderTimelineRegion = (item: TimelineSegmentViewModel, index: number) => {
+    const tempoBpm = tempoMarkings[index] ?? null;
+    const regionTempoBpm = effectiveSegmentBpm(item.bpmOverride, song.defaultBpm);
+    const previousMeter = index > 0 ? segments[index - 1]?.meter : null;
+    const showTimeSignature = index === 0 || previousMeter !== item.meter;
+    return (
+      <View style={styles.item}>
+        <MeterRegion
+          segment={item}
+          overviewTempoBpm={tempoBpm}
+          regionTempoBpm={regionTempoBpm}
+          showTimeSignature={showTimeSignature}
+          songLoopEnabled={songLoopEnabled}
+          onPress={() => openSegmentEditor(item)}
+          onPlayFromHere={
+            showTimeSignature
+              ? () => {
+                  onPlayFromSegment(item);
+                }
+              : undefined
+          }
+          onTempoPress={
+            tempoBpm === null
+              ? undefined
+              : () => {
+                  if (index === 0) {
+                    openSongTempoEditor();
+                    return;
+                  }
+                  openSegmentEditor(item, 'segment');
+                }
+          }
+          isPlaying={isTimelineActive && isPlaying}
+        />
+      </View>
+    );
+  };
 
   const addBarControl = (
     <View style={styles.addBarRegion}>
@@ -543,85 +957,82 @@ export const SongSignatureTimeline = memo(
   );
 
   return (
+    <Profiler id="SongSignatureTimeline" onRender={onTimelineProfilerRender}>
       <View style={styles.wrapper}>
         <View
           style={styles.listContainer}
           onLayout={(event) => {
+            if (TEMP_ENABLE_FOLLOW_SCROLL_PROFILER) {
+              followProfiler.noteFlatList('onLayout');
+            }
             setViewportWidth(event.nativeEvent.layout.width);
           }}
         >
-          <FlatList
-            ref={listRef}
-            style={styles.list}
-            horizontal
-            data={segments as TimelineSegmentViewModel[]}
-            keyExtractor={(item) => `${item.id}-${item.meter}-${item.numberOfBars}`}
-            renderItem={({ item, index }) => {
-              const tempoBpm = tempoMarkings[index] ?? null;
-              const regionTempoBpm = effectiveSegmentBpm(
-                item.bpmOverride,
-                song.defaultBpm,
-              );
-              const previousMeter = index > 0 ? segments[index - 1]?.meter : null;
-              const showTimeSignature =
-                index === 0 || previousMeter !== item.meter;
-              return (
-                <View style={styles.item}>
-                  <MeterRegion
-                    segment={item}
-                    overviewTempoBpm={tempoBpm}
-                    regionTempoBpm={regionTempoBpm}
-                    showTimeSignature={showTimeSignature}
-                    songLoopEnabled={songLoopEnabled}
-                    onPress={() => openSegmentEditor(item)}
-                    onPlayFromHere={
-                      showTimeSignature
-                        ? () => {
-                            onPlayFromSegment(item);
-                          }
-                        : undefined
-                    }
-                    onTempoPress={
-                      tempoBpm === null
-                        ? undefined
-                        : () => {
-                            if (index === 0) {
-                              openSongTempoEditor();
-                              return;
-                            }
-                            openSegmentEditor(item, 'segment');
-                          }
-                    }
-                    isPlaying={isTimelineActive && isPlaying}
-                  />
+          {nonVirtualizedPlayback ? (
+            <Animated.ScrollView
+              ref={scrollViewRef}
+              style={styles.list}
+              horizontal
+              showsHorizontalScrollIndicator
+              decelerationRate="fast"
+              onScroll={handleScroll}
+              onMomentumScrollEnd={handleMomentumScrollEnd}
+              onScrollBeginDrag={handleScrollBeginDrag}
+              scrollEventThrottle={16}
+              contentContainerStyle={[styles.content, contentPaddingStyle]}
+            >
+              {segments.length === 0 ? (
+                <View style={styles.emptyInline}>
+                  <Text style={styles.empty}>No meter regions yet.</Text>
                 </View>
-              );
-            }}
-            ListEmptyComponent={
-              <View style={styles.emptyInline}>
-                <Text style={styles.empty}>No meter regions yet.</Text>
-              </View>
-            }
-            ListFooterComponent={addBarControl}
-            getItemLayout={getItemLayout}
-            showsHorizontalScrollIndicator
-            decelerationRate="fast"
-            onScroll={handleScroll}
-            onMomentumScrollEnd={handleMomentumScrollEnd}
-            onScrollBeginDrag={handleScrollBeginDrag}
-            scrollEventThrottle={16}
-            contentContainerStyle={[
-              styles.content,
-              {
-                paddingLeft: viewportWidth / 2,
-                paddingRight: viewportWidth / 2,
-              },
-            ]}
-            extraData={`${currentBarIndex}-${isPlaying}-${isTimelineActive}-${song.defaultBpm}-${tempoMarkings.join(',')}-${songLoopEnabled}`}
-            windowSize={5}
-            initialNumToRender={6}
-            maxToRenderPerBatch={8}
-          />
+              ) : (
+                segments.map((item, index) => (
+                  <Fragment key={`${item.id}-${item.meter}-${item.numberOfBars}`}>
+                    {renderTimelineRegion(item, index)}
+                  </Fragment>
+                ))
+              )}
+              {addBarControl}
+            </Animated.ScrollView>
+          ) : (
+            <FlatList
+              ref={flatListRef}
+              style={styles.list}
+              horizontal
+              data={segments as TimelineSegmentViewModel[]}
+              keyExtractor={(item) => `${item.id}-${item.meter}-${item.numberOfBars}`}
+              renderItem={({ item, index }) => renderTimelineRegion(item, index)}
+              ListEmptyComponent={
+                <View style={styles.emptyInline}>
+                  <Text style={styles.empty}>No meter regions yet.</Text>
+                </View>
+              }
+              ListFooterComponent={addBarControl}
+              getItemLayout={getItemLayout}
+              showsHorizontalScrollIndicator
+              decelerationRate="fast"
+              onScroll={handleScroll}
+              onMomentumScrollEnd={handleMomentumScrollEnd}
+              onScrollBeginDrag={handleScrollBeginDrag}
+              onContentSizeChange={() => {
+                if (TEMP_ENABLE_FOLLOW_SCROLL_PROFILER) {
+                  followProfiler.noteFlatList('contentSizeChange');
+                }
+              }}
+              onViewableItemsChanged={
+                TEMP_ENABLE_FOLLOW_SCROLL_PROFILER ? onViewableItemsChanged : undefined
+              }
+              viewabilityConfig={
+                TEMP_ENABLE_FOLLOW_SCROLL_PROFILER ? viewabilityConfig : undefined
+              }
+              scrollEventThrottle={16}
+              contentContainerStyle={[styles.content, contentPaddingStyle]}
+              extraData={`${isPlaying}-${isTimelineActive}-${song.defaultBpm}-${tempoMarkings.join(',')}-${songLoopEnabled}`}
+              windowSize={5}
+              initialNumToRender={6}
+              maxToRenderPerBatch={8}
+            />
+          )}
           {viewportWidth > 0 ? (
             <View
               pointerEvents="none"
@@ -697,6 +1108,7 @@ export const SongSignatureTimeline = memo(
           }}
         />
       </View>
+    </Profiler>
   );
   }),
 );

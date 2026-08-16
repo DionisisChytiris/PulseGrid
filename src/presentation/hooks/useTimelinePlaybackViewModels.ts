@@ -20,13 +20,14 @@ type Options = {
 
 /**
  * Segment VMs + session flags for the Song Editor.
- * Does not subscribe to per-beat debugTick — beat follow/LEDs are handled inside
- * SongSignatureTimeline via a Redux store subscription (avoids FlatList host
- * reconciliation every pulse).
+ *
+ * Segment geometry is memoized on `song` only — bar/beat playback chrome is
+ * applied inside SongSignatureTimeline via SongLine bar/beat stores (not by
+ * rebuilding FlatList data when currentBarIndex changes).
  */
 export function useTimelinePlaybackViewModels({
   song,
-  currentBarIndex,
+  currentBarIndex: _currentBarIndex,
   totalBars: _totalBars,
   songName,
   isPlaying,
@@ -40,17 +41,9 @@ export function useTimelinePlaybackViewModels({
   // Keep Signature Timeline idle during count-in; unlock when prep ends.
   const isTimelineActive = songSessionActive && !isCountingIn;
 
-  const playbackContext = useMemo(
-    () => ({
-      currentBarIndex,
-      isTimelineActive,
-    }),
-    [currentBarIndex, isTimelineActive],
-  );
-
   const segments = useMemo(
-    () => buildTimelineSegmentViewModels(song, playbackContext),
-    [song, playbackContext],
+    () => buildTimelineSegmentViewModels(song),
+    [song],
   );
 
   const showTransport = songName === song.name && (isPlaying || isPaused);

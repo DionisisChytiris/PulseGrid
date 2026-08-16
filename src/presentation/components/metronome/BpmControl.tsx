@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 
+import { AnalyticsService } from '../../../services/AnalyticsService';
+
 import { useResponsiveLayout } from '../../layout/useResponsiveLayout';
 import { studioColors } from '../../theme';
 import { BpmCircularSlider } from './BpmCircularSlider';
@@ -35,6 +37,10 @@ export function BpmControl({
   const [coronaActive, setCoronaActive] = useState(false);
   const [coronaColor, setCoronaColor] = useState('#00FF66');
   const isDialDraggingRef = useRef(false);
+  const valueRef = useRef(value);
+  const bpmAtDragStartRef = useRef(value);
+  const bpmAtHoldStartRef = useRef(value);
+  valueRef.current = value;
 
   const { beginHoldRamp, endHoldRamp } = useTransportBpmHoldRamp({
     bpm: value,
@@ -100,6 +106,7 @@ export function BpmControl({
     // but the effect itself only exists while pressed.
     setCoronaColor(isPlaying ? '#C44DFF' : '#00FF66');
     setCoronaActive(true);
+    bpmAtHoldStartRef.current = valueRef.current;
 
     // Direction fixed at press-in (before transport toggles playing state).
     // Play (!isPlaying) → ramp up; Stop (isPlaying) → ramp down.
@@ -109,6 +116,10 @@ export function BpmControl({
   const handleTransportPressOut = () => {
     setCoronaActive(false);
     endHoldRamp();
+    const nextBpm = valueRef.current;
+    if (nextBpm !== bpmAtHoldStartRef.current) {
+      AnalyticsService.logTempoSet(nextBpm, 'buttons');
+    }
   };
 
   return (
@@ -128,6 +139,14 @@ export function BpmControl({
         onAccentPatternChange={onAccentPatternChange}
         onDialDraggingChange={(dragging) => {
           isDialDraggingRef.current = dragging;
+          if (dragging) {
+            bpmAtDragStartRef.current = valueRef.current;
+            return;
+          }
+          const nextBpm = valueRef.current;
+          if (nextBpm !== bpmAtDragStartRef.current) {
+            AnalyticsService.logTempoSet(nextBpm, 'slider');
+          }
         }}
       >
         {centerContent}

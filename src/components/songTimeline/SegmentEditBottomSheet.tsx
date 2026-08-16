@@ -21,6 +21,7 @@ import {
   parseSongBpmTextLenient,
   sanitizeSongBpmInput,
 } from '../../domain/music/songBpm';
+import { AnalyticsService } from '../../services/AnalyticsService';
 import {
   CustomKeyboard,
   estimateCustomKeyboardBottomHeight,
@@ -135,6 +136,7 @@ export function SegmentEditBottomSheet({
 
   const [activeEdit, setActiveEdit] = useState<ActiveEdit | null>(null);
   const activeEditRef = useRef<ActiveEdit | null>(null);
+  const bpmAtTypingStartRef = useRef<number | null>(null);
   activeEditRef.current = activeEdit;
 
   const [expandedSegmentId, setExpandedSegmentId] = useState<string | null>(null);
@@ -281,6 +283,12 @@ export function SegmentEditBottomSheet({
     (current: ActiveEdit) => {
       if (current.kind === 'songBpm') {
         const bpm = parseSongBpmTextLenient(current.text) ?? safeSongBpm;
+        if (
+          bpmAtTypingStartRef.current !== null &&
+          bpm !== bpmAtTypingStartRef.current
+        ) {
+          AnalyticsService.logTempoSet(bpm, 'typing');
+        }
         onSongDefaultBpmChange(bpm);
         return;
       }
@@ -303,9 +311,15 @@ export function SegmentEditBottomSheet({
         return;
       }
 
-      const bpm =
-        parseSongBpmTextLenient(current.text) ??
-        (segment.bpmOverride !== null ? segment.bpmOverride : safeSongBpm);
+      const previousBpm =
+        segment.bpmOverride !== null ? segment.bpmOverride : safeSongBpm;
+      const bpm = parseSongBpmTextLenient(current.text) ?? previousBpm;
+      if (
+        bpmAtTypingStartRef.current !== null &&
+        bpm !== bpmAtTypingStartRef.current
+      ) {
+        AnalyticsService.logTempoSet(bpm, 'typing');
+      }
       onBpmOverrideChange(segment.id, bpm);
     },
     [
@@ -331,6 +345,7 @@ export function SegmentEditBottomSheet({
   const beginEdit = useCallback(
     (next: ActiveEdit) => {
       const previous = activeEditRef.current;
+      let continuing = false;
       if (previous !== null) {
         const sameSongBpm = previous.kind === 'songBpm' && next.kind === 'songBpm';
         const sameSegmentField =
@@ -338,14 +353,26 @@ export function SegmentEditBottomSheet({
           next.kind !== 'songBpm' &&
           previous.segmentId === next.segmentId &&
           previous.kind === next.kind;
-        if (!sameSongBpm && !sameSegmentField) {
+        continuing = sameSongBpm || sameSegmentField;
+        if (!continuing) {
           commitEdit(previous);
           blurActiveInput(previous);
         }
       }
+      if (!continuing) {
+        if (next.kind === 'songBpm') {
+          bpmAtTypingStartRef.current = safeSongBpm;
+        } else if (next.kind === 'segmentBpm') {
+          const segment = segments.find((item) => item.id === next.segmentId);
+          bpmAtTypingStartRef.current =
+            segment?.bpmOverride !== null && segment !== undefined
+              ? segment.bpmOverride
+              : safeSongBpm;
+        }
+      }
       setActiveEdit(next);
     },
-    [blurActiveInput, commitEdit],
+    [blurActiveInput, commitEdit, safeSongBpm, segments],
   );
 
   useEffect(() => {

@@ -6,6 +6,7 @@ import { studioColors } from '../../theme';
 
 import { BeatAccentIndicator } from './BeatAccentIndicator';
 import { InlineTempoMarking } from './InlineTempoMarking';
+import { profileRender } from './songLineFollowProfiler';
 import {
   BAR_CELL_PADDING_V,
   GRID_SLOT_WIDTH,
@@ -53,6 +54,7 @@ export const BarPreview = memo(function BarPreview({
   onTempoPress,
   accentColor,
 }: Props) {
+  profileRender('BarPreview');
   const pulseCount = Math.max(1, beats.length);
   const width = barCellWidth(pulseCount, denominator);
   const markerSize = pulseMarkerSize(denominator);

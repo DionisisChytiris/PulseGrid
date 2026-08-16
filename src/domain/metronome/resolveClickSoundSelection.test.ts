@@ -79,7 +79,7 @@ describe('resolveClickSoundSelection', () => {
   it('keeps Bar and Accent as distinct roles with independent sample banks', () => {
     const settings = {
       ...DEFAULT_METRONOME_SOUND_SETTINGS,
-      barClickSound: 'strong_accent' as const,
+      barClickSound: 'clave_bar' as const,
       accentClickSound: 'classic_accent' as const,
     };
 
@@ -107,7 +107,7 @@ describe('resolveClickSoundSelection', () => {
 
     expect(bar.type).toBe(ClickSoundType.Bar);
     expect(accent.type).toBe(ClickSoundType.Accent);
-    expect(bar.soundId).toBe('strong_accent');
+    expect(bar.soundId).toBe('clave_bar');
     expect(accent.soundId).toBe('classic_accent');
   });
 });

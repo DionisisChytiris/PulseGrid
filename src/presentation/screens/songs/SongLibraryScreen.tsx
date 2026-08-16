@@ -16,6 +16,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { Song } from '../../../domain/music/Song';
 import { useSongLibrary } from '../../hooks/useSongLibrary';
+import { useAnalyticsScreenView } from '../../hooks/useAnalyticsScreenView';
+import { AnalyticsService } from '../../../services/AnalyticsService';
 import type { SongsStackParamList } from '../../navigation/types';
 import { studioColors } from '../../theme';
 
@@ -25,11 +27,13 @@ const DELETE_WIDTH = 92;
 const OPEN_THRESHOLD = 48;
 
 export default function SongLibraryScreen({ navigation }: Props) {
+  useAnalyticsScreenView('timeline_library');
   const insets = useSafeAreaInsets();
   const { songs, loading, error, createSong, deleteSong } = useSongLibrary();
 
   const onCreateSong = async () => {
     const created = await createSong(`Timeline ${songs.length + 1}`);
+    AnalyticsService.logTimelineCreated();
     navigation.navigate('SongEditor', { songId: created.id });
   };
 

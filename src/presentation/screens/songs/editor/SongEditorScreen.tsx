@@ -1,6 +1,14 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Profiler,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ProfilerOnRenderCallback,
+} from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -22,7 +30,13 @@ import {
   SongStatisticsBottomSheet,
   type SongSignatureTimelineHandle,
 } from '../../../components/songSignatureTimeline';
+import {
+  TEMP_ENABLE_FOLLOW_SCROLL_PROFILER,
+  followProfiler,
+  profileRender,
+} from '../../../components/songSignatureTimeline/songLineFollowProfiler';
 import { useEditorCustomKeyboard } from '../../../hooks/useEditorCustomKeyboard';
+import { useAnalyticsScreenView } from '../../../hooks/useAnalyticsScreenView';
 import { useSongEditor } from '../../../hooks/useSongEditor';
 import { useSongEditorLandscapeLock } from '../../../hooks/useSongEditorLandscapeLock';
 import { useSongPlayback } from '../../../hooks/useSongPlayback';
@@ -33,6 +47,7 @@ import { studioColors } from '../../../theme';
 type Props = NativeStackScreenProps<SongsStackParamList, 'SongEditor'>;
 
 export default function SongEditorScreen({ navigation, route }: Props) {
+  useAnalyticsScreenView('timeline_editor');
   useSongEditorLandscapeLock();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -93,6 +108,15 @@ export default function SongEditorScreen({ navigation, route }: Props) {
     [song],
   );
 
+  const onEditorProfilerRender = useCallback<ProfilerOnRenderCallback>(
+    (id, phase, actualDuration) => {
+      if (TEMP_ENABLE_FOLLOW_SCROLL_PROFILER) {
+        followProfiler.noteReactCommit(id, phase, actualDuration);
+      }
+    },
+    [],
+  );
+
   const songNameKeyboardVisible = keyboard.activeField === 'songName';
   const dockRight = songNameKeyboardVisible && width > height;
   const rightPad = dockRight ? Math.round(width * 0.45) : Math.max(insets.right, 12);
@@ -100,6 +124,10 @@ export default function SongEditorScreen({ navigation, route }: Props) {
     songNameKeyboardVisible && !dockRight
       ? Math.max(insets.bottom, 12) + 240
       : insets.bottom + 8;
+
+  if (TEMP_ENABLE_FOLLOW_SCROLL_PROFILER) {
+    profileRender('SongEditorScreen');
+  }
 
   if (loading) {
     return (
@@ -126,7 +154,9 @@ export default function SongEditorScreen({ navigation, route }: Props) {
     }
     keyboard.dismiss();
   };
+
   return (
+    <Profiler id="SongEditorScreen" onRender={onEditorProfilerRender}>
     <View
       style={[
         styles.container,
@@ -275,6 +305,7 @@ export default function SongEditorScreen({ navigation, route }: Props) {
         onClose={() => setStatsVisible(false)}
       />
     </View>
+    </Profiler>
   );
 }
 

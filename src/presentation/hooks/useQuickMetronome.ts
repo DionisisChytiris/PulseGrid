@@ -16,6 +16,8 @@ import {
   selectSubdivisionAvailability,
   selectTimeSignature,
 } from '../../features/metronome/metronomeSelectors';
+import { selectNormalClickSound } from '../../features/settings/settingsSelectors';
+import { AnalyticsService, type AnalyticsSubdivision } from '../../services/AnalyticsService';
 import type { TimeSignature } from '../../domain/entities/Metronome';
 import {
   ABSOLUTE_MAX_BPM,
@@ -23,8 +25,12 @@ import {
   formatBpmClampToastMessage,
   maxBpmForSubdivision,
 } from '../../domain/metronome/bpmLimits';
-import type { FinerSubdivisionSelection } from '../../domain/metronome/PulseGridSettings';
-import { resolveEngineSubdivision, toEngineBpm } from '../../domain/metronome/PulseGridSettings';
+import {
+  resolveEngineSubdivision,
+  toDisplayBpm,
+  toEngineBpm,
+  type FinerSubdivisionSelection,
+} from '../../domain/metronome/PulseGridSettings';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { finerSubdivisionChanged } from '../../features/metronome/metronomeSlice';
 
@@ -34,6 +40,19 @@ export const MAX_BPM = ABSOLUTE_MAX_BPM;
 
 const TAP_TEMPO_INTRO =
   'Tap TAP at least 3 times in a steady beat to set the tempo. BPM updates from the 3rd tap. Pause longer than 2 seconds to start over. Hold TAP for help.';
+
+function toAnalyticsSubdivision(
+  finerSubdivision: FinerSubdivisionSelection,
+): AnalyticsSubdivision {
+  if (finerSubdivision === null || finerSubdivision === 'quarter') {
+    return 'base';
+  }
+  return finerSubdivision;
+}
+
+function formatTimeSignature({ numerator, denominator }: TimeSignature): string {
+  return `${numerator}/${denominator}`;
+}
 
 function clampTrainerSettings(
   settings: TempoTrainerSettings,
@@ -64,6 +83,7 @@ export function useQuickMetronome() {
   const finerSubdivision = useAppSelector(selectFinerSubdivision);
   const subdivision = useAppSelector(selectSubdivision);
   const subdivisionAvailability = useAppSelector(selectSubdivisionAvailability);
+  const normalClickSound = useAppSelector(selectNormalClickSound);
   const [tapTempoHintVisible, setTapTempoHintVisible] = useState(false);
   const [trainerPopupVisible, setTrainerPopupVisible] = useState(false);
   const [trainerSettings, setTrainerSettings] = useState<TempoTrainerSettings>(
@@ -93,7 +113,13 @@ export function useQuickMetronome() {
   }, []);
 
   const onTapTempo = () => {
-    playbackService.tapTempo();
+    const result = playbackService.tapTempo();
+    if (result.bpm !== null) {
+      AnalyticsService.logTempoSet(
+        Math.round(toDisplayBpm(result.bpm, timeSignature.denominator)),
+        'tap_tempo',
+      );
+    }
   };
 
   const onTapTempoHelp = () => {
@@ -121,8 +147,19 @@ export function useQuickMetronome() {
     },
     minBpm: MIN_BPM,
     maxBpm: subdivisionMaxBpm,
-    onStart: () => playbackService.start(),
-    onStop: () => playbackService.stop(),
+    onStart: () => {
+      playbackService.start();
+      AnalyticsService.logMetronomeStarted({
+        bpm: Math.round(toDisplayBpm(bpm, timeSignature.denominator)),
+        timeSignature: formatTimeSignature(timeSignature),
+        subdivision: toAnalyticsSubdivision(finerSubdivision),
+        sound: normalClickSound,
+      });
+    },
+    onStop: () => {
+      playbackService.stop();
+      AnalyticsService.logMetronomeStopped();
+    },
     onBpmChange: (value: number) =>
       playbackService.setBpm(toEngineBpm(value, timeSignature.denominator)),
     onTimeSignatureChange: (value: TimeSignature) => {
@@ -133,10 +170,14 @@ export function useQuickMetronome() {
     },
     onAccentPatternChange: (pattern: boolean[]) => playbackService.setAccentPattern(pattern),
     onSubdivisionChange: (value: FinerSubdivisionSelection) => {
+      if (value === finerSubdivision) {
+        return;
+      }
       const engineSubdivision = resolveEngineSubdivision(timeSignature.denominator, value);
       dispatch(finerSubdivisionChanged(value));
       playbackService.setSubdivision(engineSubdivision);
       void subdivisionAccentSettingsService.syncCustomModeForSubdivision(engineSubdivision);
+      AnalyticsService.logSubdivisionSelected(toAnalyticsSubdivision(value));
     },
     onTapTempo,
     onTapTempoHelp,

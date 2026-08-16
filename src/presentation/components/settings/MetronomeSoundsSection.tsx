@@ -17,6 +17,7 @@ import {
 } from '../../../features/settings/settingsSelectors';
 import { useAppSelector } from '../../../store/hooks';
 import { useResponsiveLayout } from '../../layout/useResponsiveLayout';
+import { AnalyticsService } from '../../../services/AnalyticsService';
 import { SettingsSoundDropdown } from './SettingsSoundDropdown';
 
 export function MetronomeSoundsSection() {
@@ -27,14 +28,17 @@ export function MetronomeSoundsSection() {
 
   const onSelectBar = useCallback((soundId: BarClickSoundId) => {
     void clickSoundService.setBarClickSound(soundId);
+    AnalyticsService.logSoundSelected(soundId);
   }, []);
 
   const onSelectAccent = useCallback((soundId: AccentClickSoundId) => {
     void clickSoundService.setAccentClickSound(soundId);
+    AnalyticsService.logSoundSelected(soundId);
   }, []);
 
   const onSelectClick = useCallback((soundId: NormalClickSoundId) => {
     void clickSoundService.setNormalClickSound(soundId);
+    AnalyticsService.logSoundSelected(soundId);
   }, []);
 
   return (

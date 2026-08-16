@@ -60,6 +60,8 @@ export function useHoldRepeatStep({
     return true;
   }, []);
 
+  const getValue = useCallback(() => valueRef.current, []);
+
   const beginHoldRepeat = useCallback(
     (delta: number) => {
       stopHoldRepeat();
@@ -80,5 +82,5 @@ export function useHoldRepeatStep({
 
   useEffect(() => () => stopHoldRepeat(), [stopHoldRepeat]);
 
-  return { beginHoldRepeat, stopHoldRepeat };
+  return { beginHoldRepeat, stopHoldRepeat, getValue };
 }

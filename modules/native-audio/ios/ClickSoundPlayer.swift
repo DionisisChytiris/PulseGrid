@@ -28,7 +28,7 @@ final class ClickSoundPlayer {
   private var normalBuffer: AVAudioPCMBuffer?
   private var subdivisionBuffer: AVAudioPCMBuffer?
 
-  private var selectedBarSound = "strong"
+  private var selectedBarSound = "classic"
   private var selectedNormalSound = "classic"
   private var selectedAccentSound = "classic"
   private var selectedSubdivisionSound = "classic"
@@ -107,8 +107,7 @@ final class ClickSoundPlayer {
   }
 
   func setBarClickSound(_ soundId: String) {
-    // Bar reuses accent WAV resources until dedicated bar assets exist.
-    let nextSound = Self.accentResourceName(for: soundId)
+    let nextSound = Self.barResourceName(for: soundId)
     lock.lock()
     defer { lock.unlock() }
     guard nextSound != selectedBarSound else {
@@ -116,7 +115,7 @@ final class ClickSoundPlayer {
     }
     selectedBarSound = nextSound
     barBuffer = loadBuffer(
-      named: Self.accentFileName(for: nextSound),
+      named: Self.barFileName(for: nextSound),
       volume: 1.0
     )
   }
@@ -233,7 +232,7 @@ final class ClickSoundPlayer {
 
   private func reloadBuffersLocked() {
     barBuffer = loadBuffer(
-      named: Self.accentFileName(for: selectedBarSound),
+      named: Self.barFileName(for: selectedBarSound),
       volume: 1.0
     )
     accentBuffer = loadBuffer(
@@ -510,22 +509,13 @@ final class ClickSoundPlayer {
     return results
   }
 
+  /// Maps ClickSoundCatalog IDs → resource stem (classic | clave | bongo).
   private static func normalResourceName(for soundId: String) -> String {
     switch soundId {
-    case "soft":
-      return "soft"
-    case "digital":
-      return "digital"
-    case "bright":
-      return "bright"
-    case "cowbell":
-      return "cowbell"
-    case "woodblock_medium":
-      return "woodblock_medium"
-    case "woodblock_high":
-      return "woodblock_high"
-    case "woodblock_low":
-      return "woodblock_low"
+    case "clave":
+      return "clave"
+    case "bongo":
+      return "bongo"
     default:
       return "classic"
     }
@@ -533,18 +523,21 @@ final class ClickSoundPlayer {
 
   private static func accentResourceName(for soundId: String) -> String {
     switch soundId {
-    case "strong_accent":
-      return "strong"
-    case "digital_accent":
-      return "digital"
-    case "cowbell_accent":
-      return "cowbell"
-    case "woodblock_medium":
-      return "woodblock_medium"
-    case "woodblock_high":
-      return "woodblock_high"
-    case "woodblock_low":
-      return "woodblock_low"
+    case "clave_accent":
+      return "clave"
+    case "bongo_accent":
+      return "bongo"
+    default:
+      return "classic"
+    }
+  }
+
+  private static func barResourceName(for soundId: String) -> String {
+    switch soundId {
+    case "clave_bar":
+      return "clave"
+    case "bongo_bar":
+      return "bongo"
     default:
       return "classic"
     }
@@ -554,17 +547,31 @@ final class ClickSoundPlayer {
     "click_normal_\(resource)"
   }
 
-  /// Accent/Bar woodblock options reuse click_normal_woodblock_*.wav until dedicated accent assets exist.
   private static func accentFileName(for resource: String) -> String {
+    "click_accent_\(resource)"
+  }
+
+  /// Classic bar reuses click_accent_classic.wav; other sets use click_bar_<stem>.wav.
+  private static func barFileName(for resource: String) -> String {
     switch resource {
-    case "woodblock_medium", "woodblock_high", "woodblock_low":
-      return "click_normal_\(resource)"
+    case "clave":
+      return "click_bar_clave"
+    case "bongo":
+      return "click_bar_bongo"
     default:
-      return "click_accent_\(resource)"
+      return "click_accent_classic"
     }
   }
 
+  /// Clave/bongo subdivision reuse click_normal_*.wav (no dedicated subdivision assets).
   private static func subdivisionFileName(for normalResource: String) -> String {
-    "click_subdivision_\(normalResource)"
+    switch normalResource {
+    case "clave":
+      return "click_normal_clave"
+    case "bongo":
+      return "click_normal_bongo"
+    default:
+      return "click_subdivision_classic"
+    }
   }
 }

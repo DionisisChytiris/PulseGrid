@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View, Pressable } from 'react-native';
+import { useRef } from 'react';
 
 import type { FinerSubdivisionSelection, SubdivisionAvailability } from '../../../domain/metronome/PulseGridSettings';
 import { useResponsiveLayout } from '../../layout/useResponsiveLayout';
@@ -6,6 +7,7 @@ import { studioColors } from '../../theme';
 import { SubdivisionCycleButton } from './SubdivisionCycleButton';
 import { TapTempoButton } from './TapTempoButton';
 import { useHoldRepeatStep } from './useHoldRepeatStep';
+import { AnalyticsService } from '../../../services/AnalyticsService';
 
 type MetronomeToolbarProps = {
   bpm: number;
@@ -99,13 +101,22 @@ export function MetronomeToolbar({
   const stepPairGap = 0;
   const atMin = bpm <= minimumValue;
   const atMax = bpm >= maximumValue;
-
-  const { beginHoldRepeat, stopHoldRepeat } = useHoldRepeatStep({
+  const { beginHoldRepeat, stopHoldRepeat, getValue } = useHoldRepeatStep({
     value: bpm,
     minimumValue,
     maximumValue,
     onChange: onBpmChange,
   });
+
+  const bpmAtPressStartRef = useRef(bpm);
+
+  const commitButtonTempo = () => {
+    stopHoldRepeat();
+    const nextBpm = getValue();
+    if (nextBpm !== bpmAtPressStartRef.current) {
+      AnalyticsService.logTempoSet(nextBpm, 'buttons');
+    }
+  };
 
   return (
     <View
@@ -125,8 +136,11 @@ export function MetronomeToolbar({
         <BpmStepButton
           label="−"
           disabled={atMin}
-          onPressIn={() => beginHoldRepeat(-1)}
-          onPressOut={stopHoldRepeat}
+          onPressIn={() => {
+            bpmAtPressStartRef.current = getValue();
+            beginHoldRepeat(-1);
+          }}
+          onPressOut={commitButtonTempo}
           width={stepButtonWidth}
           height={stepButtonHeight}
           fontSize={stepFontSize}
@@ -135,8 +149,11 @@ export function MetronomeToolbar({
         <BpmStepButton
           label="+"
           disabled={atMax}
-          onPressIn={() => beginHoldRepeat(1)}
-          onPressOut={stopHoldRepeat}
+          onPressIn={() => {
+            bpmAtPressStartRef.current = getValue();
+            beginHoldRepeat(1);
+          }}
+          onPressOut={commitButtonTempo}
           width={stepButtonWidth}
           height={stepButtonHeight}
           fontSize={stepFontSize}

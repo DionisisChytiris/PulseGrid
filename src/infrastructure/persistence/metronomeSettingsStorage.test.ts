@@ -23,7 +23,7 @@ function sampleSettings(overrides: Partial<PersistedMetronomeSettings> = {}): Pe
   return {
     normalClickSound: 'classic',
     accentClickSound: 'classic_accent',
-    barClickSound: 'strong_accent',
+    barClickSound: 'classic_bar',
     subdivisionClickSound: 'classic',
     barStartEnabled: true,
     subdivisionAccentMode: 'off',

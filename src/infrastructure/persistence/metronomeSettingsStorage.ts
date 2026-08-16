@@ -154,7 +154,6 @@ function toPersisted(settings: StoredMetronomeSettings | undefined): PersistedMe
   return {
     normalClickSound: normalizeNormalClickSound(settings?.normalClickSound),
     accentClickSound,
-    // Missing barClickSound uses temporary Strong default (≠ classic accent).
     barClickSound: normalizeBarClickSound(settings?.barClickSound),
     subdivisionClickSound: normalizeSubdivisionClickSound(settings?.subdivisionClickSound),
     barStartEnabled: normalizeBarStartEnabled(settings?.barStartEnabled),
