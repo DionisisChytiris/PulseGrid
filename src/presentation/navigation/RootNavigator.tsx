@@ -3,8 +3,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
 import { studioColors } from '../theme';
+import QuickMetronomeScreen from '../screens/QuickMetronomeScreen';
 import SettingsScreen from '../screens/SettingsScreen';
-import HomeStackNavigator from './HomeStackNavigator';
 import SongsStackNavigator from './SongsStackNavigator';
 import type { RootTabParamList } from './types';
 
@@ -25,7 +25,7 @@ export default function RootNavigator() {
     >
       <Tab.Screen
         name="Home"
-        component={HomeStackNavigator}
+        component={QuickMetronomeScreen}
         options={{
           headerShown: false,
           tabBarAccessibilityLabel: 'Metronome',

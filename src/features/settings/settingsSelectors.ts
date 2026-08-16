@@ -1,3 +1,5 @@
+import { createSelector } from '@reduxjs/toolkit';
+
 import type { RootState } from '../../store';
 
 export const selectNormalClickSound = (state: RootState) => state.settings.normalClickSound;
@@ -21,6 +23,13 @@ export const selectSubdivisionAccentPattern = (state: RootState) =>
   state.settings.subdivisionAccentPattern;
 
 export const selectSettingsHydrated = (state: RootState) => state.settings.hydrated;
+
+export const selectClickVolumes = createSelector(
+  (state: RootState) => state.settings.barBeatVolume,
+  (state: RootState) => state.settings.accentBeatVolume,
+  (state: RootState) => state.settings.normalBeatVolume,
+  (bar, accent, normal) => ({ bar, accent, normal }),
+);
 
 export const selectMetronomeSoundSettings = (state: RootState) => ({
   normalClickSound: state.settings.normalClickSound,

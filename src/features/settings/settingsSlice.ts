@@ -19,6 +19,11 @@ import {
   DEFAULT_SUBDIVISION_ACCENT_PATTERN,
   type SubdivisionAccentPattern,
 } from '../../domain/metronome/SubdivisionAccentPattern';
+import {
+  clampClickVolume,
+  DEFAULT_CLICK_VOLUMES,
+  type ClickVolumeChannel,
+} from '../../domain/metronome/ClickVolume';
 
 export type SettingsState = {
   normalClickSound: NormalClickSoundId;
@@ -29,6 +34,9 @@ export type SettingsState = {
   subdivisionAccentMode: SubdivisionAccentMode;
   subdivisionAccentEveryNth: number;
   subdivisionAccentPattern: SubdivisionAccentPattern;
+  barBeatVolume: number;
+  accentBeatVolume: number;
+  normalBeatVolume: number;
   hydrated: boolean;
 };
 
@@ -41,6 +49,9 @@ const initialState: SettingsState = {
   subdivisionAccentMode: DEFAULT_SUBDIVISION_ACCENT_MODE,
   subdivisionAccentEveryNth: DEFAULT_SUBDIVISION_ACCENT_EVERY_NTH,
   subdivisionAccentPattern: DEFAULT_SUBDIVISION_ACCENT_PATTERN,
+  barBeatVolume: DEFAULT_CLICK_VOLUMES.bar,
+  accentBeatVolume: DEFAULT_CLICK_VOLUMES.accent,
+  normalBeatVolume: DEFAULT_CLICK_VOLUMES.normal,
   hydrated: false,
 };
 
@@ -95,6 +106,23 @@ const settingsSlice = createSlice({
     subdivisionAccentPatternChanged(state, action: PayloadAction<SubdivisionAccentPattern>) {
       state.subdivisionAccentPattern = [...action.payload];
     },
+    clickVolumeChanged(
+      state,
+      action: PayloadAction<{ channel: ClickVolumeChannel; value: number }>,
+    ) {
+      const value = clampClickVolume(action.payload.value);
+      switch (action.payload.channel) {
+        case 'bar':
+          state.barBeatVolume = value;
+          break;
+        case 'accent':
+          state.accentBeatVolume = value;
+          break;
+        case 'normal':
+          state.normalBeatVolume = value;
+          break;
+      }
+    },
   },
 });
 
@@ -108,6 +136,7 @@ export const {
   subdivisionAccentModeChanged,
   subdivisionAccentEveryNthChanged,
   subdivisionAccentPatternChanged,
+  clickVolumeChanged,
 } = settingsSlice.actions;
 
 export default settingsSlice.reducer;

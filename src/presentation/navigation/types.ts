@@ -1,16 +1,12 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 
-export type HomeStackParamList = {
-  QuickMetronome: undefined;
-};
-
 export type SongsStackParamList = {
   SongLibrary: undefined;
   SongEditor: { songId: string };
 };
 
 export type RootTabParamList = {
-  Home: NavigatorScreenParams<HomeStackParamList>;
+  Home: undefined;
   Songs: NavigatorScreenParams<SongsStackParamList>;
   Settings: undefined;
 };

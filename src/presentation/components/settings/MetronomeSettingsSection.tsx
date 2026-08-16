@@ -4,12 +4,22 @@ import { SettingsCard } from '../../../ui/components/settings/SettingsCard';
 import { useResponsiveLayout } from '../../layout/useResponsiveLayout';
 import { MetronomeSoundsSection } from './MetronomeSoundsSection';
 import { SubdivisionAccentSection } from './SubdivisionAccentSection';
+import { VolumeChannelControls } from './VolumeChannelControls';
 
 export function MetronomeSettingsSection() {
   const layout = useResponsiveLayout();
 
   return (
     <View style={[styles.section, { gap: layout.scale(16) }]}>
+      <SettingsCard
+        title="Volume"
+        subtitle="Bar, accent, and click levels."
+        icon="volume-high-outline"
+        collapsible
+      >
+        <VolumeChannelControls />
+      </SettingsCard>
+
       <SettingsCard
         title="Subdivision Accents"
         subtitle="Choose how subdivision beats are accented."
