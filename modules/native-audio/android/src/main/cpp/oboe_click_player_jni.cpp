@@ -97,6 +97,36 @@ Java_expo_modules_nativeaudio_OboeClickPlayer_nativeSetSubdivisionClickSound(
 }
 
 JNIEXPORT void JNICALL
+Java_expo_modules_nativeaudio_OboeClickPlayer_nativeSetBarClickVolume(
+    JNIEnv* /*env*/,
+    jclass /*clazz*/,
+    jfloat gain) {
+  if (gEngine != nullptr) {
+    gEngine->renderer().setBarGain(gain);
+  }
+}
+
+JNIEXPORT void JNICALL
+Java_expo_modules_nativeaudio_OboeClickPlayer_nativeSetAccentClickVolume(
+    JNIEnv* /*env*/,
+    jclass /*clazz*/,
+    jfloat gain) {
+  if (gEngine != nullptr) {
+    gEngine->renderer().setAccentGain(gain);
+  }
+}
+
+JNIEXPORT void JNICALL
+Java_expo_modules_nativeaudio_OboeClickPlayer_nativeSetNormalClickVolume(
+    JNIEnv* /*env*/,
+    jclass /*clazz*/,
+    jfloat gain) {
+  if (gEngine != nullptr) {
+    gEngine->renderer().setNormalGain(gain);
+  }
+}
+
+JNIEXPORT void JNICALL
 Java_expo_modules_nativeaudio_OboeClickPlayer_nativePreviewClick(
     JNIEnv* /*env*/,
     jclass /*clazz*/,

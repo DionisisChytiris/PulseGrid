@@ -1,6 +1,7 @@
 #include "SamplePlayer.h"
 
 #include <algorithm>
+#include <cmath>
 
 void SamplePlayer::load(const int16_t* samples, const std::size_t frameCount) {
   stop();
@@ -23,6 +24,11 @@ void SamplePlayer::stop() {
   playing_ = false;
   position_ = 0;
   startFrameOffset_ = 0;
+}
+
+void SamplePlayer::setGain(const float gain) {
+  const float clamped = std::clamp(gain, 0.0f, 1.0f);
+  gain_.store(clamped, std::memory_order_relaxed);
 }
 
 void SamplePlayer::render(
@@ -48,7 +54,9 @@ void SamplePlayer::render(
       break;
     }
 
-    const int16_t sample = samples_[position_++];
+    const float gain = gain_.load(std::memory_order_relaxed);
+    const int16_t sample = static_cast<int16_t>(std::lround(
+        static_cast<float>(samples_[position_++]) * gain));
     for (int32_t channel = 0; channel < channelCount; ++channel) {
       const int32_t index = frame * channelCount + channel;
       const int32_t mixed =

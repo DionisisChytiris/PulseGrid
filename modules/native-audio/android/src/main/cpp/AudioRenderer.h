@@ -25,6 +25,9 @@ public:
   void previewNormal();
   void previewBar();
   void previewSubdivision();
+  void setBarGain(float gain);
+  void setAccentGain(float gain);
+  void setNormalGain(float gain);
   void stopAllPlayers();
 
   SamplePlayer& accentPlayer() { return accentPlayer_; }

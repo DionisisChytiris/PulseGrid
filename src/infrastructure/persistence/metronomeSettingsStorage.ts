@@ -25,6 +25,7 @@ import {
   normalizeSubdivisionAccentPattern,
   type SubdivisionAccentPattern,
 } from '../../domain/metronome/SubdivisionAccentPattern';
+import { clampClickVolume, DEFAULT_CLICK_VOLUMES } from '../../domain/metronome/ClickVolume';
 import type { SubdivisionKind } from '../../domain/valueObjects/Subdivision';
 
 const STORAGE_KEY = '@pulsegrid/metronome-settings/v1';
@@ -47,6 +48,9 @@ type StoredMetronomeSettings = {
   /** UI finer subdivision; null / missing = base pulse. */
   finerSubdivision?: string | null;
   accentPattern?: boolean[];
+  barBeatVolume?: number;
+  accentBeatVolume?: number;
+  normalBeatVolume?: number;
 };
 
 export type PersistedMetronomeSettings = {
@@ -62,7 +66,21 @@ export type PersistedMetronomeSettings = {
   timeSignature: TimeSignature;
   finerSubdivision: FinerSubdivisionSelection;
   accentPattern: boolean[];
+  barBeatVolume: number;
+  accentBeatVolume: number;
+  normalBeatVolume: number;
 };
+
+export function normalizePersistedClickVolume(
+  value: number | undefined,
+  fallback: number,
+): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return fallback;
+  }
+
+  return clampClickVolume(value);
+}
 
 function normalizeBarStartEnabled(value: boolean | undefined): boolean {
   return typeof value === 'boolean' ? value : DEFAULT_BAR_START_ENABLED;
@@ -168,6 +186,18 @@ function toPersisted(settings: StoredMetronomeSettings | undefined): PersistedMe
     timeSignature,
     finerSubdivision,
     accentPattern: normalizePersistedAccentPattern(settings?.accentPattern, timeSignature),
+    barBeatVolume: normalizePersistedClickVolume(
+      settings?.barBeatVolume,
+      DEFAULT_CLICK_VOLUMES.bar,
+    ),
+    accentBeatVolume: normalizePersistedClickVolume(
+      settings?.accentBeatVolume,
+      DEFAULT_CLICK_VOLUMES.accent,
+    ),
+    normalBeatVolume: normalizePersistedClickVolume(
+      settings?.normalBeatVolume,
+      DEFAULT_CLICK_VOLUMES.normal,
+    ),
   };
 }
 
@@ -205,6 +235,18 @@ export async function saveMetronomeSettings(settings: PersistedMetronomeSettings
     timeSignature: { ...timeSignature },
     finerSubdivision,
     accentPattern: normalizePersistedAccentPattern(settings.accentPattern, timeSignature),
+    barBeatVolume: normalizePersistedClickVolume(
+      settings.barBeatVolume,
+      DEFAULT_CLICK_VOLUMES.bar,
+    ),
+    accentBeatVolume: normalizePersistedClickVolume(
+      settings.accentBeatVolume,
+      DEFAULT_CLICK_VOLUMES.accent,
+    ),
+    normalBeatVolume: normalizePersistedClickVolume(
+      settings.normalBeatVolume,
+      DEFAULT_CLICK_VOLUMES.normal,
+    ),
   };
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
 }

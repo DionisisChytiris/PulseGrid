@@ -13,10 +13,11 @@ export function VolumePopover() {
 
   return (
     <View
-      style={[styles.popover, { width: popoverWidth, marginTop: layout.scale(4) }]}
       accessibilityViewIsModal={false}
+      pointerEvents="auto"
+      style={[styles.popover, { width: popoverWidth, marginTop: layout.scale(4) }]}
     >
-      <View style={styles.card}>
+      <View style={styles.card} pointerEvents="auto">
         <VolumeChannelControls />
       </View>
     </View>

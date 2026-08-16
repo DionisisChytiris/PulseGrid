@@ -1,19 +1,17 @@
 import { useCallback } from 'react';
 
+import { clickSoundService } from '../../application/services/clickSoundServiceInstance';
 import {
-  CLICK_VOLUME_CHANNELS,
   type ClickVolumeChannel,
   type ClickVolumes,
 } from '../../domain/metronome/ClickVolume';
 import { selectClickVolumes } from '../../features/settings/settingsSelectors';
-import { clickVolumeChanged } from '../../features/settings/settingsSlice';
-import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { useAppSelector } from '../../store/hooks';
 
 export function useClickVolumes(): {
   volumes: ClickVolumes;
   setChannelVolume: (channel: ClickVolumeChannel, value: number) => void;
 } {
-  const dispatch = useAppDispatch();
   const volumes = useAppSelector(selectClickVolumes);
 
   const setChannelVolume = useCallback(
@@ -21,13 +19,9 @@ export function useClickVolumes(): {
       if (volumes[channel] === value) {
         return;
       }
-      const meta = CLICK_VOLUME_CHANNELS.find((item) => item.key === channel);
-      if (meta) {
-        console.log(`${meta.logLabel}:`, value);
-      }
-      dispatch(clickVolumeChanged({ channel, value }));
+      void clickSoundService.setClickVolume(channel, value);
     },
-    [dispatch, volumes],
+    [volumes],
   );
 
   return { volumes, setChannelVolume };

@@ -33,6 +33,10 @@ final class ClickSoundPlayer {
   private var selectedAccentSound = "classic"
   private var selectedSubdivisionSound = "classic"
 
+  private var barGain: Float = 0.70
+  private var accentGain: Float = 0.65
+  private var normalGain: Float = 0.60
+
   private var engineStarted = false
 
   var areReady: Bool {
@@ -88,7 +92,7 @@ final class ClickSoundPlayer {
     selectedNormalSound = nextSound
     normalBuffer = loadBuffer(
       named: Self.normalFileName(for: nextSound),
-      volume: 0.85
+      volume: 1.0
     )
   }
 
@@ -132,6 +136,27 @@ final class ClickSoundPlayer {
       named: Self.subdivisionFileName(for: nextSound),
       volume: 0.65
     )
+  }
+
+  func setBarClickVolume(_ volume: Float) {
+    lock.lock()
+    defer { lock.unlock() }
+    barGain = Self.clampGain(volume)
+    Self.applyGain(barGain, to: barNodes)
+  }
+
+  func setAccentClickVolume(_ volume: Float) {
+    lock.lock()
+    defer { lock.unlock() }
+    accentGain = Self.clampGain(volume)
+    Self.applyGain(accentGain, to: accentNodes)
+  }
+
+  func setNormalClickVolume(_ volume: Float) {
+    lock.lock()
+    defer { lock.unlock() }
+    normalGain = Self.clampGain(volume)
+    Self.applyGain(normalGain, to: normalNodes)
   }
 
   func previewNormalClick() {
@@ -185,6 +210,9 @@ final class ClickSoundPlayer {
     accentNodes = makeNodePool(count: Self.accentPoolSize, format: format)
     normalNodes = makeNodePool(count: Self.normalPoolSize, format: format)
     subdivisionNodes = makeNodePool(count: Self.subdivisionPoolSize, format: format)
+    Self.applyGain(barGain, to: barNodes)
+    Self.applyGain(accentGain, to: accentNodes)
+    Self.applyGain(normalGain, to: normalNodes)
   }
 
   private func makeNodePool(count: Int, format: AVAudioFormat) -> [AVAudioPlayerNode] {
@@ -241,7 +269,7 @@ final class ClickSoundPlayer {
     )
     normalBuffer = loadBuffer(
       named: Self.normalFileName(for: selectedNormalSound),
-      volume: 0.85
+      volume: 1.0
     )
     subdivisionBuffer = loadBuffer(
       named: Self.subdivisionFileName(for: selectedSubdivisionSound),
@@ -306,6 +334,16 @@ final class ClickSoundPlayer {
     node.scheduleBuffer(buffer, at: at, options: [])
     if !node.isPlaying {
       node.play()
+    }
+  }
+
+  private static func clampGain(_ volume: Float) -> Float {
+    min(max(volume, 0), 1)
+  }
+
+  private static func applyGain(_ gain: Float, to nodes: [AVAudioPlayerNode]) {
+    for node in nodes {
+      node.volume = gain
     }
   }
 

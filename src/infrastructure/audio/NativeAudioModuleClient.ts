@@ -27,6 +27,9 @@ export type NativeAudioModuleSpec = {
   setNormalClickSound?(soundId: string): void;
   setAccentClickSound?(soundId: string): void;
   setBarClickSound?(soundId: string): void;
+  setBarClickVolume?(gain: number): void;
+  setAccentClickVolume?(gain: number): void;
+  setNormalClickVolume?(gain: number): void;
   setSubdivisionClickSound?(soundId: string): void;
   setSubdivisionAccentMode?(mode: string): void;
   setSubdivisionAccentEveryNth?(value: number): void;
@@ -58,6 +61,9 @@ const noopModule: NativeAudioModuleSpec = {
   setNormalClickSound() {},
   setAccentClickSound() {},
   setBarClickSound() {},
+  setBarClickVolume() {},
+  setAccentClickVolume() {},
+  setNormalClickVolume() {},
   setSubdivisionClickSound() {},
   setSubdivisionAccentMode() {},
   setSubdivisionAccentEveryNth() {},
@@ -189,6 +195,15 @@ const NativeAudioModuleClient: NativeAudioModuleSpec = {
   },
   setBarClickSound: (soundId) => {
     getModule().setBarClickSound?.(soundId);
+  },
+  setBarClickVolume: (gain) => {
+    getModule().setBarClickVolume?.(gain);
+  },
+  setAccentClickVolume: (gain) => {
+    getModule().setAccentClickVolume?.(gain);
+  },
+  setNormalClickVolume: (gain) => {
+    getModule().setNormalClickVolume?.(gain);
   },
   setSubdivisionClickSound: (soundId) => {
     getModule().setSubdivisionClickSound?.(soundId);

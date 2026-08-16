@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import type { FinerSubdivisionSelection, SubdivisionAvailability } from '../../../domain/metronome/PulseGridSettings';
 import { BpmControl } from './BpmControl';
@@ -22,6 +21,8 @@ type MetronomeDialSectionProps = {
   onTapTempoHelp: () => void;
   onSubdivisionChange: (subdivision: FinerSubdivisionSelection) => void;
   onAccentPatternChange: (pattern: boolean[]) => void;
+  volumeOpen: boolean;
+  onVolumeOpenChange: (open: boolean) => void;
 };
 
 export function MetronomeDialSection({
@@ -39,21 +40,12 @@ export function MetronomeDialSection({
   onTapTempoHelp,
   onSubdivisionChange,
   onAccentPatternChange,
+  volumeOpen,
+  onVolumeOpenChange,
 }: MetronomeDialSectionProps) {
-  const [volumeOpen, setVolumeOpen] = useState(false);
-
   return (
-    <View style={styles.section}>
-      {volumeOpen ? (
-        <Pressable
-          style={styles.volumeBackdrop}
-          onPress={() => setVolumeOpen(false)}
-          accessibilityRole="button"
-          accessibilityLabel="Close volume controls"
-        />
-      ) : null}
-
-      <View style={styles.dialArea}>
+    <View style={styles.section} pointerEvents="box-none">
+      <View style={styles.dialArea} pointerEvents={volumeOpen ? 'none' : 'auto'}>
         <BpmControl
           value={bpm}
           minimumValue={minimumValue}
@@ -65,23 +57,25 @@ export function MetronomeDialSection({
         />
       </View>
 
-      <MetronomeToolbar
-        bpm={bpm}
-        minimumValue={minimumValue}
-        maximumValue={maximumValue}
-        denominator={denominator}
-        finerSubdivision={finerSubdivision}
-        subdivisionAvailability={subdivisionAvailability}
-        onBpmChange={onBpmChange}
-        onTapTempo={onTapTempo}
-        onTapTempoHelp={onTapTempoHelp}
-        onSubdivisionChange={onSubdivisionChange}
-      />
+      <View pointerEvents={volumeOpen ? 'none' : 'auto'} style={styles.toolbarHost}>
+        <MetronomeToolbar
+          bpm={bpm}
+          minimumValue={minimumValue}
+          maximumValue={maximumValue}
+          denominator={denominator}
+          finerSubdivision={finerSubdivision}
+          subdivisionAvailability={subdivisionAvailability}
+          onBpmChange={onBpmChange}
+          onTapTempo={onTapTempo}
+          onTapTempoHelp={onTapTempoHelp}
+          onSubdivisionChange={onSubdivisionChange}
+        />
+      </View>
 
       <View style={styles.volumeSlot} pointerEvents="box-none">
         <VolumeButton
           isOpen={volumeOpen}
-          onPress={() => setVolumeOpen((open) => !open)}
+          onPress={() => onVolumeOpenChange(!volumeOpen)}
         />
         {volumeOpen ? <VolumePopover /> : null}
       </View>
@@ -96,11 +90,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minHeight: 0,
   },
-  volumeBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 3,
-    elevation: 3,
-  },
   dialArea: {
     flex: 1,
     width: '100%',
@@ -109,12 +98,15 @@ const styles = StyleSheet.create({
     minHeight: 0,
     overflow: 'visible',
   },
+  toolbarHost: {
+    width: '100%',
+  },
   volumeSlot: {
     position: 'absolute',
     top: -30,
     left: 0,
     zIndex: 4,
-    elevation: 4,
+    elevation: 24,
     overflow: 'visible',
   },
 });

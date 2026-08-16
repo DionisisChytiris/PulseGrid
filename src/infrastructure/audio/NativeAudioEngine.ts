@@ -105,6 +105,18 @@ export class NativeAudioEngine implements IAudioEngine {
     NativeAudioModule.setBarClickSound?.(soundId);
   }
 
+  setBarClickVolume(gain: number): void {
+    NativeAudioModule.setBarClickVolume?.(gain);
+  }
+
+  setAccentClickVolume(gain: number): void {
+    NativeAudioModule.setAccentClickVolume?.(gain);
+  }
+
+  setNormalClickVolume(gain: number): void {
+    NativeAudioModule.setNormalClickVolume?.(gain);
+  }
+
   setSubdivisionClickSound(soundId: string): void {
     NativeAudioModule.setSubdivisionClickSound?.(soundId);
   }

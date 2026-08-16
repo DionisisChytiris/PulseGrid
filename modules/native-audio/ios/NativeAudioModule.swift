@@ -104,6 +104,18 @@ public class NativeAudioModule: Module {
       self.clickSoundPlayer.setSubdivisionClickSound(soundId)
     }
 
+    Function("setBarClickVolume") { (gain: Double) in
+      self.clickSoundPlayer.setBarClickVolume(Float(gain))
+    }
+
+    Function("setAccentClickVolume") { (gain: Double) in
+      self.clickSoundPlayer.setAccentClickVolume(Float(gain))
+    }
+
+    Function("setNormalClickVolume") { (gain: Double) in
+      self.clickSoundPlayer.setNormalClickVolume(Float(gain))
+    }
+
     Function("previewNormalClick") {
       self.clickSoundPlayer.previewNormalClick()
     }

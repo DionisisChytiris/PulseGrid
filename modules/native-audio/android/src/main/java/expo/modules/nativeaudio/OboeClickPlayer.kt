@@ -90,6 +90,21 @@ internal class OboeClickPlayer : ClickPlayer {
     nativeSetSubdivisionClickSound(soundId)
   }
 
+  fun setBarClickVolume(gain: Float) {
+    if (!initialized) return
+    nativeSetBarClickVolume(gain)
+  }
+
+  fun setAccentClickVolume(gain: Float) {
+    if (!initialized) return
+    nativeSetAccentClickVolume(gain)
+  }
+
+  fun setNormalClickVolume(gain: Float) {
+    if (!initialized) return
+    nativeSetNormalClickVolume(gain)
+  }
+
   fun previewNormalClick() {
     if (!initialized) return
     nativePreviewClick(CLICK_TYPE_NORMAL)
@@ -146,6 +161,15 @@ internal class OboeClickPlayer : ClickPlayer {
 
     @JvmStatic
     external fun nativeSetSubdivisionClickSound(soundId: Int)
+
+    @JvmStatic
+    external fun nativeSetBarClickVolume(gain: Float)
+
+    @JvmStatic
+    external fun nativeSetAccentClickVolume(gain: Float)
+
+    @JvmStatic
+    external fun nativeSetNormalClickVolume(gain: Float)
 
     @JvmStatic
     external fun nativePreviewClick(type: Int)

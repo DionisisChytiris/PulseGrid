@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 
@@ -8,6 +9,7 @@ public:
   void load(const int16_t* samples, std::size_t frameCount);
   void start(int32_t frameOffset = 0);
   void stop();
+  void setGain(float gain);
   void render(int16_t* interleavedOutput, int32_t numFrames, int32_t channelCount);
   bool isPlaying() const;
 
@@ -17,4 +19,5 @@ private:
   std::size_t position_ = 0;
   int32_t startFrameOffset_ = 0;
   bool playing_ = false;
+  std::atomic<float> gain_{1.0f};
 };

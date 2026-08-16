@@ -32,6 +32,12 @@ export class NoopAudioEngine implements IAudioEngine {
 
   setBarClickSound(_soundId: string): void {}
 
+  setBarClickVolume(_gain: number): void {}
+
+  setAccentClickVolume(_gain: number): void {}
+
+  setNormalClickVolume(_gain: number): void {}
+
   setSubdivisionClickSound(_soundId: string): void {}
 
   setSubdivisionAccentMode(_mode: string): void {}

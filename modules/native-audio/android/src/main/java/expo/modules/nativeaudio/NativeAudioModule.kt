@@ -130,6 +130,18 @@ class NativeAudioModule : Module() {
       clickSoundPlayer?.setSubdivisionClickSound(ClickSoundMapping.subdivisionSoundId(soundId))
     }
 
+    Function("setBarClickVolume") { gain: Double ->
+      clickSoundPlayer?.setBarClickVolume(gain.toFloat().coerceIn(0f, 1f))
+    }
+
+    Function("setAccentClickVolume") { gain: Double ->
+      clickSoundPlayer?.setAccentClickVolume(gain.toFloat().coerceIn(0f, 1f))
+    }
+
+    Function("setNormalClickVolume") { gain: Double ->
+      clickSoundPlayer?.setNormalClickVolume(gain.toFloat().coerceIn(0f, 1f))
+    }
+
     Function("previewNormalClick") {
       clickSoundPlayer?.previewNormalClick()
     }

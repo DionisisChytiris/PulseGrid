@@ -74,6 +74,18 @@ internal class ClickSoundPlayer(private val context: Context) {
     oboePlayer.setSubdivisionClickSound(soundId)
   }
 
+  fun setBarClickVolume(gain: Float) {
+    oboePlayer.setBarClickVolume(gain)
+  }
+
+  fun setAccentClickVolume(gain: Float) {
+    oboePlayer.setAccentClickVolume(gain)
+  }
+
+  fun setNormalClickVolume(gain: Float) {
+    oboePlayer.setNormalClickVolume(gain)
+  }
+
   fun previewNormalClick() {
     oboePlayer.previewNormalClick()
   }

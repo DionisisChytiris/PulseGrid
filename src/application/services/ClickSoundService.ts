@@ -4,7 +4,7 @@ import {
   barStartEnabledChanged,
   normalClickSoundChanged,
   settingsHydrated,
-  subdivisionClickSoundChanged,
+  clickVolumeChanged,
 } from '../../features/settings/settingsSlice';
 import type {
   AccentClickSoundId,
@@ -13,6 +13,11 @@ import type {
   SubdivisionClickSoundId,
 } from '../../domain/metronome/ClickSoundCatalog';
 import { clampBpmForSubdivision } from '../../domain/metronome/bpmLimits';
+import {
+  clampClickVolume,
+  clickVolumeToGain,
+  type ClickVolumeChannel,
+} from '../../domain/metronome/ClickVolume';
 import { toDisplayBpm, toEngineBpm } from '../../domain/metronome/PulseGridSettings';
 import { bpmChanged, quickMetronomePreferencesHydrated } from '../../features/metronome/metronomeSlice';
 import type { IAudioEngine } from '../../infrastructure/audio/IAudioEngine';
@@ -52,6 +57,7 @@ export class ClickSoundService {
     }
     await this.audioEngine.whenReady();
     this.applyToEngine(settings);
+    this.applyClickVolumes(settings);
     this.audioEngine.setBarStartEnabled(settings.barStartEnabled);
     this.audioEngine.setSubdivisionAccentMode(settings.subdivisionAccentMode);
     this.audioEngine.setSubdivisionAccentEveryNth(settings.subdivisionAccentEveryNth);
@@ -98,6 +104,24 @@ export class ClickSoundService {
   async setSubdivisionClickSound(soundId: SubdivisionClickSoundId): Promise<void> {
     this.dispatch(subdivisionClickSoundChanged(soundId));
     this.audioEngine.setSubdivisionClickSound(soundId);
+    await this.persistCurrent();
+  }
+
+  async setClickVolume(channel: ClickVolumeChannel, value: number): Promise<void> {
+    const next = clampClickVolume(value);
+    const current = this.getState().settings;
+    const previous =
+      channel === 'bar'
+        ? current.barBeatVolume
+        : channel === 'accent'
+          ? current.accentBeatVolume
+          : current.normalBeatVolume;
+    if (previous === next) {
+      return;
+    }
+
+    this.dispatch(clickVolumeChanged({ channel, value: next }));
+    this.applyClickVolumeToEngine(channel, next);
     await this.persistCurrent();
   }
 
@@ -159,6 +183,31 @@ export class ClickSoundService {
     this.audioEngine.setAccentClickSound(settings.accentClickSound);
     this.audioEngine.setBarClickSound(settings.barClickSound);
     this.audioEngine.setSubdivisionClickSound(settings.subdivisionClickSound);
+  }
+
+  private applyClickVolumes(settings: {
+    barBeatVolume: number;
+    accentBeatVolume: number;
+    normalBeatVolume: number;
+  }): void {
+    this.audioEngine.setBarClickVolume(clickVolumeToGain(settings.barBeatVolume));
+    this.audioEngine.setAccentClickVolume(clickVolumeToGain(settings.accentBeatVolume));
+    this.audioEngine.setNormalClickVolume(clickVolumeToGain(settings.normalBeatVolume));
+  }
+
+  private applyClickVolumeToEngine(channel: ClickVolumeChannel, value: number): void {
+    const gain = clickVolumeToGain(value);
+    switch (channel) {
+      case 'bar':
+        this.audioEngine.setBarClickVolume(gain);
+        break;
+      case 'accent':
+        this.audioEngine.setAccentClickVolume(gain);
+        break;
+      case 'normal':
+        this.audioEngine.setNormalClickVolume(gain);
+        break;
+    }
   }
 
   private async persistCurrent(): Promise<void> {

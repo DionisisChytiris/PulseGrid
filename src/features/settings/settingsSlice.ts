@@ -70,6 +70,9 @@ const settingsSlice = createSlice({
         subdivisionAccentMode: SubdivisionAccentMode;
         subdivisionAccentEveryNth: number;
         subdivisionAccentPattern: SubdivisionAccentPattern;
+        barBeatVolume: number;
+        accentBeatVolume: number;
+        normalBeatVolume: number;
       }>,
     ) {
       state.normalClickSound = action.payload.normalClickSound;
@@ -80,6 +83,9 @@ const settingsSlice = createSlice({
       state.subdivisionAccentMode = action.payload.subdivisionAccentMode;
       state.subdivisionAccentEveryNth = action.payload.subdivisionAccentEveryNth;
       state.subdivisionAccentPattern = action.payload.subdivisionAccentPattern;
+      state.barBeatVolume = clampClickVolume(action.payload.barBeatVolume);
+      state.accentBeatVolume = clampClickVolume(action.payload.accentBeatVolume);
+      state.normalBeatVolume = clampClickVolume(action.payload.normalBeatVolume);
       state.hydrated = true;
     },
     normalClickSoundChanged(state, action: PayloadAction<NormalClickSoundId>) {

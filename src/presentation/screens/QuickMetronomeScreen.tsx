@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuickMetronome } from '../hooks/useQuickMetronome';
@@ -42,6 +43,7 @@ export default function QuickMetronomeScreen() {
 
   const insets = useSafeAreaInsets();
   const layout = useResponsiveLayout();
+  const [volumeOpen, setVolumeOpen] = useState(false);
 
   return (
     <View
@@ -53,6 +55,15 @@ export default function QuickMetronomeScreen() {
         },
       ]}
     >
+      {volumeOpen ? (
+        <Pressable
+          style={styles.volumeBackdrop}
+          onPress={() => setVolumeOpen(false)}
+          accessibilityRole="button"
+          accessibilityLabel="Close volume controls"
+        />
+      ) : null}
+
       {/* Backdrop must be a sibling under the top bar host (not an ancestor overlay). */}
       {trainerPopupVisible ? (
         <Pressable
@@ -82,9 +93,17 @@ export default function QuickMetronomeScreen() {
         />
       </View>
 
-      <View style={[styles.inner, { maxWidth: layout.contentMaxWidth }]}>
-        <View style={[styles.content, { gap: layout.sectionGap }]}>
-          <Text style={[styles.title, { fontSize: layout.scale(24) }]}>Pulse Grid</Text>
+      <View
+        style={[styles.inner, { maxWidth: layout.contentMaxWidth }, volumeOpen && styles.innerRaised]}
+        pointerEvents={volumeOpen ? 'box-none' : 'auto'}
+      >
+        <View style={[styles.content, { gap: layout.sectionGap }]} pointerEvents={volumeOpen ? 'box-none' : 'auto'}>
+          <Text
+            style={[styles.title, { fontSize: layout.scale(24) }]}
+            pointerEvents={volumeOpen ? 'none' : 'auto'}
+          >
+            Pulse Grid
+          </Text>
 
           <MetronomeDialSection
             bpm={bpm}
@@ -101,6 +120,8 @@ export default function QuickMetronomeScreen() {
             onTapTempoHelp={onTapTempoHelp}
             onSubdivisionChange={onSubdivisionChange}
             onAccentPatternChange={onAccentPatternChange}
+            volumeOpen={volumeOpen}
+            onVolumeOpenChange={setVolumeOpen}
           />
         </View>
       </View>
@@ -118,6 +139,7 @@ export default function QuickMetronomeScreen() {
             paddingRight: insets.right,
           },
         ]}
+        pointerEvents={volumeOpen ? 'none' : 'auto'}
       >
         <TimeSignaturePicker
           value={timeSignature}
@@ -152,6 +174,11 @@ const styles = StyleSheet.create({
     zIndex: 20,
     elevation: 20,
   },
+  volumeBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 20,
+    elevation: 20,
+  },
   topBarHost: {
     width: '100%',
     zIndex: 1,
@@ -163,6 +190,10 @@ const styles = StyleSheet.create({
   inner: {
     flex: 1,
     width: '100%',
+  },
+  innerRaised: {
+    zIndex: 21,
+    elevation: 21,
   },
   content: {
     flex: 1,

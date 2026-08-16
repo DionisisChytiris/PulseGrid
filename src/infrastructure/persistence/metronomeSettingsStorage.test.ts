@@ -33,6 +33,9 @@ function sampleSettings(overrides: Partial<PersistedMetronomeSettings> = {}): Pe
     timeSignature: { numerator: 4, denominator: 4 },
     finerSubdivision: null,
     accentPattern: [true, false, false, false],
+    barBeatVolume: 70,
+    accentBeatVolume: 65,
+    normalBeatVolume: 60,
     ...overrides,
   };
 }
@@ -95,6 +98,9 @@ describe('metronomeSettingsStorage Quick Metronome prefs', () => {
     expect(loaded.accentPattern).toEqual(
       defaultAccentPatternForTimeSignature(DEFAULT_METRONOME.timeSignature),
     );
+    expect(loaded.barBeatVolume).toBe(70);
+    expect(loaded.accentBeatVolume).toBe(65);
+    expect(loaded.normalBeatVolume).toBe(60);
   });
 
   it('saveMetronomeSettings and loadMetronomeSettings round-trip prefs', async () => {
@@ -117,5 +123,26 @@ describe('metronomeSettingsStorage Quick Metronome prefs', () => {
     expect(loaded.timeSignature).toEqual({ numerator: 7, denominator: 8 });
     expect(loaded.finerSubdivision).toBe('sixteenth');
     expect(loaded.accentPattern).toEqual([true, false, true, false, true, false, false]);
+    expect(loaded.barBeatVolume).toBe(70);
+  });
+
+  it('saveMetronomeSettings and loadMetronomeSettings round-trip click volumes', async () => {
+    let stored: string | null = null;
+    asyncStorage.setItem.mockImplementation(async (_key, value) => {
+      stored = value;
+    });
+    asyncStorage.getItem.mockImplementation(async () => stored);
+
+    await saveMetronomeSettings(
+      sampleSettings({
+        barBeatVolume: 40,
+        accentBeatVolume: 12,
+        normalBeatVolume: 0,
+      }),
+    );
+    const loaded = await loadMetronomeSettings();
+    expect(loaded.barBeatVolume).toBe(40);
+    expect(loaded.accentBeatVolume).toBe(12);
+    expect(loaded.normalBeatVolume).toBe(0);
   });
 });

@@ -20,5 +20,8 @@ export function buildPersistedMetronomeSettingsFromState(
     timeSignature: { ...metronome.timeSignature },
     finerSubdivision: metronome.finerSubdivision,
     accentPattern: [...metronome.accentPattern],
+    barBeatVolume: settings.barBeatVolume,
+    accentBeatVolume: settings.accentBeatVolume,
+    normalBeatVolume: settings.normalBeatVolume,
   };
 }

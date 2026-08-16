@@ -54,6 +54,9 @@ AudioRenderer::AudioRenderer() {
   loadAccentSound(click_sample_data::AccentSound::Classic);
   loadBarSound(click_sample_data::BarSound::Classic);
   loadSubdivisionSound(click_sample_data::NormalSound::Classic);
+  barPlayer_.setGain(0.70f);
+  accentPlayer_.setGain(0.65f);
+  normalPlayer_.setGain(0.60f);
 }
 
 void AudioRenderer::loadNormalSound(click_sample_data::NormalSound sound) {
@@ -144,6 +147,18 @@ void AudioRenderer::previewBar() {
 
 void AudioRenderer::previewSubdivision() {
   subdivisionPlayer_.start(0);
+}
+
+void AudioRenderer::setBarGain(float gain) {
+  barPlayer_.setGain(gain);
+}
+
+void AudioRenderer::setAccentGain(float gain) {
+  accentPlayer_.setGain(gain);
+}
+
+void AudioRenderer::setNormalGain(float gain) {
+  normalPlayer_.setGain(gain);
 }
 
 void AudioRenderer::stopAllPlayers() {

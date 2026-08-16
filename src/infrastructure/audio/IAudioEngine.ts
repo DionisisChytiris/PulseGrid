@@ -30,6 +30,9 @@ export interface IAudioEngine {
   setAccentClickSound(soundId: string): void;
   setBarClickSound(soundId: string): void;
   setSubdivisionClickSound(soundId: string): void;
+  setBarClickVolume(gain: number): void;
+  setAccentClickVolume(gain: number): void;
+  setNormalClickVolume(gain: number): void;
   setSubdivisionAccentMode(mode: string): void;
   setSubdivisionAccentEveryNth(value: number): void;
   setSubdivisionAccentPattern(pattern: boolean[]): void;
