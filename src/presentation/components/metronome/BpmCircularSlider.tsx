@@ -32,6 +32,8 @@ type BpmCircularSliderProps = {
   /** Corona effect is visual-only and should be triggered by press state. */
   coronaActive?: boolean;
   coronaColor?: string;
+  /** Release fade duration (ms). Stop on iOS uses a shorter value. */
+  coronaFadeOutMs?: number;
   onCenterPress?: () => void;
   onCenterPressIn?: () => void;
   onCenterPressOut?: () => void;
@@ -55,6 +57,7 @@ export function BpmCircularSlider({
   diameterScale = 1,
   coronaActive = false,
   coronaColor = '#00FF66',
+  coronaFadeOutMs = 280,
   onCenterPress,
   onCenterPressIn,
   onCenterPressOut,
@@ -271,6 +274,7 @@ export function BpmCircularSlider({
         <EclipseCoronaGlow
           active={coronaActive}
           color={coronaColor}
+          fadeOutMs={coronaFadeOutMs}
           diameter={diameter}
           strokeWidth={strokeWidth}
         />

@@ -10,10 +10,12 @@ type EclipseCoronaGlowProps = {
   color: string;
   diameter: number;
   strokeWidth: number;
+  /** Fade-out duration after release (ms). Stop can use a shorter value on iOS. */
+  fadeOutMs?: number;
 };
 
 const LAYER_COUNT = 14;
-const FADE_MS = 280;
+const DEFAULT_FADE_MS = 280;
 
 /** Soft fade reaches ~100px outside the BPM circle. */
 const OUTER_EXTENT_PX = 100;
@@ -33,10 +35,18 @@ function clamp01(value: number): number {
  * does not wait on mount. `useLayoutEffect` snaps glow opacity to 1 before
  * paint so the first pressed frame is already visible.
  */
-export function EclipseCoronaGlow({ active, color, diameter, strokeWidth }: EclipseCoronaGlowProps) {
+export function EclipseCoronaGlow({
+  active,
+  color,
+  diameter,
+  strokeWidth,
+  fadeOutMs = DEFAULT_FADE_MS,
+}: EclipseCoronaGlowProps) {
   const [fadingOut, setFadingOut] = useState(false);
   const glowOpacity = useRef(new Animated.Value(0)).current;
   const wasActiveRef = useRef(false);
+  const fadeOutMsRef = useRef(fadeOutMs);
+  fadeOutMsRef.current = fadeOutMs;
 
   const showTree = active || fadingOut;
 
@@ -57,7 +67,7 @@ export function EclipseCoronaGlow({ active, color, diameter, strokeWidth }: Ecli
     setFadingOut(true);
     Animated.timing(glowOpacity, {
       toValue: 0,
-      duration: FADE_MS,
+      duration: fadeOutMsRef.current,
       useNativeDriver: true,
     }).start(({ finished }) => {
       if (finished) {

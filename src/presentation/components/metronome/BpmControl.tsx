@@ -37,6 +37,7 @@ export function BpmControl({
   const layout = useResponsiveLayout();
   const [coronaActive, setCoronaActive] = useState(false);
   const [coronaColor, setCoronaColor] = useState('#00FF66');
+  const [coronaFadeOutMs, setCoronaFadeOutMs] = useState(280);
   const isDialDraggingRef = useRef(false);
   const valueRef = useRef(value);
   const bpmAtDragStartRef = useRef(value);
@@ -105,7 +106,10 @@ export function BpmControl({
   const handleTransportPressIn = () => {
     // Color depends on which control is currently shown (play vs stop),
     // but the effect itself only exists while pressed.
-    setCoronaColor(isPlaying ? '#C44DFF' : '#00FF66');
+    const stopping = isPlaying;
+    setCoronaColor(stopping ? '#C44DFF' : '#00FF66');
+    // iOS Stop only: faster fade-out. Play (and Android) keep the softer 280 ms fade.
+    setCoronaFadeOutMs(Platform.OS === 'ios' && stopping ? 100 : 280);
     setCoronaActive(true);
     bpmAtHoldStartRef.current = valueRef.current;
 
@@ -132,6 +136,7 @@ export function BpmControl({
         onValueChange={onValueChange}
         coronaActive={coronaActive}
         coronaColor={coronaColor}
+        coronaFadeOutMs={coronaFadeOutMs}
         diameterScale={diameterScale}
         onCenterPress={onTransportPress}
         onCenterPressIn={handleTransportPressIn}

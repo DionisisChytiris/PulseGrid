@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   addBarToSong,
@@ -17,6 +17,12 @@ import type { Song } from '../../domain/music/Song';
 import { songRepository } from '../../domain/music/storage';
 import { AnalyticsService } from '../../services/AnalyticsService';
 import {
+  applyCompletedSave,
+  applyEditorMutation,
+  createSongEditorViewState,
+  type SongEditorViewState,
+} from './songEditorSaveState';
+import {
   setSegmentAccentPattern,
   setSegmentAccentPreset,
   setSegmentBarCount,
@@ -28,10 +34,12 @@ import {
 } from '../../components/songTimeline';
 
 export function useSongEditor(songId: string) {
-  const [song, setSong] = useState<Song | null>(null);
+  const [editor, setEditor] = useState<SongEditorViewState>(() => createSongEditorViewState(null));
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const generationRef = useRef(0);
+  const inFlightSavesRef = useRef(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -40,12 +48,15 @@ export function useSongEditor(songId: string) {
     try {
       const loaded = await songRepository.getSongById(songId);
       if (loaded === null) {
+        generationRef.current = 0;
+        setEditor(createSongEditorViewState(null));
         setError('Timeline not found');
-        setSong(null);
         return;
       }
 
-      setSong(cloneEditableSong(loaded));
+      const next = createSongEditorViewState(cloneEditableSong(loaded));
+      generationRef.current = next.generation;
+      setEditor(next);
       AnalyticsService.logTimelineOpened(loaded.id === 'demo-timeline-song');
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Failed to load timeline');
@@ -58,37 +69,42 @@ export function useSongEditor(songId: string) {
     void load();
   }, [load]);
 
-  const persist = useCallback(async (nextSong: Song) => {
+  const persist = useCallback(async (nextSong: Song, saveGeneration: number) => {
+    inFlightSavesRef.current += 1;
     setSaving(true);
     setError(null);
 
     try {
       const saved = await songRepository.updateSong(nextSong);
-      setSong(cloneEditableSong(saved));
+      setEditor((current) => applyCompletedSave(current, saveGeneration, saved));
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Failed to save timeline');
+      if (saveGeneration === generationRef.current) {
+        setError(saveError instanceof Error ? saveError.message : 'Failed to save timeline');
+      }
     } finally {
-      setSaving(false);
+      inFlightSavesRef.current -= 1;
+      if (inFlightSavesRef.current === 0) {
+        setSaving(false);
+      }
     }
   }, []);
 
   const applyAndSave = useCallback(
     (updater: (current: Song) => Song) => {
-      setSong((current) => {
-        if (current === null) {
-          return current;
+      setEditor((current) => {
+        const result = applyEditorMutation(current, updater);
+        generationRef.current = result.state.generation;
+        if (result.persistSong !== null) {
+          void persist(result.persistSong, result.saveGeneration);
         }
-
-        const next = updater(current);
-        void persist(next);
-        return next;
+        return result.state;
       });
     },
     [persist],
   );
 
   return {
-    song,
+    song: editor.song,
     loading,
     saving,
     error,

@@ -3,9 +3,9 @@ export type EclipseCoronaGlowProps = {
   color: string;
   diameter: number;
   strokeWidth: number;
+  fadeOutMs?: number;
 };
 
 export declare function EclipseCoronaGlow(
   props: EclipseCoronaGlowProps,
 ): JSX.Element | null;
-
