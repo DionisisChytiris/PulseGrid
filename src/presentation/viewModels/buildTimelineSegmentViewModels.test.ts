@@ -1,3 +1,4 @@
+import { createSectionAtBar, removeSectionAtBar } from '../../domain/music/editor';
 import { createAccentPatternSteps } from '../../domain/music/AccentPattern';
 import { createBar } from '../../domain/music/Bar';
 import { createMeter } from '../../domain/music/Meter';
@@ -237,7 +238,7 @@ describe('buildTimelineSegmentViewModels section visuals', () => {
     const [segment] = buildTimelineSegmentViewModels(song);
     expect(segment?.isSectionStart).toBe(true);
     expect(segment?.sectionColorIndex).toBe(0);
-    expect(sectionNameForBar(segment!.sectionName, segment!.isSectionStart, 0)).toBeNull();
+    expect(sectionNameForBar(segment!.sectionName, segment!.isSectionStart, 0, segment!.showSectionVisuals)).toBeNull();
   });
 
   it('cycles colour indices when a song has more than five sections', () => {
@@ -256,6 +257,38 @@ describe('buildTimelineSegmentViewModels section visuals', () => {
     const segments = buildTimelineSegmentViewModels(song);
     expect(segments.map((segment) => segment.sectionColorIndex)).toEqual([0, 1, 2, 3, 4, 5]);
     expect(sectionTrackColor(5)).toBe(sectionTrackColor(0));
+  });
+
+  it('renders no section visuals after removing the only explicit section', () => {
+    let song = createSong({
+      id: 'remove',
+      name: 'Remove',
+      sections: [
+        createSection({
+          id: 'main',
+          name: 'Main',
+          bars: [bar('a', 4), bar('b', 4)],
+        }),
+      ],
+    });
+
+    song = createSectionAtBar(song, 0, 'Intro');
+    let segments = buildTimelineSegmentViewModels(song);
+    expect(segments[0]?.showSectionVisuals).toBe(true);
+
+    song = removeSectionAtBar(song, 0);
+    segments = buildTimelineSegmentViewModels(song);
+    expect(segments[0]?.showSectionVisuals).toBe(false);
+    expect(segments[0]?.sectionName).toBe('Main');
+    expect(
+      sectionNameForBar(
+        segments[0]!.sectionName,
+        segments[0]!.isSectionStart,
+        0,
+        segments[0]!.showSectionVisuals,
+      ),
+    ).toBeNull();
+    expect(shouldRenderSectionStrip(segments[0]!.showSectionVisuals)).toBe(false);
   });
 
   it('does not change section fields while playing', () => {

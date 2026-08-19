@@ -20,6 +20,80 @@ export function sectionTrackColor(sectionColorIndex: number): string {
   return palette[wrapped]!;
 }
 
+/** Opaque label colours paired with SECTION_TRACK_COLORS for navigator text accents. */
+export const SECTION_TRACK_LABEL_COLORS = [
+  'rgb(59, 158, 255)', // blue
+  'rgb(52, 199, 89)', // green
+  'rgb(255, 159, 10)', // orange
+  'rgb(175, 82, 222)', // purple
+  'rgb(50, 173, 178)', // teal
+] as const;
+
+export function sectionTrackLabelColor(sectionColorIndex: number): string {
+  const palette = SECTION_TRACK_LABEL_COLORS;
+  const wrapped =
+    ((sectionColorIndex % palette.length) + palette.length) % palette.length;
+  return palette[wrapped]!;
+}
+
+type SectionLike = {
+  readonly id: string;
+  readonly name: string;
+  readonly bars: readonly unknown[];
+};
+
+function isNavigatorVisibleSection(name: string): boolean {
+  const trimmed = name.trim();
+  return trimmed.length > 0 && trimmed !== IMPLICIT_SECTION_NAME;
+}
+
+/** Matches Timeline segment colour assignment — first non-empty section id in score order. */
+export function buildSectionColorIndexById(
+  sections: readonly SectionLike[],
+): ReadonlyMap<string, number> {
+  const map = new Map<string, number>();
+
+  for (const section of sections) {
+    if (section.bars.length === 0) {
+      continue;
+    }
+    if (!map.has(section.id)) {
+      map.set(section.id, map.size);
+    }
+  }
+
+  return map;
+}
+
+export type SectionNavigatorEntry = {
+  readonly name: string;
+  readonly colorIndex: number;
+};
+
+export function explicitSectionNavigatorEntries(
+  sections: readonly SectionLike[],
+): readonly SectionNavigatorEntry[] {
+  if (!songHasExplicitSectionVisuals(sections)) {
+    return [];
+  }
+
+  const colorById = buildSectionColorIndexById(sections);
+  const entries: SectionNavigatorEntry[] = [];
+
+  for (const section of sections) {
+    if (section.bars.length === 0 || !isNavigatorVisibleSection(section.name)) {
+      continue;
+    }
+
+    entries.push({
+      name: section.name.trim(),
+      colorIndex: colorById.get(section.id) ?? 0,
+    });
+  }
+
+  return entries;
+}
+
 /** Default name of the implicit section created with a new / legacy timeline. */
 export const IMPLICIT_SECTION_NAME = 'Main';
 
@@ -40,6 +114,18 @@ export function songHasExplicitSectionVisuals(
   }
 
   return only.name.trim() !== IMPLICIT_SECTION_NAME;
+}
+
+export function explicitSectionNavigatorNames(
+  sections: readonly { readonly name: string }[],
+): readonly string[] {
+  if (!songHasExplicitSectionVisuals(sections)) {
+    return [];
+  }
+
+  return sections
+    .map((section) => section.name.trim())
+    .filter((name) => name.length > 0 && name !== IMPLICIT_SECTION_NAME);
 }
 
 export function shouldRenderSectionStrip(showSectionVisuals: boolean): boolean {

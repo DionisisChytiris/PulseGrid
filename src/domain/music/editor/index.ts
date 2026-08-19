@@ -13,6 +13,7 @@ export {
 } from './songEditorMutations';
 export {
   createSectionAtBar,
+  removeSectionAtBar,
   SECTION_NAME_PRESETS,
   type SectionNamePreset,
 } from './createSectionAtBar';

@@ -69,9 +69,14 @@ import {
   REGION_GAP,
   TRACK_HEIGHT,
   barCellWidth,
-  meterRegionWidth,
   parseMeterDenominator,
 } from './signatureTimelineConstants';
+
+import { firstGlobalBarIndexForNavigatorSectionIndex } from './sectionNavigatorScroll';
+import {
+  clampCenteredBarScrollOffset,
+  segmentStride,
+} from './timelineScrollGeometry';
 
 type Props = {
   song: Song;
@@ -86,6 +91,7 @@ type Props = {
   onSegmentDuplicate: (segment: TimelineSegment) => void;
   onSegmentDelete: (segment: TimelineSegment) => string | null;
   onCreateSection: (segment: TimelineSegment, name: string) => void;
+  onRemoveSection: (segment: TimelineSegment) => void;
   onSongDefaultBpmChange: (bpm: number) => void;
   onCountInBarsChange: (bars: CountInBars) => void;
   onPlayFromSegment: (segment: TimelineSegmentViewModel) => void;
@@ -103,6 +109,8 @@ export type SongSignatureTimelineHandle = {
    * animated scroll settles (or a short safety timeout).
    */
   scrollToStart: () => Promise<void>;
+  /** Centers the first bar of a Section Navigator row in the timeline viewport. */
+  scrollToNavigatorSection: (navigatorSectionIndex: number) => void;
 };
 
 type TempoEditFocus = 'song' | 'segment' | null;
@@ -136,14 +144,6 @@ const USE_UI_THREAD_FOLLOW_SCROLL = true;
  * Editing / stopped timeline keeps FlatList when this is true.
  */
 const USE_NON_VIRTUALIZED_PLAYBACK_TIMELINE = true;
-
-function segmentStride(segment: TimelineSegmentViewModel): number {
-  const denominator = parseMeterDenominator(segment.meter);
-  return (
-    meterRegionWidth(segment.numberOfBars, segment.accentPreview.length, denominator) +
-    REGION_GAP
-  );
-}
 
 /**
  * Shared coordinate system: pulse N is anchored at N * beatWidth (on the grid
@@ -211,6 +211,7 @@ export const SongSignatureTimeline = memo(
       onSegmentDuplicate,
       onSegmentDelete,
       onCreateSection,
+      onRemoveSection,
       onSongDefaultBpmChange,
       onCountInBarsChange,
       onPlayFromSegment,
@@ -802,6 +803,27 @@ export const SongSignatureTimeline = memo(
     [segments, scrollContentToOffset],
   );
 
+  const scrollToNavigatorSection = useCallback(
+    (navigatorSectionIndex: number) => {
+      const globalBarIndex = firstGlobalBarIndexForNavigatorSectionIndex(
+        song.sections,
+        navigatorSectionIndex,
+      );
+      if (globalBarIndex === null) {
+        return;
+      }
+
+      const targetOffset = clampCenteredBarScrollOffset(segments, globalBarIndex, viewportWidth);
+      if (targetOffset === null) {
+        return;
+      }
+
+      autoFollowSuspendedUntil.current = Date.now() + AUTO_FOLLOW_SUSPEND_MS;
+      scrollContentToOffset(targetOffset, true);
+    },
+    [scrollContentToOffset, segments, song.sections, viewportWidth],
+  );
+
   useImperativeHandle(
     ref,
     () => ({
@@ -816,8 +838,9 @@ export const SongSignatureTimeline = memo(
         openSegmentEditor(selected);
       },
       scrollToStart,
+      scrollToNavigatorSection,
     }),
-    [segments, openSegmentEditor, scrollToStart],
+    [segments, openSegmentEditor, scrollToNavigatorSection, scrollToStart],
   );
 
   const openSongTempoEditor = useCallback(() => {
@@ -975,7 +998,7 @@ export const SongSignatureTimeline = memo(
               ref={scrollViewRef}
               style={styles.list}
               horizontal
-              showsHorizontalScrollIndicator
+              showsHorizontalScrollIndicator={false}
               decelerationRate="fast"
               onScroll={handleScroll}
               onMomentumScrollEnd={handleMomentumScrollEnd}
@@ -1011,7 +1034,7 @@ export const SongSignatureTimeline = memo(
               }
               ListFooterComponent={addBarControl}
               getItemLayout={getItemLayout}
-              showsHorizontalScrollIndicator
+              showsHorizontalScrollIndicator={false}
               decelerationRate="fast"
               onScroll={handleScroll}
               onMomentumScrollEnd={handleMomentumScrollEnd}
@@ -1104,6 +1127,12 @@ export const SongSignatureTimeline = memo(
             const domain = findDomainSegmentById(song, segmentId);
             if (domain !== null) {
               onCreateSection(domain, name);
+            }
+          }}
+          onRemoveSection={(segmentId) => {
+            const domain = findDomainSegmentById(song, segmentId);
+            if (domain !== null) {
+              onRemoveSection(domain);
             }
           }}
         />

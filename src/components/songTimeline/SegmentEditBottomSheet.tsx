@@ -31,9 +31,13 @@ import {
 } from '../../presentation/components/CustomKeyboard';
 import {
   SegmentEditorRow,
-  type SectionCreateMode,
   type SegmentEditorActiveField,
 } from '../../presentation/components/songSignatureTimeline/SegmentEditorRow';
+import {
+  initialSectionCreateMode,
+  segmentHasEstablishedSection,
+  type SectionCreateMode,
+} from '../../presentation/components/songSignatureTimeline/sectionCreateMode';
 import {
   clampBarCount,
   clampNumerator,
@@ -79,6 +83,7 @@ type Props = {
   onDuplicateSegment: (segmentId: string) => string | null;
   onDeleteSegment: (segmentId: string) => string | null;
   onCreateSection: (segmentId: string, name: string) => void;
+  onRemoveSection: (segmentId: string) => void;
 };
 
 type ActiveEdit = SegmentEditorActiveField & { text: string };
@@ -125,6 +130,7 @@ export function SegmentEditBottomSheet({
   onDuplicateSegment,
   onDeleteSegment,
   onCreateSection,
+  onRemoveSection,
 }: Props) {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -138,6 +144,7 @@ export function SegmentEditBottomSheet({
   const segmentBpmRefs = useRef(new Map<string, TextInput | null>());
   const sectionNameRefs = useRef(new Map<string, TextInput | null>());
   const songBpmInputRef = useRef<TextInput | null>(null);
+  const pendingSectionBarRef = useRef<number | null>(null);
 
   const [activeEdit, setActiveEdit] = useState<ActiveEdit | null>(null);
   const activeEditRef = useRef<ActiveEdit | null>(null);
@@ -204,11 +211,19 @@ export function SegmentEditBottomSheet({
     }
     if (focusSegmentId !== null) {
       setExpandedSegmentId(focusSegmentId);
+      const focused = segments.find((segment) => segment.id === focusSegmentId);
+      setSectionCreateMode(
+        focused === undefined ? 'none' : initialSectionCreateMode(focused),
+      );
       return;
     }
     if (focusTempoEdit === 'song') {
       setExpandedSegmentId(null);
+      setSectionCreateMode('none');
     }
+    // Initialize from the focused bar when the sheet opens — do not re-sync on
+    // every segment mutation while the editor stays open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- segments read once per open/focus
   }, [visible, focusSegmentId, focusTempoEdit]);
 
   const scrollRowIntoView = useCallback((segmentId: string) => {
@@ -226,10 +241,12 @@ export function SegmentEditBottomSheet({
     if (pendingFocusSegmentId === null) {
       return;
     }
-    if (!segments.some((segment) => segment.id === pendingFocusSegmentId)) {
+    const focused = segments.find((segment) => segment.id === pendingFocusSegmentId);
+    if (focused === undefined) {
       return;
     }
     setExpandedSegmentId(pendingFocusSegmentId);
+    setSectionCreateMode(initialSectionCreateMode(focused));
     setPendingFocusSegmentId(null);
     const focusId = pendingFocusSegmentId;
     const handle = requestAnimationFrame(() => {
@@ -249,11 +266,35 @@ export function SegmentEditBottomSheet({
   }, [visible, focusSegmentId, segmentIdsKey, scrollRowIntoView]);
 
   useEffect(() => {
+    if (pendingSectionBarRef.current === null) {
+      return;
+    }
+
+    const globalBarIndex = pendingSectionBarRef.current;
+    const target = segments.find(
+      (segment) =>
+        globalBarIndex >= segment.startBar - 1 && globalBarIndex <= segment.endBar - 1,
+    );
+
+    if (target === undefined) {
+      return;
+    }
+
+    pendingSectionBarRef.current = null;
+    setExpandedSegmentId(target.id);
+    setSectionCreateMode('none');
+    requestAnimationFrame(() => {
+      scrollRowIntoView(target.id);
+    });
+  }, [segments, scrollRowIntoView]);
+
+  useEffect(() => {
     if (expandedSegmentId === null) {
       return;
     }
     if (
       pendingFocusSegmentId === null &&
+      pendingSectionBarRef.current === null &&
       !segments.some((segment) => segment.id === expandedSegmentId)
     ) {
       setExpandedSegmentId(null);
@@ -362,7 +403,7 @@ export function SegmentEditBottomSheet({
     blurActiveInput(current);
     setActiveEdit(null);
     if (current.kind === 'sectionName') {
-      setSectionCreateMode('none');
+      setSectionCreateMode('custom');
     }
   }, [blurActiveInput, commitEdit]);
 
@@ -460,11 +501,15 @@ export function SegmentEditBottomSheet({
           blurActiveInput(edit);
           setActiveEdit(null);
         }
-        setSectionCreateMode('none');
+
+        const segment = segments.find((item) => item.id === segmentId);
+        setSectionCreateMode(
+          segment === undefined ? 'none' : initialSectionCreateMode(segment),
+        );
         return segmentId;
       });
     },
-    [blurActiveInput, commitEdit],
+    [blurActiveInput, commitEdit, segments],
   );
 
   const handleDuplicateSegment = useCallback(
@@ -615,29 +660,51 @@ export function SegmentEditBottomSheet({
 
   const handleSectionCreateModeChange = useCallback(
     (mode: SectionCreateMode) => {
+      const segment =
+        expandedSegmentId === null
+          ? undefined
+          : segments.find((item) => item.id === expandedSegmentId);
+
+      if (segment === undefined) {
+        setSectionCreateMode(mode);
+        return;
+      }
+
+      if (mode === 'none') {
+        discardSectionNameEdit();
+        if (segmentHasEstablishedSection(segment)) {
+          pendingSectionBarRef.current = segment.startBar - 1;
+          onRemoveSection(segment.id);
+        }
+        setSectionCreateMode('none');
+        return;
+      }
+
       if (mode !== 'custom') {
         discardSectionNameEdit();
       }
+
       setSectionCreateMode(mode);
-      if (mode === 'custom' && expandedSegmentId !== null) {
+
+      if (mode === 'custom' && !segmentHasEstablishedSection(segment)) {
         beginEdit({
-          segmentId: expandedSegmentId,
+          segmentId: segment.id,
           kind: 'sectionName',
           text: '',
         });
         requestAnimationFrame(() => {
-          sectionNameRefs.current.get(expandedSegmentId)?.focus();
+          sectionNameRefs.current.get(segment.id)?.focus();
         });
       }
     },
-    [beginEdit, discardSectionNameEdit, expandedSegmentId],
+    [beginEdit, discardSectionNameEdit, expandedSegmentId, onRemoveSection, segments],
   );
 
   const handleSectionPresetSelect = useCallback(
     (segmentId: string, name: string) => {
       discardSectionNameEdit();
       onCreateSection(segmentId, name);
-      setSectionCreateMode('none');
+      setSectionCreateMode('preset');
     },
     [discardSectionNameEdit, onCreateSection],
   );

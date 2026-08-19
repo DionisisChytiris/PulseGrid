@@ -193,6 +193,9 @@ export function SongTimelineView({
         onCreateSection={() => {
           return;
         }}
+        onRemoveSection={() => {
+          return;
+        }}
       />
     </View>
   );

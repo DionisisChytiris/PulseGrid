@@ -10,10 +10,10 @@ import {
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
+import { SECTION_NAME_PRESETS } from '../../../domain/music/editor';
 import type { TimelineSegmentViewModel } from '../../viewModels/TimelineSegmentViewModel';
 import { studioColors } from '../../theme';
 import { AccentPatternToggleRow } from '../metronome/AccentPatternToggleRow';
-import { SECTION_NAME_PRESETS } from '../../../domain/music/editor';
 
 import {
   METER_DENOMINATORS,
@@ -21,15 +21,15 @@ import {
   type MeterDenominator,
 } from './meterPickerValidation';
 import { InlineTempoMarking } from './InlineTempoMarking';
+import type { SectionCreateMode } from './sectionCreateMode';
 
+export type { SectionCreateMode } from './sectionCreateMode';
 export type SegmentEditorActiveField =
   | { segmentId: string; kind: 'numerator' }
   | { segmentId: string; kind: 'barCount' }
   | { segmentId: string; kind: 'segmentBpm' }
   | { segmentId: string; kind: 'sectionName' }
   | { kind: 'songBpm' };
-
-export type SectionCreateMode = 'none' | 'preset' | 'custom';
 
 type Props = {
   segment: TimelineSegmentViewModel;
@@ -130,6 +130,21 @@ export const SegmentEditorRow = memo(function SegmentEditorRow({
   const accentPattern = accentFlagsFromSegment(segment);
   const rangeLabel = barsRangeLabel(segment.startBar, segment.endBar);
   const useSongTempo = segment.bpmOverride === null;
+  const establishedSection =
+    segment.isSectionStart &&
+    segment.showSectionVisuals &&
+    segment.sectionName.trim().length > 0;
+  const showNoneChoice = sectionCreateMode === 'none' || establishedSection;
+  const showPresetChoice =
+    sectionCreateMode === 'none' ||
+    sectionCreateMode === 'preset' ||
+    (establishedSection && sectionCreateMode === 'custom');
+  const showCustomChoice = sectionCreateMode === 'none' || sectionCreateMode === 'custom';
+  const showPresetChips = sectionCreateMode === 'preset' && !establishedSection;
+  const showCustomInput = sectionCreateMode === 'custom' && !establishedSection;
+  const showSectionNameLabel =
+    establishedSection && sectionCreateMode !== 'none';
+  const showSectionRowSpacer = !showPresetChips && !showCustomInput;
 
   return (
     <View
@@ -345,11 +360,29 @@ export const SegmentEditorRow = memo(function SegmentEditorRow({
           <View style={styles.sectionCreateRow}>
             <Text style={styles.sectionCreateLabel}>Create Section:</Text>
 
-            {sectionCreateMode !== 'custom' ? (
+            {showNoneChoice ? (
               <Pressable
-                onPress={() =>
-                  onSectionCreateModeChange(sectionCreateMode === 'preset' ? 'none' : 'preset')
-                }
+                onPress={() => onSectionCreateModeChange('none')}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: sectionCreateMode === 'none' }}
+                accessibilityLabel="No section"
+                style={styles.sectionChoice}
+              >
+                <View
+                  style={[
+                    styles.radioOuter,
+                    sectionCreateMode === 'none' && styles.radioOuterSelected,
+                  ]}
+                >
+                  {sectionCreateMode === 'none' ? <View style={styles.radioInner} /> : null}
+                </View>
+                <Text style={styles.sectionChoiceText}>None</Text>
+              </Pressable>
+            ) : null}
+
+            {showPresetChoice ? (
+              <Pressable
+                onPress={() => onSectionCreateModeChange('preset')}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: sectionCreateMode === 'preset' }}
                 accessibilityLabel="Preset section"
@@ -367,11 +400,9 @@ export const SegmentEditorRow = memo(function SegmentEditorRow({
               </Pressable>
             ) : null}
 
-            {sectionCreateMode !== 'preset' ? (
+            {showCustomChoice ? (
               <Pressable
-                onPress={() =>
-                  onSectionCreateModeChange(sectionCreateMode === 'custom' ? 'none' : 'custom')
-                }
+                onPress={() => onSectionCreateModeChange('custom')}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: sectionCreateMode === 'custom' }}
                 accessibilityLabel="Custom section"
@@ -389,7 +420,7 @@ export const SegmentEditorRow = memo(function SegmentEditorRow({
               </Pressable>
             ) : null}
 
-            {sectionCreateMode === 'preset' ? (
+            {showPresetChips ? (
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -414,7 +445,7 @@ export const SegmentEditorRow = memo(function SegmentEditorRow({
               </ScrollView>
             ) : null}
 
-            {sectionCreateMode === 'custom' ? (
+            {showCustomInput ? (
               <TextInput
                 ref={onRegisterSectionNameInput}
                 style={[styles.sectionNameInput, sectionNameFocused && styles.inputFocused]}
@@ -431,9 +462,9 @@ export const SegmentEditorRow = memo(function SegmentEditorRow({
               />
             ) : null}
 
-            {sectionCreateMode === 'none' ? <View style={styles.sectionCreateSpacer} /> : null}
+            {showSectionRowSpacer ? <View style={styles.sectionCreateSpacer} /> : null}
 
-            {segment.sectionName.length > 0 ? (
+            {showSectionNameLabel ? (
               <Text
                 style={styles.currentSectionName}
                 numberOfLines={1}

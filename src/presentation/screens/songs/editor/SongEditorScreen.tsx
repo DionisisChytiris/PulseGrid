@@ -26,10 +26,12 @@ import { sanitizeSongName, sanitizeSongNameInput } from '../../../../domain/musi
 import { CustomKeyboard } from '../../../components/CustomKeyboard';
 import {
   CountInPreparationOverlay,
+  SectionNavigatorOverlay,
   SongSignatureTimeline,
   SongStatisticsBottomSheet,
   type SongSignatureTimelineHandle,
 } from '../../../components/songSignatureTimeline';
+import { explicitSectionNavigatorEntries } from '../../../components/songSignatureTimeline/sectionTrackVisual';
 import {
   TEMP_ENABLE_FOLLOW_SCROLL_PROFILER,
   followProfiler,
@@ -72,6 +74,7 @@ export default function SongEditorScreen({ navigation, route }: Props) {
     duplicateSegment,
     deleteSegment,
     createSectionAtBar,
+    removeSectionAtBar,
   } = useSongEditor(songId);
 
   const playback = useSongPlayback();
@@ -97,6 +100,32 @@ export default function SongEditorScreen({ navigation, route }: Props) {
     isPaused: playback.isPaused,
     isCountingIn: playback.isCountingIn,
   });
+
+  const sectionNavigatorEntries = useMemo(
+    () => explicitSectionNavigatorEntries(song?.sections ?? []),
+    [song?.sections],
+  );
+
+  const [selectedNavigatorSectionIndex, setSelectedNavigatorSectionIndex] = useState<
+    number | null
+  >(null);
+
+  const selectedNavigatorSectionIndexSafe =
+    selectedNavigatorSectionIndex !== null &&
+    selectedNavigatorSectionIndex < sectionNavigatorEntries.length
+      ? selectedNavigatorSectionIndex
+      : null;
+
+  const showSectionNavigator =
+    !playback.isPlaying &&
+    !playback.isPaused &&
+    !playback.isCountingIn &&
+    sectionNavigatorEntries.length > 0;
+
+  const onSectionNavigatorPress = useCallback((sectionIndex: number) => {
+    setSelectedNavigatorSectionIndex(sectionIndex);
+    timelineRef.current?.scrollToNavigatorSection(sectionIndex);
+  }, []);
 
   const onPlayFromSegment = useCallback(
     (segment: { startBar: number }) => {
@@ -281,6 +310,7 @@ export default function SongEditorScreen({ navigation, route }: Props) {
           onSegmentDuplicate={duplicateSegment}
           onSegmentDelete={deleteSegment}
           onCreateSection={createSectionAtBar}
+          onRemoveSection={removeSectionAtBar}
           onSongDefaultBpmChange={setSongDefaultBpm}
           onCountInBarsChange={setCountInBars}
           onPlayFromSegment={onPlayFromSegment}
@@ -289,6 +319,12 @@ export default function SongEditorScreen({ navigation, route }: Props) {
         />
         {playback.isCountingIn && playback.countIn ? (
           <CountInPreparationOverlay countIn={playback.countIn} />
+        ) : showSectionNavigator ? (
+          <SectionNavigatorOverlay
+            sections={sectionNavigatorEntries}
+            selectedSectionIndex={selectedNavigatorSectionIndexSafe}
+            onSectionPress={onSectionNavigatorPress}
+          />
         ) : null}
       </View>
 

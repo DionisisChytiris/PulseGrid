@@ -13,6 +13,7 @@ export type { SongSignatureTimelineHandle } from './SongSignatureTimeline';
 export { SongStatisticsBottomSheet } from './SongStatisticsBottomSheet';
 export { TimelinePreparationSection } from './TimelinePreparationSection';
 export { CountInPreparationOverlay } from './CountInPreparationOverlay';
+export { SectionNavigatorOverlay } from './SectionNavigatorOverlay';
 export {
   BEAT_GAP,
   BEAT_SIZE,

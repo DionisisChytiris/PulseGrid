@@ -1,9 +1,14 @@
 import { TRACK_HEIGHT } from './signatureTimelineConstants';
 import {
+  SECTION_TRACK_LABEL_COLORS,
   SECTION_TRACK_STRIP_HEIGHT,
+  buildSectionColorIndexById,
+  explicitSectionNavigatorEntries,
+  explicitSectionNavigatorNames,
   sectionNameForBar,
   SECTION_TRACK_COLORS,
   sectionTrackColor,
+  sectionTrackLabelColor,
   shouldRenderSectionStrip,
   songHasExplicitSectionVisuals,
 } from './sectionTrackVisual';
@@ -20,6 +25,14 @@ describe('sectionTrackColor', () => {
   it('cycles when there are more sections than colours', () => {
     expect(sectionTrackColor(5)).toBe(SECTION_TRACK_COLORS[0]);
     expect(sectionTrackColor(7)).toBe(SECTION_TRACK_COLORS[2]);
+  });
+});
+
+describe('sectionTrackLabelColor', () => {
+  it('maps label colours in sync with the track palette', () => {
+    expect(sectionTrackLabelColor(0)).toBe(SECTION_TRACK_LABEL_COLORS[0]);
+    expect(sectionTrackLabelColor(4)).toBe(SECTION_TRACK_LABEL_COLORS[4]);
+    expect(sectionTrackLabelColor(6)).toBe(SECTION_TRACK_LABEL_COLORS[1]);
   });
 });
 
@@ -64,5 +77,66 @@ describe('songHasExplicitSectionVisuals', () => {
     expect(songHasExplicitSectionVisuals([{ name: 'Intro' }])).toBe(true);
     expect(songHasExplicitSectionVisuals([{ name: 'Main' }, { name: 'Verse' }])).toBe(true);
     expect(shouldRenderSectionStrip(true)).toBe(true);
+  });
+});
+
+describe('explicitSectionNavigatorNames', () => {
+  it('returns no names for implicit Main-only songs', () => {
+    expect(explicitSectionNavigatorNames([])).toEqual([]);
+    expect(explicitSectionNavigatorNames([{ name: 'Main' }])).toEqual([]);
+  });
+
+  it('returns explicit section names and hides implicit Main', () => {
+    expect(explicitSectionNavigatorNames([{ name: 'Intro' }])).toEqual(['Intro']);
+    expect(
+      explicitSectionNavigatorNames([
+        { name: 'Main' },
+        { name: 'Exercise 1' },
+        { name: 'Ending' },
+      ]),
+    ).toEqual(['Exercise 1', 'Ending']);
+  });
+
+  it('filters empty names', () => {
+    expect(explicitSectionNavigatorNames([{ name: 'Intro' }, { name: '   ' }])).toEqual(['Intro']);
+  });
+});
+
+describe('explicitSectionNavigatorEntries', () => {
+  it('assigns timeline-aligned colour indices and hides implicit Main', () => {
+    const entries = explicitSectionNavigatorEntries([
+      { id: 'main', name: 'Main', bars: [{ id: 'b1' }] },
+      { id: 'intro', name: 'Intro', bars: [{ id: 'b2' }] },
+      { id: 'verse', name: 'Verse', bars: [{ id: 'b3' }, { id: 'b4' }] },
+    ]);
+
+    expect(entries).toEqual([
+      { name: 'Intro', colorIndex: 1 },
+      { name: 'Verse', colorIndex: 2 },
+    ]);
+  });
+
+  it('matches buildSectionColorIndexById for score order', () => {
+    const sections = [
+      { id: 'a', name: 'Intro', bars: [{ id: '1' }] },
+      { id: 'b', name: 'Verse', bars: [{ id: '2' }] },
+    ];
+    const colorById = buildSectionColorIndexById(sections);
+
+    expect(colorById.get('a')).toBe(0);
+    expect(colorById.get('b')).toBe(1);
+    expect(explicitSectionNavigatorEntries(sections)).toEqual([
+      { name: 'Intro', colorIndex: 0 },
+      { name: 'Verse', colorIndex: 1 },
+    ]);
+  });
+
+  it('skips empty sections for colour assignment', () => {
+    expect(
+      explicitSectionNavigatorEntries([
+        { id: 'empty', name: 'Empty', bars: [] },
+        { id: 'intro', name: 'Intro', bars: [{ id: '1' }] },
+      ]),
+    ).toEqual([{ name: 'Intro', colorIndex: 0 }]);
   });
 });

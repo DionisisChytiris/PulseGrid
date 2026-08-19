@@ -80,3 +80,52 @@ export function createSectionAtBar(song: Song, globalBarIndex: number, name: str
 
   return { ...song, updatedAt: Date.now(), sections };
 }
+
+/**
+ * Removes the section that starts at [globalBarIndex] by merging its bars into
+ * a neighbour section, or reverting a lone explicit section back to implicit Main.
+ * No-op when the bar is not a section start.
+ */
+export function removeSectionAtBar(song: Song, globalBarIndex: number): Song {
+  const located = locateGlobalBar(song, globalBarIndex);
+  if (located === null) {
+    return song;
+  }
+
+  const { sectionIndex, barIndex } = located;
+  if (barIndex !== 0) {
+    return song;
+  }
+
+  const section = song.sections[sectionIndex];
+  if (section === undefined) {
+    return song;
+  }
+
+  const sections = [...song.sections];
+
+  if (sections.length === 1) {
+    if (section.name === 'Main') {
+      return song;
+    }
+
+    sections[0] = { ...section, name: 'Main' };
+    return { ...song, updatedAt: Date.now(), sections };
+  }
+
+  if (sectionIndex === 0) {
+    const next = sections[1]!;
+    sections.splice(0, 2, {
+      ...next,
+      bars: [...section.bars, ...next.bars],
+    });
+    return { ...song, updatedAt: Date.now(), sections };
+  }
+
+  const previous = sections[sectionIndex - 1]!;
+  sections.splice(sectionIndex - 1, 2, {
+    ...previous,
+    bars: [...previous.bars, ...section.bars],
+  });
+  return { ...song, updatedAt: Date.now(), sections };
+}
