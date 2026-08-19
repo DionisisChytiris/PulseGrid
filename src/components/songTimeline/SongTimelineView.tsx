@@ -140,12 +140,16 @@ export function SongTimelineView({
         segments={segments}
         songName={song.name}
         songDefaultBpm={song.defaultBpm}
+        countInBars={0}
         focusSegmentId={focusSegmentId}
         onClose={() => {
           setSegmentEditorVisible(false);
           setFocusSegmentId(null);
         }}
         onSongDefaultBpmChange={onSongDefaultBpmChange}
+        onCountInBarsChange={() => {
+          return;
+        }}
         onBarCountChange={(segmentId, count) => {
           const domain = findDomainSegmentById(song, segmentId);
           if (domain !== null) {
@@ -185,6 +189,9 @@ export function SongTimelineView({
             return null;
           }
           return onSegmentDelete(domain);
+        }}
+        onCreateSection={() => {
+          return;
         }}
       />
     </View>

@@ -13,6 +13,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import type { TimelineSegmentViewModel } from '../../viewModels/TimelineSegmentViewModel';
 import { studioColors } from '../../theme';
 import { AccentPatternToggleRow } from '../metronome/AccentPatternToggleRow';
+import { SECTION_NAME_PRESETS } from '../../../domain/music/editor';
 
 import {
   METER_DENOMINATORS,
@@ -25,7 +26,10 @@ export type SegmentEditorActiveField =
   | { segmentId: string; kind: 'numerator' }
   | { segmentId: string; kind: 'barCount' }
   | { segmentId: string; kind: 'segmentBpm' }
+  | { segmentId: string; kind: 'sectionName' }
   | { kind: 'songBpm' };
+
+export type SectionCreateMode = 'none' | 'preset' | 'custom';
 
 type Props = {
   segment: TimelineSegmentViewModel;
@@ -50,7 +54,13 @@ type Props = {
   onRegisterNumeratorInput: (ref: TextInputType | null) => void;
   onRegisterBarCountInput: (ref: TextInputType | null) => void;
   onRegisterSegmentBpmInput: (ref: TextInputType | null) => void;
+  onRegisterSectionNameInput: (ref: TextInputType | null) => void;
   onLayoutY: (y: number, height: number) => void;
+  sectionCreateMode: SectionCreateMode;
+  sectionNameText: string;
+  onSectionCreateModeChange: (mode: SectionCreateMode) => void;
+  onSectionPresetSelect: (name: string) => void;
+  onSectionNameFocus: () => void;
 };
 
 function barsRangeLabel(startBar: number, endBar: number): string {
@@ -92,7 +102,13 @@ export const SegmentEditorRow = memo(function SegmentEditorRow({
   onRegisterNumeratorInput,
   onRegisterBarCountInput,
   onRegisterSegmentBpmInput,
+  onRegisterSectionNameInput,
   onLayoutY,
+  sectionCreateMode,
+  sectionNameText,
+  onSectionCreateModeChange,
+  onSectionPresetSelect,
+  onSectionNameFocus,
 }: Props) {
   const numeratorFocused =
     activeField?.kind === 'numerator' &&
@@ -104,6 +120,10 @@ export const SegmentEditorRow = memo(function SegmentEditorRow({
     activeField.segmentId === segment.id;
   const segmentBpmFocused =
     activeField?.kind === 'segmentBpm' &&
+    'segmentId' in activeField &&
+    activeField.segmentId === segment.id;
+  const sectionNameFocused =
+    activeField?.kind === 'sectionName' &&
     'segmentId' in activeField &&
     activeField.segmentId === segment.id;
   const denominator = parseDenominatorFromMeter(segment.meter);
@@ -246,90 +266,183 @@ export const SegmentEditorRow = memo(function SegmentEditorRow({
                 onFocus={onBarCountFocus}
               />
             </View>
-          </View>
 
-          <View style={styles.tempoBlock}>
-            <Text style={styles.tempoTitle}>Tempo</Text>
-            <View style={styles.tempoActionsRow}>
+            <View style={styles.editorRowSpacer} />
+
+            <View style={styles.segmentActionButtons}>
               <Pressable
-                onPress={() => onUseSongTempoChange(!useSongTempo)}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: useSongTempo }}
-                accessibilityLabel={
-                  useSongTempo
-                    ? `Use timeline tempo ${songDefaultBpm} BPM`
-                    : 'Use timeline tempo'
-                }
-                style={styles.tempoCheckRow}
+                onPress={onDuplicate}
+                hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel="Duplicate segment"
+                style={({ pressed }) => [
+                  styles.segmentActionButton,
+                  pressed && styles.segmentActionPressed,
+                ]}
               >
-                <View style={[styles.checkbox, useSongTempo && styles.checkboxChecked]}>
-                  {useSongTempo ? <Text style={styles.checkmark}>✓</Text> : null}
-                </View>
-                <Text style={styles.tempoCheckLabel} numberOfLines={1}>
-                  {useSongTempo
-                    ? `Use Timeline Tempo (${songDefaultBpm} BPM)`
-                    : 'Use Timeline Tempo'}
-                </Text>
+                <Ionicons name="copy-outline" size={16} color={studioColors.accent} />
+                <Text style={styles.duplicateActionText}>Duplicate</Text>
               </Pressable>
 
-              <View style={styles.segmentActionButtons}>
+              {canDelete && onDelete !== undefined ? (
                 <Pressable
-                  onPress={onDuplicate}
+                  onPress={onDelete}
                   hitSlop={6}
                   accessibilityRole="button"
-                  accessibilityLabel="Duplicate segment"
+                  accessibilityLabel="Delete segment"
                   style={({ pressed }) => [
                     styles.segmentActionButton,
                     pressed && styles.segmentActionPressed,
                   ]}
                 >
-                  <Ionicons name="copy-outline" size={16} color={studioColors.accent} />
-                  <Text style={styles.duplicateActionText}>Duplicate</Text>
+                  <Ionicons name="trash-outline" size={16} color={studioColors.danger} />
+                  <Text style={styles.deleteActionText}>Delete</Text>
                 </Pressable>
+              ) : null}
+            </View>
+          </View>
 
-                {canDelete && onDelete !== undefined ? (
+          <View style={styles.tempoRow}>
+            <Text style={styles.tempoTitle}>Tempo:</Text>
+            <Pressable
+              onPress={() => onUseSongTempoChange(!useSongTempo)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: useSongTempo }}
+              accessibilityLabel={
+                useSongTempo
+                  ? `Use timeline tempo ${songDefaultBpm} BPM`
+                  : 'Use timeline tempo'
+              }
+              style={styles.tempoCheckRow}
+            >
+              <View style={[styles.checkbox, useSongTempo && styles.checkboxChecked]}>
+                {useSongTempo ? <Text style={styles.checkmark}>✓</Text> : null}
+              </View>
+              <Text style={styles.tempoCheckLabel} numberOfLines={1}>
+                {useSongTempo ? `Timeline (${songDefaultBpm})` : 'Timeline'}
+              </Text>
+            </Pressable>
+
+            {useSongTempo ? null : (
+              <View style={styles.segmentBpmRow}>
+                <Text style={styles.bpmLabel}>BPM</Text>
+                <TextInput
+                  ref={onRegisterSegmentBpmInput}
+                  style={[styles.segmentBpmInput, segmentBpmFocused && styles.inputFocused]}
+                  value={segmentBpmText}
+                  showSoftInputOnFocus={false}
+                  caretHidden={!segmentBpmFocused}
+                  disableFullscreenUI
+                  selectTextOnFocus
+                  maxLength={3}
+                  accessibilityLabel="Segment BPM override"
+                  onFocus={onSegmentBpmFocus}
+                />
+              </View>
+            )}
+          </View>
+
+          <View style={styles.sectionCreateRow}>
+            <Text style={styles.sectionCreateLabel}>Create Section:</Text>
+
+            {sectionCreateMode !== 'custom' ? (
+              <Pressable
+                onPress={() =>
+                  onSectionCreateModeChange(sectionCreateMode === 'preset' ? 'none' : 'preset')
+                }
+                accessibilityRole="radio"
+                accessibilityState={{ selected: sectionCreateMode === 'preset' }}
+                accessibilityLabel="Preset section"
+                style={styles.sectionChoice}
+              >
+                <View
+                  style={[
+                    styles.radioOuter,
+                    sectionCreateMode === 'preset' && styles.radioOuterSelected,
+                  ]}
+                >
+                  {sectionCreateMode === 'preset' ? <View style={styles.radioInner} /> : null}
+                </View>
+                <Text style={styles.sectionChoiceText}>Preset</Text>
+              </Pressable>
+            ) : null}
+
+            {sectionCreateMode !== 'preset' ? (
+              <Pressable
+                onPress={() =>
+                  onSectionCreateModeChange(sectionCreateMode === 'custom' ? 'none' : 'custom')
+                }
+                accessibilityRole="radio"
+                accessibilityState={{ selected: sectionCreateMode === 'custom' }}
+                accessibilityLabel="Custom section"
+                style={styles.sectionChoice}
+              >
+                <View
+                  style={[
+                    styles.radioOuter,
+                    sectionCreateMode === 'custom' && styles.radioOuterSelected,
+                  ]}
+                >
+                  {sectionCreateMode === 'custom' ? <View style={styles.radioInner} /> : null}
+                </View>
+                <Text style={styles.sectionChoiceText}>Custom</Text>
+              </Pressable>
+            ) : null}
+
+            {sectionCreateMode === 'preset' ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                style={styles.presetScroll}
+                contentContainerStyle={styles.presetScrollContent}
+              >
+                {SECTION_NAME_PRESETS.map((name) => (
                   <Pressable
-                    onPress={onDelete}
-                    hitSlop={6}
+                    key={name}
+                    onPress={() => onSectionPresetSelect(name)}
                     accessibilityRole="button"
-                    accessibilityLabel="Delete segment"
+                    accessibilityLabel={`Create ${name} section`}
                     style={({ pressed }) => [
-                      styles.segmentActionButton,
+                      styles.presetChip,
                       pressed && styles.segmentActionPressed,
                     ]}
                   >
-                    <Ionicons name="trash-outline" size={16} color={studioColors.danger} />
-                    <Text style={styles.deleteActionText}>Delete</Text>
+                    <Text style={styles.presetChipText}>{name}</Text>
                   </Pressable>
-                ) : null}
-              </View>
-            </View>
+                ))}
+              </ScrollView>
+            ) : null}
 
-            <View style={[styles.segmentBpmRow, useSongTempo && styles.segmentBpmRowDisabled]}>
-              <Text style={[styles.bpmLabel, useSongTempo && styles.bpmLabelDisabled]}>BPM:</Text>
+            {sectionCreateMode === 'custom' ? (
               <TextInput
-                ref={onRegisterSegmentBpmInput}
-                style={[
-                  styles.segmentBpmInput,
-                  segmentBpmFocused && styles.inputFocused,
-                  useSongTempo && styles.segmentBpmInputDisabled,
-                ]}
-                value={useSongTempo ? String(songDefaultBpm) : segmentBpmText}
-                editable={!useSongTempo}
+                ref={onRegisterSectionNameInput}
+                style={[styles.sectionNameInput, sectionNameFocused && styles.inputFocused]}
+                value={sectionNameText}
                 showSoftInputOnFocus={false}
-                caretHidden={!segmentBpmFocused}
+                caretHidden={!sectionNameFocused}
                 disableFullscreenUI
                 selectTextOnFocus
-                maxLength={3}
-                accessibilityLabel="Segment BPM override"
-                accessibilityState={{ disabled: useSongTempo }}
-                onFocus={() => {
-                  if (!useSongTempo) {
-                    onSegmentBpmFocus();
-                  }
-                }}
+                maxLength={18}
+                placeholder="Section name"
+                placeholderTextColor={studioColors.textMuted}
+                accessibilityLabel="Custom section name"
+                onFocus={onSectionNameFocus}
               />
-            </View>
+            ) : null}
+
+            {sectionCreateMode === 'none' ? <View style={styles.sectionCreateSpacer} /> : null}
+
+            {segment.sectionName.length > 0 ? (
+              <Text
+                style={styles.currentSectionName}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+                accessibilityLabel={`Section ${segment.sectionName}`}
+              >
+                {segment.sectionName}
+              </Text>
+            ) : null}
           </View>
         </View>
       ) : null}
@@ -421,8 +534,8 @@ const styles = StyleSheet.create({
     paddingRight: 4,
   },
   editorBlock: {
-    gap: 12,
-    paddingBottom: 12,
+    gap: 8,
+    paddingBottom: 8,
     paddingHorizontal: 4,
   },
   editorRow: {
@@ -495,7 +608,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
-    marginLeft: 28,
+    marginLeft: 12,
     flexShrink: 0,
   },
   multiply: {
@@ -518,30 +631,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
     paddingVertical: 0,
   },
-  tempoBlock: {
+  editorRowSpacer: {
+    flex: 1,
+    minWidth: 8,
+  },
+  tempoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
-    paddingTop: 2,
+    minHeight: 40,
   },
   tempoTitle: {
     fontSize: 13,
     fontWeight: '700',
     color: studioColors.textSecondary,
     letterSpacing: 0.3,
+    flexShrink: 0,
   },
-  tempoActionsRow: {
+  tempoCheckRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    minHeight: 40,
-  },
-  tempoCheckRow: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
     minHeight: 36,
-    minWidth: 0,
-    paddingRight: 8,
+    flexShrink: 0,
+    paddingRight: 4,
   },
   checkbox: {
     width: 22,
@@ -600,19 +713,13 @@ const styles = StyleSheet.create({
   segmentBpmRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingLeft: 32,
-  },
-  segmentBpmRowDisabled: {
-    opacity: 0.45,
+    gap: 6,
+    marginLeft: 4,
   },
   bpmLabel: {
     fontSize: 14,
     fontWeight: '600',
     color: studioColors.textSecondary,
-  },
-  bpmLabelDisabled: {
-    color: studioColors.textMuted,
   },
   segmentBpmInput: {
     width: 64,
@@ -629,7 +736,97 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     paddingVertical: 0,
   },
-  segmentBpmInputDisabled: {
+  sectionCreateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minHeight: 40,
+  },
+  sectionCreateLabel: {
+    fontSize: 13,
+    fontWeight: '700',
     color: studioColors.textSecondary,
+    flexShrink: 0,
+  },
+  sectionChoice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 36,
+    flexShrink: 0,
+  },
+  radioOuter: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: studioColors.border,
+    backgroundColor: studioColors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioOuterSelected: {
+    borderColor: studioColors.accent,
+  },
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: studioColors.accent,
+  },
+  sectionChoiceText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: studioColors.textPrimary,
+  },
+  presetScroll: {
+    flex: 1,
+    minWidth: 0,
+  },
+  presetScrollContent: {
+    alignItems: 'center',
+    gap: 6,
+    paddingRight: 4,
+  },
+  presetChip: {
+    minHeight: 36,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: studioColors.background,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: studioColors.border,
+  },
+  presetChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: studioColors.textPrimary,
+  },
+  sectionNameInput: {
+    flex: 1,
+    minWidth: 0,
+    height: 40,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: studioColors.border,
+    backgroundColor: studioColors.background,
+    color: studioColors.textPrimary,
+    fontSize: 16,
+    fontWeight: '600',
+    paddingHorizontal: 10,
+    paddingVertical: 0,
+  },
+  sectionCreateSpacer: {
+    flex: 1,
+    minWidth: 8,
+  },
+  currentSectionName: {
+    flexShrink: 1,
+    maxWidth: 140,
+    fontSize: 13,
+    fontWeight: '600',
+    color: studioColors.textSecondary,
+    textAlign: 'right',
   },
 });

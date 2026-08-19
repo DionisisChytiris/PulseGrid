@@ -85,6 +85,7 @@ type Props = {
   onSegmentAccentPatternChange: (segment: TimelineSegment, pattern: boolean[]) => void;
   onSegmentDuplicate: (segment: TimelineSegment) => void;
   onSegmentDelete: (segment: TimelineSegment) => string | null;
+  onCreateSection: (segment: TimelineSegment, name: string) => void;
   onSongDefaultBpmChange: (bpm: number) => void;
   onCountInBarsChange: (bars: CountInBars) => void;
   onPlayFromSegment: (segment: TimelineSegmentViewModel) => void;
@@ -209,6 +210,7 @@ export const SongSignatureTimeline = memo(
       onSegmentAccentPatternChange,
       onSegmentDuplicate,
       onSegmentDelete,
+      onCreateSection,
       onSongDefaultBpmChange,
       onCountInBarsChange,
       onPlayFromSegment,
@@ -1097,6 +1099,12 @@ export const SongSignatureTimeline = memo(
               return null;
             }
             return onSegmentDelete(domain);
+          }}
+          onCreateSection={(segmentId, name) => {
+            const domain = findDomainSegmentById(song, segmentId);
+            if (domain !== null) {
+              onCreateSection(domain, name);
+            }
           }}
         />
         <NewBarMeterDialog

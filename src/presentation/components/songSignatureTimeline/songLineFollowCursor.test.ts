@@ -17,7 +17,11 @@ function makeSegments(
   return bars.map((bar, index) => ({
     id: `seg-${index}`,
     title: '',
+    sectionId: 'main',
     sectionName: 'Main',
+    isSectionStart: index === 0,
+    sectionColorIndex: 0,
+    showSectionVisuals: false,
     meter: `${bar.beats}/4`,
     numberOfBars: bar.end - bar.start + 1,
     startBar: bar.start + 1,

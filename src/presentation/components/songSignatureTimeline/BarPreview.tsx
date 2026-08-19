@@ -1,5 +1,5 @@
 import { memo, useMemo } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { AccentPreviewBeat } from '../../viewModels/TimelineSegmentViewModel';
 import { studioColors } from '../../theme';
@@ -28,6 +28,8 @@ type Props = {
   currentBeatIndex?: number;
   /** Tempo change marking — shown in the unused top space of this bar only. */
   tempoBpm?: number | null;
+  /** Section name — shown in the unused lower-left space of the section's first bar. */
+  sectionName?: string | null;
   onTempoPress?: () => void;
   /** Idle accent-dot colour for this tempo region (from getTempoMarkingColor). */
   accentColor?: string;
@@ -51,6 +53,7 @@ export const BarPreview = memo(function BarPreview({
   isPlaying = false,
   currentBeatIndex = -1,
   tempoBpm = null,
+  sectionName = null,
   onTempoPress,
   accentColor,
 }: Props) {
@@ -126,6 +129,17 @@ export const BarPreview = memo(function BarPreview({
           );
         })}
       </View>
+
+      {sectionName !== null && sectionName.length > 0 ? (
+        <Text
+          pointerEvents="none"
+          style={styles.sectionName}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
+          {sectionName}
+        </Text>
+      ) : null}
     </View>
   );
 });
@@ -165,6 +179,18 @@ const styles = StyleSheet.create({
     left: 5,
     right: 2,
     zIndex: 2,
+  },
+  /** Section name sits in unused space below the beat dots; bar geometry unchanged. */
+  sectionName: {
+    position: 'absolute',
+    bottom: 3,
+    left: 5,
+    right: 2,
+    zIndex: 2,
+    fontSize: 11,
+    fontWeight: '700',
+    color: studioColors.textMuted,
+    letterSpacing: 0.2,
   },
   pulseLayer: {
     ...StyleSheet.absoluteFillObject,

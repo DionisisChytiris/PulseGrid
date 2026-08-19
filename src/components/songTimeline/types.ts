@@ -13,4 +13,6 @@ export type TimelineSegment = {
   /** Optional metadata — first uniform BPM in segment, or null. */
   readonly bpmOverride: number | null;
   readonly accentPattern: SongAccentPattern;
+  readonly sectionId: string;
+  readonly sectionName: string;
 };

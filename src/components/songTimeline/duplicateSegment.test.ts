@@ -4,6 +4,7 @@ import { createMeter } from '../../domain/music/Meter';
 import { createSection } from '../../domain/music/Section';
 import { createSong } from '../../domain/music/Song';
 import { createTempoDefinitionForMeter } from '../../domain/music/TempoDefinition';
+import { createSectionAtBar } from '../../domain/music/editor/createSectionAtBar';
 
 import { buildTimelineSegments } from './buildTimelineSegments';
 import { deleteSegment, duplicateSegment } from './segmentSongMutations';
@@ -181,5 +182,80 @@ describe('deleteSegment', () => {
     const result = deleteSegment(song, only);
     expect(result.blockedReason).toBe('Every timeline must contain at least one segment.');
     expect(result.song).toBe(song);
+  });
+});
+
+describe('createSectionAtBar timeline segments', () => {
+  it('keeps all bars visible after splitting a section', () => {
+    const four = createMeter(4, 4);
+    const song = createSong({
+      id: 'song',
+      name: 'Song',
+      sections: [
+        createSection({
+          id: 'main',
+          name: 'Main',
+          bars: [
+            createBar({
+              id: 'a',
+              meter: four,
+              accentPattern: createAccentPatternSteps([true, false, false, false]),
+            }),
+            createBar({
+              id: 'b',
+              meter: four,
+              accentPattern: createAccentPatternSteps([true, false, false, false]),
+            }),
+            createBar({
+              id: 'c',
+              meter: four,
+              accentPattern: createAccentPatternSteps([true, false, false, false]),
+            }),
+          ],
+        }),
+      ],
+    });
+
+    const next = createSectionAtBar(song, 1, 'Verse');
+    const segments = buildTimelineSegments(next);
+
+    expect(segments.map((segment) => segment.sectionName)).toEqual(['Main', 'Verse']);
+    expect(segments.flatMap((segment) => [...segment.barIds])).toEqual(['a', 'b', 'c']);
+  });
+
+  it('includes bars from every existing song section', () => {
+    const four = createMeter(4, 4);
+    const song = createSong({
+      id: 'song',
+      name: 'Song',
+      sections: [
+        createSection({
+          id: 'intro',
+          name: 'Intro',
+          bars: [
+            createBar({
+              id: 'a',
+              meter: four,
+              accentPattern: createAccentPatternSteps([true, false, false, false]),
+            }),
+          ],
+        }),
+        createSection({
+          id: 'verse',
+          name: 'Verse',
+          bars: [
+            createBar({
+              id: 'b',
+              meter: four,
+              accentPattern: createAccentPatternSteps([true, false, false, false]),
+            }),
+          ],
+        }),
+      ],
+    });
+
+    const segments = buildTimelineSegments(song);
+    expect(segments.map((segment) => segment.sectionName)).toEqual(['Intro', 'Verse']);
+    expect(segments.flatMap((segment) => [...segment.barIds])).toEqual(['a', 'b']);
   });
 });

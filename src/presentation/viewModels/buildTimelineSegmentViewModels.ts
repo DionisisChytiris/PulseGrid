@@ -1,6 +1,7 @@
 import { buildTimelineSegments } from '../../components/songTimeline/buildTimelineSegments';
 import type { TimelineSegment } from '../../components/songTimeline/types';
 import type { Song } from '../../domain/music/Song';
+import { songHasExplicitSectionVisuals } from '../components/songSignatureTimeline/sectionTrackVisual';
 
 import { buildAccentPreview } from './buildAccentPreview';
 import { circledBarLabel } from './circledBarLabel';
@@ -24,11 +25,23 @@ export function buildTimelineSegmentViewModels(
   song: Song,
   playback?: TimelinePlaybackContext,
 ): TimelineSegmentViewModel[] {
-  const sectionName = song.sections[0]?.name ?? 'Main';
   const domainSegments = buildTimelineSegments(song);
+  const showSectionVisuals = songHasExplicitSectionVisuals(song.sections);
+  const colorIndexBySectionId = new Map<string, number>();
 
-  return domainSegments.map((segment) =>
-    toViewModel(segment, sectionName, playback),
+  for (const segment of domainSegments) {
+    if (!colorIndexBySectionId.has(segment.sectionId)) {
+      colorIndexBySectionId.set(segment.sectionId, colorIndexBySectionId.size);
+    }
+  }
+
+  return domainSegments.map((segment, index) =>
+    toViewModel(segment, playback, {
+      isSectionStart:
+        index === 0 || domainSegments[index - 1]!.sectionId !== segment.sectionId,
+      sectionColorIndex: colorIndexBySectionId.get(segment.sectionId) ?? 0,
+      showSectionVisuals,
+    }),
   );
 }
 
@@ -38,8 +51,12 @@ export function findDomainSegmentById(song: Song, segmentId: string): TimelineSe
 
 function toViewModel(
   segment: TimelineSegment,
-  sectionName: string,
   playback: TimelinePlaybackContext | undefined,
+  sectionVisual: {
+    isSectionStart: boolean;
+    sectionColorIndex: number;
+    showSectionVisuals: boolean;
+  },
 ): TimelineSegmentViewModel {
   const isActive =
     playback !== undefined &&
@@ -65,7 +82,11 @@ function toViewModel(
   return {
     id: segment.id,
     title: `${segment.numberOfBars} bars | ${segment.meterLabel}`,
-    sectionName,
+    sectionId: segment.sectionId,
+    sectionName: segment.sectionName,
+    isSectionStart: sectionVisual.isSectionStart,
+    sectionColorIndex: sectionVisual.sectionColorIndex,
+    showSectionVisuals: sectionVisual.showSectionVisuals,
     meter: segment.meterLabel,
     numberOfBars: segment.numberOfBars,
     startBar: segment.startBarIndex + 1,

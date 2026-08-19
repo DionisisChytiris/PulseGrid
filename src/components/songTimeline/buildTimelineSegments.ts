@@ -25,47 +25,56 @@ function sameSignature(a: Meter, b: Meter): boolean {
 
 /**
  * Groups consecutive bars into Signature Track / Edit Segment regions.
- * A new region starts when the meter changes, or after a bar marked
- * `segmentBreakAfter` (used so duplicated same-meter runs stay separate).
+ * A new region starts when the meter changes, after a bar marked
+ * `segmentBreakAfter`, or at a Song.sections boundary.
  * Pure UI derivation — does not affect playback or scheduling.
  */
 export function buildTimelineSegments(song: Song): TimelineSegment[] {
-  const bars = song.sections[0]?.bars ?? [];
-  if (bars.length === 0) {
-    return [];
-  }
-
   const segments: TimelineSegment[] = [];
-  let runStart = 0;
+  let globalIndex = 0;
 
-  const pushSegment = (start: number, end: number) => {
-    const slice = bars.slice(start, end + 1);
-    const meter = slice[0].meter;
-
-    segments.push({
-      id: `seg-${start}`,
-      startBarIndex: start,
-      endBarIndex: end,
-      numberOfBars: slice.length,
-      meter,
-      meterLabel: formatMeter(meter),
-      barIds: slice.map((bar) => bar.id),
-      bpmOverride: segmentBpmOverride(slice),
-      accentPattern: slice[0].accentPattern,
-    });
-  };
-
-  for (let index = 1; index <= bars.length; index += 1) {
-    const prevBar = bars[index - 1];
-    const atEnd = index === bars.length;
-    const signatureChanged =
-      !atEnd && !sameSignature(prevBar.meter, bars[index].meter);
-    const forcedBreak = prevBar.segmentBreakAfter === true;
-
-    if (atEnd || signatureChanged || forcedBreak) {
-      pushSegment(runStart, index - 1);
-      runStart = index;
+  for (const section of song.sections) {
+    const bars = section.bars;
+    if (bars.length === 0) {
+      continue;
     }
+
+    let runStart = 0;
+
+    const pushSegment = (start: number, end: number) => {
+      const slice = bars.slice(start, end + 1);
+      const meter = slice[0].meter;
+      const startBarIndex = globalIndex + start;
+
+      segments.push({
+        id: `seg-${startBarIndex}`,
+        startBarIndex,
+        endBarIndex: globalIndex + end,
+        numberOfBars: slice.length,
+        meter,
+        meterLabel: formatMeter(meter),
+        barIds: slice.map((bar) => bar.id),
+        bpmOverride: segmentBpmOverride(slice),
+        accentPattern: slice[0].accentPattern,
+        sectionId: section.id,
+        sectionName: section.name,
+      });
+    };
+
+    for (let index = 1; index <= bars.length; index += 1) {
+      const prevBar = bars[index - 1];
+      const atEnd = index === bars.length;
+      const signatureChanged =
+        !atEnd && !sameSignature(prevBar.meter, bars[index].meter);
+      const forcedBreak = prevBar.segmentBreakAfter === true;
+
+      if (atEnd || signatureChanged || forcedBreak) {
+        pushSegment(runStart, index - 1);
+        runStart = index;
+      }
+    }
+
+    globalIndex += bars.length;
   }
 
   return segments;

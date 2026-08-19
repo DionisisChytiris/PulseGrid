@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   addBarToSong,
   cloneEditableSong,
+  createSectionAtBar,
   deleteBarFromSong,
   moveBarInSong,
   updateBarBpm,
@@ -152,6 +153,8 @@ export function useSongEditor(songId: string) {
       applyAndSave((current) => setSegmentAccentPreset(current, segment, presetId)),
     setSegmentAccentPattern: (segment: TimelineSegment, pattern: readonly boolean[]) =>
       applyAndSave((current) => setSegmentAccentPattern(current, segment, pattern)),
+    createSectionAtBar: (segment: TimelineSegment, name: string) =>
+      applyAndSave((current) => createSectionAtBar(current, segment.startBarIndex, name)),
     duplicateSegment: (segment: TimelineSegment) =>
       applyAndSave((current) => duplicateSegment(current, segment).song),
     deleteSegment: (segment: TimelineSegment): string | null => {

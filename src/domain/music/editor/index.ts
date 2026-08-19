@@ -11,3 +11,8 @@ export {
   updateSongDefaultBpm,
   updateSongName,
 } from './songEditorMutations';
+export {
+  createSectionAtBar,
+  SECTION_NAME_PRESETS,
+  type SectionNamePreset,
+} from './createSectionAtBar';

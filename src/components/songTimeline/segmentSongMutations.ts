@@ -9,7 +9,6 @@ import { cloneBarTempoFields, createBar, type Bar } from '../../domain/music/Bar
 import { cloneClickPattern } from '../../domain/music/ClickPattern';
 import {
   addBarToSong,
-  deleteBarFromSong,
   updateBarBpm,
   updateBarMeter,
 } from '../../domain/music/editor';
@@ -20,21 +19,90 @@ import { generateEntityId } from '../../domain/music/storage/generateEntityId';
 import { buildTimelineSegments } from './buildTimelineSegments';
 import type { TimelineSegment } from './types';
 
-function mainBars(song: Song) {
-  return song.sections[0]?.bars ?? [];
+function allBars(song: Song): Bar[] {
+  const bars: Bar[] = [];
+  for (const section of song.sections) {
+    bars.push(...section.bars);
+  }
+  return bars;
 }
 
-function replaceMainBars(song: Song, bars: readonly Bar[]): Song {
-  const section = song.sections[0];
+function locateGlobalIndex(
+  song: Song,
+  globalIndex: number,
+): { sectionIndex: number; barIndex: number } | null {
+  if (globalIndex < 0) {
+    return null;
+  }
+
+  let remaining = globalIndex;
+  for (let sectionIndex = 0; sectionIndex < song.sections.length; sectionIndex += 1) {
+    const section = song.sections[sectionIndex];
+    if (remaining < section.bars.length) {
+      return { sectionIndex, barIndex: remaining };
+    }
+    remaining -= section.bars.length;
+  }
+
+  return null;
+}
+
+function replaceSectionBars(song: Song, sectionIndex: number, bars: readonly Bar[]): Song {
+  const section = song.sections[sectionIndex];
   if (section === undefined) {
+    return song;
+  }
+
+  const sections = [...song.sections];
+  sections[sectionIndex] = { ...section, bars };
+  return {
+    ...song,
+    updatedAt: Date.now(),
+    sections,
+  };
+}
+
+function pruneEmptySections(song: Song): Song {
+  const sections = song.sections.filter((section) => section.bars.length > 0);
+  if (sections.length === 0 || sections.length === song.sections.length) {
     return song;
   }
 
   return {
     ...song,
     updatedAt: Date.now(),
-    sections: [{ ...section, bars }, ...song.sections.slice(1)],
+    sections,
   };
+}
+
+function insertBarsAtGlobalIndex(song: Song, globalIndex: number, inserted: readonly Bar[]): Song {
+  const located = locateGlobalIndex(song, globalIndex);
+  if (located === null) {
+    const lastIndex = song.sections.length - 1;
+    if (lastIndex < 0) {
+      return addBarToSong(song, inserted[0]?.meter ?? createMeter(4, 4));
+    }
+
+    return replaceSectionBars(song, lastIndex, [...song.sections[lastIndex].bars, ...inserted]);
+  }
+
+  const section = song.sections[located.sectionIndex];
+  const bars = [...section.bars];
+  bars.splice(located.barIndex, 0, ...inserted);
+  return replaceSectionBars(song, located.sectionIndex, bars);
+}
+
+function removeBarById(song: Song, barId: string): Song {
+  const next = {
+    ...song,
+    updatedAt: Date.now(),
+    sections: song.sections.map((section) => ({
+      ...section,
+      bars: section.bars.filter((bar) => bar.id !== barId),
+    })),
+  };
+
+  return pruneEmptySections(next);
 }
 
 function setBarSegmentBreakAfter(bar: Bar, segmentBreakAfter: boolean): Bar {
@@ -61,22 +129,13 @@ export function cloneBarWithNewId(bar: Bar): Bar {
 }
 
 function insertBarAtIndex(song: Song, index: number, meter: Meter): Song {
-  const section = song.sections[0];
-  if (section === undefined) {
-    return addBarToSong(song, meter);
-  }
-
   const newBar = createBar({
     id: generateEntityId('bar'),
     meter,
     accentPattern: downbeatAccentPattern(meter.numerator),
   });
 
-  const bars = [...section.bars];
-  const clampedIndex = Math.max(0, Math.min(index, bars.length));
-  bars.splice(clampedIndex, 0, newBar);
-
-  return replaceMainBars(song, bars);
+  return insertBarsAtGlobalIndex(song, Math.max(0, index), [newBar]);
 }
 
 /**
@@ -84,7 +143,7 @@ function insertBarAtIndex(song: Song, index: number, meter: Meter): Song {
  * change or `segmentBreakAfter` (inclusive of the break bar).
  */
 function segmentRunLength(song: Song, startBarIndex: number, meter: Meter): number {
-  const bars = mainBars(song);
+  const bars = allBars(song);
   let count = 0;
 
   for (let index = startBarIndex; index < bars.length; index += 1) {
@@ -110,7 +169,7 @@ export function setSegmentBarCount(song: Song, segment: TimelineSegment, targetC
   while (segmentRunLength(next, segment.startBarIndex, segment.meter) < safeCount) {
     const runLen = segmentRunLength(next, segment.startBarIndex, segment.meter);
     const lastIndex = segment.startBarIndex + runLen - 1;
-    const bars = mainBars(next);
+    const bars = allBars(next);
     const lastBar = bars[lastIndex];
     const insertAt = lastIndex + 1;
     const hadBreak = lastBar?.segmentBreakAfter === true;
@@ -118,15 +177,31 @@ export function setSegmentBarCount(song: Song, segment: TimelineSegment, targetC
     next = insertBarAtIndex(next, insertAt, segment.meter);
 
     if (hadBreak && lastBar !== undefined) {
-      const updated = [...mainBars(next)];
-      updated[lastIndex] = setBarSegmentBreakAfter(updated[lastIndex], false);
-      updated[insertAt] = setBarSegmentBreakAfter(updated[insertAt], true);
-      next = replaceMainBars(next, updated);
+      const lastLocated = locateGlobalIndex(next, lastIndex);
+      const insertLocated = locateGlobalIndex(next, insertAt);
+      if (lastLocated !== null && insertLocated !== null) {
+        let updated = replaceSectionBars(
+          next,
+          lastLocated.sectionIndex,
+          next.sections[lastLocated.sectionIndex].bars.map((bar, index) =>
+            index === lastLocated.barIndex ? setBarSegmentBreakAfter(bar, false) : bar,
+          ),
+        );
+        const insertSection = updated.sections[insertLocated.sectionIndex];
+        updated = replaceSectionBars(
+          updated,
+          insertLocated.sectionIndex,
+          insertSection.bars.map((bar, index) =>
+            index === insertLocated.barIndex ? setBarSegmentBreakAfter(bar, true) : bar,
+          ),
+        );
+        next = updated;
+      }
     }
   }
 
   while (segmentRunLength(next, segment.startBarIndex, segment.meter) > safeCount) {
-    const bars = mainBars(next);
+    const bars = allBars(next);
     const runLen = segmentRunLength(next, segment.startBarIndex, segment.meter);
     const removeIndex = segment.startBarIndex + runLen - 1;
     const removed = bars[removeIndex];
@@ -137,16 +212,21 @@ export function setSegmentBarCount(song: Song, segment: TimelineSegment, targetC
     }
 
     const hadBreak = removed.segmentBreakAfter === true;
-    next = deleteBarFromSong(next, barId);
+    next = removeBarById(next, barId);
 
     if (hadBreak) {
       const remainingLen = segmentRunLength(next, segment.startBarIndex, segment.meter);
       if (remainingLen > 0) {
         const newLastIndex = segment.startBarIndex + remainingLen - 1;
-        const updated = [...mainBars(next)];
-        if (updated[newLastIndex] !== undefined) {
-          updated[newLastIndex] = setBarSegmentBreakAfter(updated[newLastIndex], true);
-          next = replaceMainBars(next, updated);
+        const located = locateGlobalIndex(next, newLastIndex);
+        if (located !== null) {
+          next = replaceSectionBars(
+            next,
+            located.sectionIndex,
+            next.sections[located.sectionIndex].bars.map((bar, index) =>
+              index === located.barIndex ? setBarSegmentBreakAfter(bar, true) : bar,
+            ),
+          );
         }
       }
     }
@@ -156,11 +236,7 @@ export function setSegmentBarCount(song: Song, segment: TimelineSegment, targetC
 }
 
 export function setSegmentMeter(song: Song, segment: TimelineSegment, meter: Meter): Song {
-  const bars = mainBars(song);
-
-  return bars
-    .slice(segment.startBarIndex, segment.endBarIndex + 1)
-    .reduce((current, bar) => updateBarMeter(current, bar.id, meter), song);
+  return segment.barIds.reduce((current, barId) => updateBarMeter(current, barId, meter), song);
 }
 
 export function setSegmentMeterLabel(song: Song, segment: TimelineSegment, label: string): Song {
@@ -181,11 +257,7 @@ export function setSegmentBpmOverride(
   segment: TimelineSegment,
   bpm: number | null,
 ): Song {
-  const bars = mainBars(song);
-
-  return bars
-    .slice(segment.startBarIndex, segment.endBarIndex + 1)
-    .reduce((current, bar) => updateBarBpm(current, bar.id, bpm), song);
+  return segment.barIds.reduce((current, barId) => updateBarBpm(current, barId, bpm), song);
 }
 
 function accentForPreset(presetId: string, beatCount: number): SongAccentPattern {
@@ -205,25 +277,15 @@ function mapBarInSegment(
   segment: TimelineSegment,
   mapper: (bar: Bar) => Bar,
 ): Song {
-  const section = song.sections[0];
-  if (section === undefined) {
-    return song;
-  }
-
-  const targetIds = new Set(
-    section.bars.slice(segment.startBarIndex, segment.endBarIndex + 1).map((bar) => bar.id),
-  );
+  const targetIds = new Set(segment.barIds);
 
   return {
     ...song,
     updatedAt: Date.now(),
-    sections: [
-      {
-        ...section,
-        bars: section.bars.map((bar) => (targetIds.has(bar.id) ? mapper(bar) : bar)),
-      },
-      ...song.sections.slice(1),
-    ],
+    sections: song.sections.map((section) => ({
+      ...section,
+      bars: section.bars.map((bar) => (targetIds.has(bar.id) ? mapper(bar) : bar)),
+    })),
   };
 }
 
@@ -265,26 +327,30 @@ export function duplicateSegment(
   song: Song,
   segment: TimelineSegment,
 ): { song: Song; duplicatedStartBarIndex: number } {
-  const section = song.sections[0];
-  if (section === undefined) {
-    return { song, duplicatedStartBarIndex: segment.startBarIndex };
-  }
-
-  const sourceBars = section.bars.slice(segment.startBarIndex, segment.endBarIndex + 1);
+  const sourceBars = allBars(song).filter((bar) => segment.barIds.includes(bar.id));
   if (sourceBars.length === 0) {
     return { song, duplicatedStartBarIndex: segment.startBarIndex };
   }
 
   const clones = sourceBars.map((bar) => cloneBarWithNewId(bar));
   const insertAt = segment.endBarIndex + 1;
-  const bars = [...section.bars];
+  const endLocated = locateGlobalIndex(song, segment.endBarIndex);
+  let next = song;
 
-  // Keep the original region separate from the duplicate when meters match.
-  bars[segment.endBarIndex] = setBarSegmentBreakAfter(bars[segment.endBarIndex], true);
-  bars.splice(insertAt, 0, ...clones);
+  if (endLocated !== null) {
+    next = replaceSectionBars(
+      next,
+      endLocated.sectionIndex,
+      next.sections[endLocated.sectionIndex].bars.map((bar, index) =>
+        index === endLocated.barIndex ? setBarSegmentBreakAfter(bar, true) : bar,
+      ),
+    );
+  }
+
+  next = insertBarsAtGlobalIndex(next, insertAt, clones);
 
   return {
-    song: replaceMainBars(song, bars),
+    song: next,
     duplicatedStartBarIndex: insertAt,
   };
 }
@@ -297,11 +363,6 @@ export function deleteSegment(
   song: Song,
   segment: TimelineSegment,
 ): { song: Song; focusStartBarIndex: number | null; blockedReason?: string } {
-  const section = song.sections[0];
-  if (section === undefined) {
-    return { song, focusStartBarIndex: null };
-  }
-
   const segments = buildTimelineSegments(song);
   if (segments.length <= 1) {
     return {
@@ -311,19 +372,33 @@ export function deleteSegment(
     };
   }
 
-  const hasNext = segment.endBarIndex + 1 < section.bars.length;
+  const totalBars = allBars(song).length;
+  const hasNext = segment.endBarIndex + 1 < totalBars;
   const previous = segments.find((item) => item.endBarIndex === segment.startBarIndex - 1);
   const focusStartBarIndex = hasNext
     ? segment.startBarIndex
     : (previous?.startBarIndex ?? segments[0]?.startBarIndex ?? 0);
 
-  const bars = [
-    ...section.bars.slice(0, segment.startBarIndex),
-    ...section.bars.slice(segment.endBarIndex + 1),
-  ];
+  const removeIds = new Set(segment.barIds);
+  const next = pruneEmptySections({
+    ...song,
+    updatedAt: Date.now(),
+    sections: song.sections.map((section) => ({
+      ...section,
+      bars: section.bars.filter((bar) => !removeIds.has(bar.id)),
+    })),
+  });
+
+  if (allBars(next).length === 0) {
+    return {
+      song,
+      focusStartBarIndex: null,
+      blockedReason: 'Every timeline must contain at least one segment.',
+    };
+  }
 
   return {
-    song: replaceMainBars(song, bars),
+    song: next,
     focusStartBarIndex,
   };
 }

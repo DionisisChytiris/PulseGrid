@@ -8,6 +8,12 @@ import { BarPreview } from './BarPreview';
 import { useSongLineBarIndex, useSongLineBeatIndex } from './SongLineBeatContext';
 import { profileRender } from './songLineFollowProfiler';
 import {
+  SECTION_TRACK_STRIP_HEIGHT,
+  sectionNameForBar,
+  sectionTrackColor,
+  shouldRenderSectionStrip,
+} from './sectionTrackVisual';
+import {
   TRACK_HEIGHT,
   meterRegionWidth,
   parseMeterDenominator,
@@ -166,6 +172,12 @@ export const MeterRegion = memo(
               isPlaying={regionPlaying}
               currentBeatIndex={currentBeatIndex}
               tempoBpm={barIndex === 0 ? overviewTempoBpm : null}
+              sectionName={sectionNameForBar(
+                segment.sectionName,
+                segment.isSectionStart,
+                barIndex,
+                segment.showSectionVisuals,
+              )}
               onTempoPress={
                 barIndex === 0 && overviewTempoBpm !== null ? onTempoPress : undefined
               }
@@ -173,6 +185,15 @@ export const MeterRegion = memo(
             />
           ))}
         </Pressable>
+        {shouldRenderSectionStrip(segment.showSectionVisuals) ? (
+          <View
+            pointerEvents="none"
+            style={[
+              styles.sectionStrip,
+              { backgroundColor: sectionTrackColor(segment.sectionColorIndex) },
+            ]}
+          />
+        ) : null}
       </View>
     );
   },
@@ -192,6 +213,14 @@ const styles = StyleSheet.create({
     height: '100%',
     paddingTop: 2,
     paddingBottom: 8,
+  },
+  /** Lives in the existing paddingBottom — does not add a row or grow TRACK_HEIGHT. */
+  sectionStrip: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 2,
+    height: SECTION_TRACK_STRIP_HEIGHT,
   },
   regionActive: {
     // Region chrome emphasizes active meter without shrinking content.

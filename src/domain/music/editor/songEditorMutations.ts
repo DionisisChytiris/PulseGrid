@@ -55,26 +55,45 @@ export function updateSongCountInBars(song: Song, countInBars: CountInBars): Son
   return touchSong({ ...song, countInBars: normalizeCountInBars(countInBars) });
 }
 
+function withSectionAt(song: Song, sectionIndex: number, section: Section): Song {
+  const sections = [...song.sections];
+  sections[sectionIndex] = section;
+  return touchSong({ ...song, sections });
+}
+
+function lastSectionIndex(song: Song): number {
+  return Math.max(0, song.sections.length - 1);
+}
+
 export function addBarToSong(song: Song, meter: Meter = createMeter(4, 4)): Song {
-  const section = ensureMainSection(song);
+  const sectionIndex = song.sections.length > 0 ? lastSectionIndex(song) : 0;
+  const section =
+    song.sections[sectionIndex] ?? createSection({ id: 'main', name: 'Main', bars: [] });
   const newBar = createBar({
     id: generateEntityId('bar'),
     meter,
     accentPattern: defaultAccentPatternFromMeter(meter),
   });
 
-  return withMainSection(song, {
+  const nextSection = {
     ...section,
     bars: [...section.bars, newBar],
-  });
+  };
+
+  if (song.sections.length === 0) {
+    return touchSong({ ...song, sections: [nextSection] });
+  }
+
+  return withSectionAt(song, sectionIndex, nextSection);
 }
 
 export function deleteBarFromSong(song: Song, barId: string): Song {
-  const section = ensureMainSection(song);
-
-  return withMainSection(song, {
-    ...section,
-    bars: section.bars.filter((bar) => bar.id !== barId),
+  return touchSong({
+    ...song,
+    sections: song.sections.map((section) => ({
+      ...section,
+      bars: section.bars.filter((bar) => bar.id !== barId),
+    })),
   });
 }
 
@@ -125,11 +144,12 @@ export function updateBarBpm(song: Song, barId: string, bpm: number | null): Son
 }
 
 function mapBar(song: Song, barId: string, mapper: (bar: Bar) => Bar): Song {
-  const section = ensureMainSection(song);
-
-  return withMainSection(song, {
-    ...section,
-    bars: section.bars.map((bar) => (bar.id === barId ? mapper(bar) : bar)),
+  return touchSong({
+    ...song,
+    sections: song.sections.map((section) => ({
+      ...section,
+      bars: section.bars.map((bar) => (bar.id === barId ? mapper(bar) : bar)),
+    })),
   });
 }
 

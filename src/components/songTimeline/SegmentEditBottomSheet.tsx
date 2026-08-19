@@ -21,6 +21,7 @@ import {
   parseSongBpmTextLenient,
   sanitizeSongBpmInput,
 } from '../../domain/music/songBpm';
+import { sanitizeSongName, sanitizeSongNameInput } from '../../domain/music/songName';
 import { AnalyticsService } from '../../services/AnalyticsService';
 import {
   CustomKeyboard,
@@ -30,6 +31,7 @@ import {
 } from '../../presentation/components/CustomKeyboard';
 import {
   SegmentEditorRow,
+  type SectionCreateMode,
   type SegmentEditorActiveField,
 } from '../../presentation/components/songSignatureTimeline/SegmentEditorRow';
 import {
@@ -76,6 +78,7 @@ type Props = {
   onBpmOverrideChange: (segmentId: string, bpm: number | null) => void;
   onDuplicateSegment: (segmentId: string) => string | null;
   onDeleteSegment: (segmentId: string) => string | null;
+  onCreateSection: (segmentId: string, name: string) => void;
 };
 
 type ActiveEdit = SegmentEditorActiveField & { text: string };
@@ -93,7 +96,7 @@ function meterDenominator(meterLabel: string): MeterDenominator {
 function isFieldForSegment(
   edit: ActiveEdit,
   segmentId: string,
-  kind: 'numerator' | 'barCount' | 'segmentBpm',
+  kind: 'numerator' | 'barCount' | 'segmentBpm' | 'sectionName',
 ): boolean {
   return (
     edit.kind === kind && 'segmentId' in edit && edit.segmentId === segmentId
@@ -121,6 +124,7 @@ export function SegmentEditBottomSheet({
   onBpmOverrideChange,
   onDuplicateSegment,
   onDeleteSegment,
+  onCreateSection,
 }: Props) {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -132,6 +136,7 @@ export function SegmentEditBottomSheet({
   const numeratorRefs = useRef(new Map<string, TextInput | null>());
   const barCountRefs = useRef(new Map<string, TextInput | null>());
   const segmentBpmRefs = useRef(new Map<string, TextInput | null>());
+  const sectionNameRefs = useRef(new Map<string, TextInput | null>());
   const songBpmInputRef = useRef<TextInput | null>(null);
 
   const [activeEdit, setActiveEdit] = useState<ActiveEdit | null>(null);
@@ -141,6 +146,7 @@ export function SegmentEditBottomSheet({
 
   const [expandedSegmentId, setExpandedSegmentId] = useState<string | null>(null);
   const [pendingFocusSegmentId, setPendingFocusSegmentId] = useState<string | null>(null);
+  const [sectionCreateMode, setSectionCreateMode] = useState<SectionCreateMode>('none');
 
   const keyboardOpen = activeEdit !== null;
   const bottomKeyboardHeight =
@@ -192,6 +198,7 @@ export function SegmentEditBottomSheet({
       setActiveEdit(null);
       setExpandedSegmentId(null);
       setPendingFocusSegmentId(null);
+      setSectionCreateMode('none');
       rowLayouts.current.clear();
       return;
     }
@@ -275,6 +282,10 @@ export function SegmentEditBottomSheet({
         barCountRefs.current.get(edit.segmentId)?.blur();
         return;
       }
+      if (edit.kind === 'sectionName') {
+        sectionNameRefs.current.get(edit.segmentId)?.blur();
+        return;
+      }
       segmentBpmRefs.current.get(edit.segmentId)?.blur();
     });
   }, []);
@@ -311,6 +322,15 @@ export function SegmentEditBottomSheet({
         return;
       }
 
+      if (current.kind === 'sectionName') {
+        const trimmed = current.text.trim();
+        if (trimmed.length === 0) {
+          return;
+        }
+        onCreateSection(segment.id, sanitizeSongName(current.text));
+        return;
+      }
+
       const previousBpm =
         segment.bpmOverride !== null ? segment.bpmOverride : safeSongBpm;
       const bpm = parseSongBpmTextLenient(current.text) ?? previousBpm;
@@ -325,6 +345,7 @@ export function SegmentEditBottomSheet({
     [
       onBarCountChange,
       onBpmOverrideChange,
+      onCreateSection,
       onMeterChange,
       onSongDefaultBpmChange,
       safeSongBpm,
@@ -340,6 +361,9 @@ export function SegmentEditBottomSheet({
     commitEdit(current);
     blurActiveInput(current);
     setActiveEdit(null);
+    if (current.kind === 'sectionName') {
+      setSectionCreateMode('none');
+    }
   }, [blurActiveInput, commitEdit]);
 
   const beginEdit = useCallback(
@@ -426,6 +450,7 @@ export function SegmentEditBottomSheet({
             blurActiveInput(edit);
             setActiveEdit(null);
           }
+          setSectionCreateMode('none');
           return null;
         }
 
@@ -435,6 +460,7 @@ export function SegmentEditBottomSheet({
           blurActiveInput(edit);
           setActiveEdit(null);
         }
+        setSectionCreateMode('none');
         return segmentId;
       });
     },
@@ -508,6 +534,10 @@ export function SegmentEditBottomSheet({
         return { ...current, text: nextText };
       }
 
+      if (current.kind === 'sectionName') {
+        return { ...current, text: sanitizeSongNameInput(text) };
+      }
+
       const nextText = sanitizeSongBpmInput(text);
       const parsed = parseSongBpmText(nextText);
       if (parsed !== null) {
@@ -542,6 +572,13 @@ export function SegmentEditBottomSheet({
     return String(segment.bpmOverride ?? safeSongBpm);
   };
 
+  const displaySectionName = (segment: TimelineSegmentViewModel): string => {
+    if (activeEdit !== null && isFieldForSegment(activeEdit, segment.id, 'sectionName')) {
+      return activeEdit.text;
+    }
+    return '';
+  };
+
   const displaySongBpm =
     activeEdit?.kind === 'songBpm' ? activeEdit.text : String(safeSongBpm);
 
@@ -566,6 +603,44 @@ export function SegmentEditBottomSheet({
   );
 
   const { beginHold, endHold } = useBpmStepHold({ onStep: stepSongBpm });
+
+  const discardSectionNameEdit = useCallback(() => {
+    const edit = activeEditRef.current;
+    if (edit === null || edit.kind !== 'sectionName') {
+      return;
+    }
+    blurActiveInput(edit);
+    setActiveEdit(null);
+  }, [blurActiveInput]);
+
+  const handleSectionCreateModeChange = useCallback(
+    (mode: SectionCreateMode) => {
+      if (mode !== 'custom') {
+        discardSectionNameEdit();
+      }
+      setSectionCreateMode(mode);
+      if (mode === 'custom' && expandedSegmentId !== null) {
+        beginEdit({
+          segmentId: expandedSegmentId,
+          kind: 'sectionName',
+          text: '',
+        });
+        requestAnimationFrame(() => {
+          sectionNameRefs.current.get(expandedSegmentId)?.focus();
+        });
+      }
+    },
+    [beginEdit, discardSectionNameEdit, expandedSegmentId],
+  );
+
+  const handleSectionPresetSelect = useCallback(
+    (segmentId: string, name: string) => {
+      discardSectionNameEdit();
+      onCreateSection(segmentId, name);
+      setSectionCreateMode('none');
+    },
+    [discardSectionNameEdit, onCreateSection],
+  );
 
   return (
     <Modal
@@ -765,8 +840,27 @@ export function SegmentEditBottomSheet({
                 onRegisterSegmentBpmInput={(ref) => {
                   segmentBpmRefs.current.set(segment.id, ref);
                 }}
+                onRegisterSectionNameInput={(ref) => {
+                  sectionNameRefs.current.set(segment.id, ref);
+                }}
                 onLayoutY={(y, rowHeight) => {
                   rowLayouts.current.set(segment.id, { y, height: rowHeight });
+                }}
+                sectionCreateMode={expandedSegmentId === segment.id ? sectionCreateMode : 'none'}
+                sectionNameText={displaySectionName(segment)}
+                onSectionCreateModeChange={handleSectionCreateModeChange}
+                onSectionPresetSelect={(name) => {
+                  handleSectionPresetSelect(segment.id, name);
+                }}
+                onSectionNameFocus={() => {
+                  beginEdit({
+                    segmentId: segment.id,
+                    kind: 'sectionName',
+                    text:
+                      activeEdit !== null && isFieldForSegment(activeEdit, segment.id, 'sectionName')
+                        ? activeEdit.text
+                        : '',
+                  });
                 }}
               />
             ))}
@@ -779,7 +873,7 @@ export function SegmentEditBottomSheet({
           onChangeText={handleKeyboardChange}
           onDone={finalizeActiveEdit}
           placement="auto"
-          initialMode="numbers"
+          initialMode={activeEdit?.kind === 'sectionName' ? 'letters' : 'numbers'}
         />
       </View>
     </Modal>

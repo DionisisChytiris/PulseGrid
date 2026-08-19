@@ -71,6 +71,7 @@ export default function SongEditorScreen({ navigation, route }: Props) {
     setSegmentAccentPattern,
     duplicateSegment,
     deleteSegment,
+    createSectionAtBar,
   } = useSongEditor(songId);
 
   const playback = useSongPlayback();
@@ -279,6 +280,7 @@ export default function SongEditorScreen({ navigation, route }: Props) {
           onSegmentAccentPatternChange={setSegmentAccentPattern}
           onSegmentDuplicate={duplicateSegment}
           onSegmentDelete={deleteSegment}
+          onCreateSection={createSectionAtBar}
           onSongDefaultBpmChange={setSongDefaultBpm}
           onCountInBarsChange={setCountInBars}
           onPlayFromSegment={onPlayFromSegment}
