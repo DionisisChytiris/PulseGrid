@@ -185,6 +185,7 @@ public class NativeAudioModule: Module {
       let bpm = max(1, Self.readDouble(map["bpm"]) ?? 120)
       let accent = map["accent"] as? Bool ?? false
       let subdivisionIndex = Self.readInt(map["subdivisionIndex"]) ?? 0
+      let ticksPerBeat = max(1, Self.readInt(map["ticksPerBeat"]) ?? 1)
       let beatIndexInBar = Self.readInt(map["beatIndexInBar"]) ?? 0
       let beatsPerMeasure = max(1, Self.readInt(map["beatsPerMeasure"]) ?? 4)
       let barId = map["barId"] as? String ?? ""
@@ -195,6 +196,7 @@ public class NativeAudioModule: Module {
         bpm: bpm,
         accent: accent,
         subdivisionIndex: subdivisionIndex,
+        ticksPerBeat: ticksPerBeat,
         beatIndexInBar: beatIndexInBar,
         beatsPerMeasure: beatsPerMeasure,
         barId: barId,

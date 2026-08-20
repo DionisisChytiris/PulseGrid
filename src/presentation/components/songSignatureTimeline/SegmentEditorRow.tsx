@@ -14,6 +14,9 @@ import { SECTION_NAME_PRESETS } from '../../../domain/music/editor';
 import type { TimelineSegmentViewModel } from '../../viewModels/TimelineSegmentViewModel';
 import { studioColors } from '../../theme';
 import { AccentPatternToggleRow } from '../metronome/AccentPatternToggleRow';
+import { SubdivisionOptionRow } from '../metronome/SubdivisionOptionRow';
+import type { SubdivisionKind } from '../../../domain/valueObjects/Subdivision';
+import { isBarSubdivisionEditable } from '../../../domain/music/barSubdivision';
 
 import {
   METER_DENOMINATORS,
@@ -51,6 +54,7 @@ type Props = {
   onDenominatorChange: (denominator: MeterDenominator) => void;
   onUseSongTempoChange: (useSongTempo: boolean) => void;
   onAccentPatternChange: (pattern: boolean[]) => void;
+  onSubdivisionChange: (subdivision: SubdivisionKind) => void;
   onRegisterNumeratorInput: (ref: TextInputType | null) => void;
   onRegisterBarCountInput: (ref: TextInputType | null) => void;
   onRegisterSegmentBpmInput: (ref: TextInputType | null) => void;
@@ -99,6 +103,7 @@ export const SegmentEditorRow = memo(function SegmentEditorRow({
   onDenominatorChange,
   onUseSongTempoChange,
   onAccentPatternChange,
+  onSubdivisionChange,
   onRegisterNumeratorInput,
   onRegisterBarCountInput,
   onRegisterSegmentBpmInput,
@@ -356,6 +361,13 @@ export const SegmentEditorRow = memo(function SegmentEditorRow({
               </View>
             )}
           </View>
+
+          {isBarSubdivisionEditable(denominator) ? (
+            <SubdivisionOptionRow
+              selected={segment.subdivision}
+              onChange={onSubdivisionChange}
+            />
+          ) : null}
 
           <View style={styles.sectionCreateRow}>
             <Text style={styles.sectionCreateLabel}>Create Section:</Text>

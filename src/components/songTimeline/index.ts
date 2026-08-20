@@ -14,6 +14,7 @@ export {
   setSegmentBpmOverride,
   setSegmentMeter,
   setSegmentMeterLabel,
+  setSegmentSubdivision,
 } from './segmentSongMutations';
 export {
   AUTO_FOLLOW_SUSPEND_MS,

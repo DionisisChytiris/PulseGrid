@@ -18,9 +18,11 @@ export {
   type SongLoopConfig,
 } from './SongLoopConfig';
 export {
+  barDurationNs,
   beatDurationNs,
   computeDeadlineOffsets,
   mapPlaybackEventToScheduledSnapshot,
+  tickDurationNs,
   type ScheduledTickSnapshot,
 } from './ScheduledTickSnapshot';
 export {

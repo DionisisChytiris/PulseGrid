@@ -204,6 +204,7 @@ class NativeAudioModule : Module() {
         bpm = readDouble(map["bpm"])?.coerceAtLeast(1.0) ?: 120.0,
         accent = map["accent"] as? Boolean ?: false,
         subdivisionIndex = readInt(map["subdivisionIndex"]) ?: 0,
+        ticksPerBeat = (readInt(map["ticksPerBeat"]) ?: 1).coerceAtLeast(1),
         beatIndexInBar = readInt(map["beatIndexInBar"]) ?: 0,
         beatsPerMeasure = readInt(map["beatsPerMeasure"])?.coerceAtLeast(1) ?: 4,
         barId = map["barId"] as? String ?: "",

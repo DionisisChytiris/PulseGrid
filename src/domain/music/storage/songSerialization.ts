@@ -17,6 +17,7 @@ import { createSong, type Song } from '../Song';
 import { clampSongBpm, DEFAULT_SONG_BPM } from '../songBpm';
 import { createTempoDefinition } from '../TempoDefinition';
 import type { TempoTransitionType } from '../TempoEvent';
+import { parseStoredBarSubdivision } from '../barSubdivision';
 
 const LOG_TAG = '[PulseGrid:songs]';
 
@@ -63,6 +64,11 @@ type StoredBar = {
   repeatCount: number;
   /** Starts a new UI segment after this bar when the next meter matches. */
   segmentBreakAfter?: boolean;
+  /**
+   * Optional Quick Metronome subdivision (`quarter` | `eighth` | `triplet` | `sixteenth`).
+   * Absent on older songs → Quarter.
+   */
+  subdivision?: string;
 };
 
 type StoredSection = {
@@ -311,6 +317,8 @@ function parseBar(value: unknown, songId: string): Bar | null {
   );
 
   try {
+    const subdivision = parseStoredBarSubdivision(value.subdivision);
+
     return createBar({
       id,
       meter,
@@ -322,6 +330,7 @@ function parseBar(value: unknown, songId: string): Bar | null {
         ? {}
         : { clickPattern: parseClickPattern(value.clickPattern, meter) }),
       ...(value.segmentBreakAfter === true ? { segmentBreakAfter: true } : {}),
+      ...(subdivision === undefined ? {} : { subdivision }),
     });
   } catch (error) {
     warn(`Skipping bar ${id} in timeline ${songId}.`, error);
@@ -414,6 +423,7 @@ export function songToStored(song: Song): StoredSong {
               },
               ...(bar.tempoTransition === undefined ? {} : { tempoTransition: bar.tempoTransition }),
             }),
+        ...(bar.subdivision === undefined ? {} : { subdivision: bar.subdivision }),
       })),
     })),
   };

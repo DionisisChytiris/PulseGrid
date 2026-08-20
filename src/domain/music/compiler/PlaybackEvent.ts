@@ -15,6 +15,11 @@ export interface PlaybackEvent {
   readonly accent: boolean;
   /** Subdivision pulse within the beat (0 = primary beat). */
   readonly subdivisionIndex: number;
+  /**
+   * Ticks that share one primary pulse duration — same meaning as Quick Metronome
+   * resolveTicksPerPulse. Defaults to 1 when omitted (legacy events).
+   */
+  readonly ticksPerBeat?: number;
   readonly globalTickIndex: number;
   readonly source: PlaybackEventSource;
   readonly repeatIndex: number;

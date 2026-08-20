@@ -614,7 +614,13 @@ final class MetronomeEngine {
       offsets[index] = running
       let bpm = max(1, events[index].bpm)
       let beatDurationNs = UInt64(max(1, (60_000_000_000.0 / bpm).rounded()))
-      running &+= beatDurationNs
+      let ticksPerBeat = max(1, events[index].ticksPerBeat)
+      let subdiv = min(max(0, events[index].subdivisionIndex), ticksPerBeat - 1)
+      // Same split as Quick Metronome: ticks in a pulse sum to one beat.
+      let tickDuration =
+        (UInt64(subdiv + 1) * beatDurationNs) / UInt64(ticksPerBeat) -
+        (UInt64(subdiv) * beatDurationNs) / UInt64(ticksPerBeat)
+      running &+= tickDuration
     }
 
     offsets[events.count] = running

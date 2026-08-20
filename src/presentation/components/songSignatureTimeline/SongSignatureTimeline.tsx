@@ -88,6 +88,10 @@ type Props = {
   onSegmentMeterChange: (segment: TimelineSegment, meterLabel: string) => void;
   onSegmentBpmOverrideChange: (segment: TimelineSegment, bpm: number | null) => void;
   onSegmentAccentPatternChange: (segment: TimelineSegment, pattern: boolean[]) => void;
+  onSegmentSubdivisionChange: (
+    segment: TimelineSegment,
+    subdivision: import('../../domain/valueObjects/Subdivision').SubdivisionKind,
+  ) => void;
   onSegmentDuplicate: (segment: TimelineSegment) => void;
   onSegmentDelete: (segment: TimelineSegment) => string | null;
   onCreateSection: (segment: TimelineSegment, name: string) => void;
@@ -208,6 +212,7 @@ export const SongSignatureTimeline = memo(
       onSegmentMeterChange,
       onSegmentBpmOverrideChange,
       onSegmentAccentPatternChange,
+      onSegmentSubdivisionChange,
       onSegmentDuplicate,
       onSegmentDelete,
       onCreateSection,
@@ -1099,6 +1104,12 @@ export const SongSignatureTimeline = memo(
             const domain = findDomainSegmentById(song, segmentId);
             if (domain !== null) {
               onSegmentBpmOverrideChange(domain, bpm);
+            }
+          }}
+          onSubdivisionChange={(segmentId, subdivision) => {
+            const domain = findDomainSegmentById(song, segmentId);
+            if (domain !== null) {
+              onSegmentSubdivisionChange(domain, subdivision);
             }
           }}
           onAccentPatternChange={(segmentId, pattern) => {

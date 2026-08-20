@@ -7,6 +7,7 @@ export {
   moveBarInSong,
   updateBarBpm,
   updateBarMeter,
+  updateBarSubdivision,
   updateSongCountInBars,
   updateSongDefaultBpm,
   updateSongName,

@@ -52,6 +52,7 @@ import { overviewTempoMarkings } from '../../presentation/components/songSignatu
 import { TimelinePreparationSection } from '../../presentation/components/songSignatureTimeline/TimelinePreparationSection';
 import type { TimelineSegmentViewModel } from '../../presentation/viewModels/TimelineSegmentViewModel';
 import { studioColors } from '../../presentation/theme';
+import type { SubdivisionKind } from '../../domain/valueObjects/Subdivision';
 import type { CountInBars } from '../../domain/music/countIn';
 
 import { useBpmStepHold } from './useBpmStepHold';
@@ -80,6 +81,7 @@ type Props = {
   onMeterChange: (segmentId: string, meterLabel: string) => void;
   onAccentPatternChange: (segmentId: string, pattern: boolean[]) => void;
   onBpmOverrideChange: (segmentId: string, bpm: number | null) => void;
+  onSubdivisionChange: (segmentId: string, subdivision: SubdivisionKind) => void;
   onDuplicateSegment: (segmentId: string) => string | null;
   onDeleteSegment: (segmentId: string) => string | null;
   onCreateSection: (segmentId: string, name: string) => void;
@@ -127,6 +129,7 @@ export function SegmentEditBottomSheet({
   onMeterChange,
   onAccentPatternChange,
   onBpmOverrideChange,
+  onSubdivisionChange,
   onDuplicateSegment,
   onDeleteSegment,
   onCreateSection,
@@ -897,6 +900,9 @@ export function SegmentEditBottomSheet({
                 }}
                 onAccentPatternChange={(pattern) => {
                   onAccentPatternChange(segment.id, pattern);
+                }}
+                onSubdivisionChange={(subdivision) => {
+                  onSubdivisionChange(segment.id, subdivision);
                 }}
                 onRegisterNumeratorInput={(ref) => {
                   numeratorRefs.current.set(segment.id, ref);

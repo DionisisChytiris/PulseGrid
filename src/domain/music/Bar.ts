@@ -1,3 +1,5 @@
+import type { SubdivisionKind } from '../valueObjects/Subdivision';
+
 import type { SongAccentPattern } from './AccentPattern';
 import type { ClickPattern } from './ClickPattern';
 import { validateClickPattern } from './ClickPattern';
@@ -20,6 +22,11 @@ export interface Bar {
    * after this bar even if the next bar shares the same meter.
    */
   readonly segmentBreakAfter?: boolean;
+  /**
+   * Optional Quick Metronome subdivision for /2 and /4 bars.
+   * Absent → Quarter (same musical meaning as Quick Metronome base on /4).
+   */
+  readonly subdivision?: SubdivisionKind;
 }
 
 export type CreateBarInput = {
@@ -33,6 +40,7 @@ export type CreateBarInput = {
   tempo?: TempoEvent;
   repeatCount?: number;
   segmentBreakAfter?: boolean;
+  subdivision?: SubdivisionKind;
 };
 
 export function getBarTempoBpm(bar: Bar): number | undefined {
@@ -82,6 +90,7 @@ export function createBar(input: CreateBarInput): Bar {
     repeatCount,
     ...(input.clickPattern === undefined ? {} : { clickPattern: input.clickPattern }),
     ...(input.segmentBreakAfter === true ? { segmentBreakAfter: true as const } : {}),
+    ...(input.subdivision === undefined ? {} : { subdivision: input.subdivision }),
   };
 
   if (tempoDefinition === undefined) {

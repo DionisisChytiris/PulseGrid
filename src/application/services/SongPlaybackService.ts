@@ -121,7 +121,13 @@ export class SongPlaybackService {
       const safeBarIndex = Math.max(0, Math.floor(globalBarIndex));
       const target =
         scoreCompiled.events.find(
-          (event) => event.globalBarIndex === safeBarIndex && event.beatIndexInBar === 0,
+          (event) =>
+            event.globalBarIndex === safeBarIndex &&
+            event.beatIndexInBar === 0 &&
+            event.subdivisionIndex === 0,
+        ) ??
+        scoreCompiled.events.find(
+          (event) => event.globalBarIndex === safeBarIndex && event.subdivisionIndex === 0,
         ) ??
         scoreCompiled.events.find((event) => event.globalBarIndex === safeBarIndex) ??
         scoreCompiled.events[0];
@@ -488,9 +494,10 @@ export class SongPlaybackService {
       return;
     }
 
+    const ticksPerBeat = Math.max(1, event.ticksPerBeat ?? 1);
     const beatDurationMs = Math.max(
       1,
-      pulseDurationMsFromDisplayBpm(event.bpm, event.meter.denominator),
+      pulseDurationMsFromDisplayBpm(event.bpm, event.meter.denominator) / ticksPerBeat,
     );
 
     this.naturalCompletionTimer = setTimeout(() => {
@@ -532,6 +539,14 @@ export class SongPlaybackService {
         countIn: countingIn ? this.countInProgress(event) : null,
       }),
     );
+  }
+
+  /**
+   * Timeline transport (bar/beat/follow) advances on primary pulses only.
+   * Subdivision fills are audio-only — they must not drive scroll/playhead cadence.
+   */
+  private shouldPublishTimelineTransport(event: PlaybackEvent): boolean {
+    return event.subdivisionIndex === 0;
   }
 
   private resolveSessionIndex(nativeSequence: number): number {
@@ -593,7 +608,9 @@ export class SongPlaybackService {
       this.currentBarIndex = playbackEvent.globalBarIndex;
     }
 
-    this.dispatchTick(playbackEvent, eventIndex);
+    if (this.shouldPublishTimelineTransport(playbackEvent)) {
+      this.dispatchTick(playbackEvent, eventIndex);
+    }
 
     const finishingFinitePass =
       !this.activePlayback.seamlessLoop && eventIndex >= eventCount - 1;

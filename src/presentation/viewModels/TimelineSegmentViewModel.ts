@@ -1,3 +1,5 @@
+import type { SubdivisionKind } from '../../domain/valueObjects/Subdivision';
+
 /** Presentation-only beat glyph for accent preview (▲ ○). */
 export type AccentPreviewBeat = {
   readonly symbol: 'accent' | 'beat';
@@ -36,6 +38,8 @@ export type TimelineSegmentViewModel = {
   readonly barIndicators: readonly BarIndicatorViewModel[];
   readonly accentPreview: readonly AccentPreviewBeat[];
   readonly bpmOverride: number | null;
+  /** Quick Metronome subdivision for /2 and /4 segments (default Quarter). */
+  readonly subdivision: SubdivisionKind;
   readonly isActive: boolean;
   readonly activeBarIndex: number | null;
 };

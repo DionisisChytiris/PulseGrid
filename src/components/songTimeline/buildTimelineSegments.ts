@@ -3,6 +3,7 @@ import { getBarTempoBpm } from '../../domain/music/Bar';
 import { formatMeter, type Meter } from '../../domain/music/Meter';
 import type { Song } from '../../domain/music/Song';
 
+import { segmentSubdivision } from '../../domain/music/barSubdivision';
 import type { TimelineSegment } from './types';
 
 function segmentBpmOverride(bars: readonly Bar[]): number | null {
@@ -55,6 +56,7 @@ export function buildTimelineSegments(song: Song): TimelineSegment[] {
         meterLabel: formatMeter(meter),
         barIds: slice.map((bar) => bar.id),
         bpmOverride: segmentBpmOverride(slice),
+        subdivision: segmentSubdivision(slice),
         accentPattern: slice[0].accentPattern,
         sectionId: section.id,
         sectionName: section.name,

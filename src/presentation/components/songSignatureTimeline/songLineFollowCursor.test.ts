@@ -29,6 +29,7 @@ function makeSegments(
     barIndicators: [],
     accentPreview: Array.from({ length: bar.beats }, () => ({ symbol: 'beat' as const })),
     bpmOverride: null,
+    subdivision: 'quarter',
     isActive: false,
     activeBarIndex: null,
   }));

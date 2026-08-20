@@ -59,6 +59,56 @@ describe('SongPlaybackCompiler pulse cells', () => {
 
     expect(events).toHaveLength(11);
   });
+
+  it('expands /4 eighth subdivision with the same tick count as Quick Metronome', () => {
+    const meter = createMeter(4, 4);
+    const bar = createBar({
+      id: 'bar-4-4-8ths',
+      meter,
+      accentPattern: defaultAccentPatternFromMeter(meter),
+      subdivision: 'eighth',
+    });
+
+    const events = expandBarToEvents(bar, {
+      section: createSection({ id: 'main', name: 'Main', bars: [bar] }),
+      sectionId: 'main',
+      globalBarIndex: 0,
+      repeatIndex: 0,
+      bpm: 120,
+      tempoChangedOnThisBar: false,
+      startingSequence: 0,
+      startingGlobalTickIndex: 0,
+    });
+
+    expect(events).toHaveLength(8);
+    expect(events.map((event) => event.subdivisionIndex)).toEqual([0, 1, 0, 1, 0, 1, 0, 1]);
+    expect(events.every((event) => event.ticksPerBeat === 2)).toBe(true);
+    expect(events.filter((event) => event.accent).map((event) => event.beatIndexInBar)).toEqual([0]);
+  });
+
+  it('clamps BPM with the same Quick Metronome subdivision caps', () => {
+    const meter = createMeter(4, 4);
+    const bar = createBar({
+      id: 'bar-16ths',
+      meter,
+      accentPattern: defaultAccentPatternFromMeter(meter),
+      subdivision: 'sixteenth',
+    });
+
+    const events = expandBarToEvents(bar, {
+      section: createSection({ id: 'main', name: 'Main', bars: [bar] }),
+      sectionId: 'main',
+      globalBarIndex: 0,
+      repeatIndex: 0,
+      bpm: 400,
+      tempoChangedOnThisBar: false,
+      startingSequence: 0,
+      startingGlobalTickIndex: 0,
+    });
+
+    expect(events[0]?.bpm).toBe(250);
+    expect(events).toHaveLength(16);
+  });
 });
 
 describe('SongPlaybackCompiler song tempo inheritance', () => {

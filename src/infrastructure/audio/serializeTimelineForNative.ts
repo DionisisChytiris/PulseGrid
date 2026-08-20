@@ -8,6 +8,7 @@ export type NativeTimelinePlaybackEvent = {
   readonly bpm: number;
   readonly accent: boolean;
   readonly subdivisionIndex: number;
+  readonly ticksPerBeat: number;
   readonly beatIndexInBar: number;
   readonly beatsPerMeasure: number;
   readonly barId: string;
@@ -21,6 +22,7 @@ export function serializeTimelineEventForNative(event: PlaybackEvent): NativeTim
     bpm: toEngineBpm(event.bpm, event.meter.denominator),
     accent: event.accent,
     subdivisionIndex: event.subdivisionIndex,
+    ticksPerBeat: Math.max(1, event.ticksPerBeat ?? 1),
     beatIndexInBar: event.beatIndexInBar,
     beatsPerMeasure: event.meter.numerator,
     barId: event.barId,

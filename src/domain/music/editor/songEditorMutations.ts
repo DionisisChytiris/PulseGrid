@@ -1,5 +1,6 @@
 import { defaultAccentPatternFromMeter } from '../AccentPattern';
 import { createBar, type Bar } from '../Bar';
+import { normalizeBarSubdivisionForMeter } from '../barSubdivision';
 import { createMeter, formatMeter, type Meter } from '../Meter';
 import { createSection, type Section } from '../Section';
 import type { CountInBars } from '../countIn';
@@ -119,11 +120,17 @@ export function moveBarInSong(song: Song, barId: string, direction: 'up' | 'down
 }
 
 export function updateBarMeter(song: Song, barId: string, meter: Meter): Song {
-  return mapBar(song, barId, (bar) => ({
-    ...bar,
-    meter,
-    accentPattern: defaultAccentPatternFromMeter(meter),
-  }));
+  return mapBar(song, barId, (bar) => {
+    const subdivision = normalizeBarSubdivisionForMeter(meter.denominator, bar.subdivision);
+    const { subdivision: _previousSubdivision, ...withoutSubdivision } = bar;
+
+    return {
+      ...withoutSubdivision,
+      meter,
+      accentPattern: defaultAccentPatternFromMeter(meter),
+      ...(subdivision === undefined ? {} : { subdivision }),
+    };
+  });
 }
 
 export function updateBarBpm(song: Song, barId: string, bpm: number | null): Song {
@@ -133,6 +140,9 @@ export function updateBarBpm(song: Song, barId: string, bpm: number | null): Son
       meter: bar.meter,
       accentPattern: bar.accentPattern,
       repeatCount: bar.repeatCount,
+      ...(bar.clickPattern === undefined ? {} : { clickPattern: bar.clickPattern }),
+      ...(bar.segmentBreakAfter === true ? { segmentBreakAfter: true } : {}),
+      ...(bar.subdivision === undefined ? {} : { subdivision: bar.subdivision }),
       ...(bpm !== null && Number.isFinite(bpm) && bpm > 0
         ? {
             tempoDefinition: createTempoDefinitionForMeter(clampSongBpm(bpm), bar.meter),
@@ -141,6 +151,25 @@ export function updateBarBpm(song: Song, barId: string, bpm: number | null): Son
         : {}),
     }),
   );
+}
+
+export function updateBarSubdivision(
+  song: Song,
+  barId: string,
+  subdivision: import('../../valueObjects/Subdivision').SubdivisionKind | null,
+): Song {
+  return mapBar(song, barId, (bar) => {
+    const next =
+      subdivision === null
+        ? undefined
+        : normalizeBarSubdivisionForMeter(bar.meter.denominator, subdivision);
+    const { subdivision: _previous, ...withoutSubdivision } = bar;
+
+    return {
+      ...withoutSubdivision,
+      ...(next === undefined ? {} : { subdivision: next }),
+    };
+  });
 }
 
 function mapBar(song: Song, barId: string, mapper: (bar: Bar) => Bar): Song {

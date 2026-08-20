@@ -130,7 +130,12 @@ internal class SongTimelineEventSource(
   }
 
   override fun ticksPerBeatAt(sequence: Long): Int {
-    return 1
+    if (events.isEmpty()) {
+      return 1
+    }
+
+    val index = resolveEventIndex(sequence) ?: return 1
+    return max(1, events[index].ticksPerBeat)
   }
 
   /** Debug-only preview of the first events in the compiled stream. */
@@ -146,7 +151,7 @@ internal class SongTimelineEventSource(
         tag,
         "SongTimeline preview[$index]: seq=${event.sequence} bar=${event.barId} " +
           "bpm=${event.bpm} accent=${event.accent} beat=${event.beatIndexInBar + 1}/" +
-          "${event.beatsPerMeasure} subdiv=${event.subdivisionIndex}",
+          "${event.beatsPerMeasure} subdiv=${event.subdivisionIndex}/${event.ticksPerBeat}",
       )
     }
   }
@@ -212,12 +217,11 @@ internal class SongTimelineEventSource(
 
   private fun tickDurationNs(event: TimelinePlaybackEvent): Long {
     val beatDurationNs = beatDurationNs(event.bpm)
-    if (event.subdivisionIndex <= 0) {
-      return beatDurationNs
-    }
-
-    // Future: subdivisions within a beat share one beat duration.
-    return beatDurationNs
+    val ticksPerBeat = max(1, event.ticksPerBeat)
+    val subdiv = event.subdivisionIndex.coerceIn(0, ticksPerBeat - 1)
+    // Same split as QuickMetronomeEventSource: ticks in a pulse sum to one beat.
+    return ((subdiv + 1L) * beatDurationNs) / ticksPerBeat -
+      (subdiv.toLong() * beatDurationNs) / ticksPerBeat
   }
 
   private fun beatDurationNs(bpm: Double): Long {

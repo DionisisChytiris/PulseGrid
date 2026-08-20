@@ -94,6 +94,7 @@ function toViewModel(
     barIndicators,
     accentPreview: buildAccentPreview(segment.accentPattern, segment.meter.numerator),
     bpmOverride: segment.bpmOverride,
+    subdivision: segment.subdivision,
     isActive,
     activeBarIndex,
   };

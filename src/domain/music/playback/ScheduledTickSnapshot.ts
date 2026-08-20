@@ -45,8 +45,25 @@ export function computeDeadlineOffsets(events: readonly PlaybackEvent[]): readon
   return offsets;
 }
 
-function tickDurationNs(event: PlaybackEvent): number {
-  return beatDurationNs(toEngineBpm(event.bpm, event.meter.denominator));
+/**
+ * Duration of one compiled click.
+ * Musical pulse length is BPM+meter; subdivision only splits that pulse into denser clicks.
+ * Uses the same multiply-then-divide split as Quick Metronome so ticks in a pulse
+ * sum exactly to the pulse duration (no floor drift).
+ */
+export function tickDurationNs(event: PlaybackEvent): number {
+  const pulseNs = beatDurationNs(toEngineBpm(event.bpm, event.meter.denominator));
+  const ticksPerBeat = Math.max(1, event.ticksPerBeat ?? 1);
+  const subdiv = Math.min(Math.max(0, event.subdivisionIndex), ticksPerBeat - 1);
+  return (
+    Math.floor(((subdiv + 1) * pulseNs) / ticksPerBeat) -
+    Math.floor((subdiv * pulseNs) / ticksPerBeat)
+  );
+}
+
+/** Wall-clock duration of one musical bar (primary pulses only) — independent of subdivision. */
+export function barDurationNs(events: readonly PlaybackEvent[]): number {
+  return computeDeadlineOffsets(events)[events.length] ?? 0;
 }
 
 export function mapPlaybackEventToScheduledSnapshot(

@@ -33,6 +33,10 @@ type Props = {
   onSegmentMeterChange: (segment: TimelineSegment, meterLabel: string) => void;
   onSegmentBpmOverrideChange: (segment: TimelineSegment, bpm: number | null) => void;
   onSegmentAccentPatternChange: (segment: TimelineSegment, pattern: boolean[]) => void;
+  onSegmentSubdivisionChange?: (
+    segment: TimelineSegment,
+    subdivision: import('../../domain/valueObjects/Subdivision').SubdivisionKind,
+  ) => void;
   onSegmentDuplicate: (segment: TimelineSegment) => void;
   onSegmentDelete: (segment: TimelineSegment) => string | null;
   onSongDefaultBpmChange: (bpm: number) => void;
@@ -47,6 +51,7 @@ export function SongTimelineView({
   onSegmentMeterChange,
   onSegmentBpmOverrideChange,
   onSegmentAccentPatternChange,
+  onSegmentSubdivisionChange,
   onSegmentDuplicate,
   onSegmentDelete,
   onSongDefaultBpmChange,
@@ -172,6 +177,12 @@ export function SongTimelineView({
           const domain = findDomainSegmentById(song, segmentId);
           if (domain !== null) {
             onSegmentAccentPatternChange(domain, pattern);
+          }
+        }}
+        onSubdivisionChange={(segmentId, subdivision) => {
+          const domain = findDomainSegmentById(song, segmentId);
+          if (domain !== null) {
+            onSegmentSubdivisionChange?.(domain, subdivision);
           }
         }}
         onDuplicateSegment={(segmentId) => {

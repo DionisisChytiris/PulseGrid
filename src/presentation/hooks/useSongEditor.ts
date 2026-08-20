@@ -30,10 +30,16 @@ import {
   setSegmentBarCount,
   setSegmentBpmOverride,
   setSegmentMeterLabel,
+  setSegmentSubdivision,
   deleteSegment,
   duplicateSegment,
   type TimelineSegment,
 } from '../../components/songTimeline';
+import { clampBpmForSubdivision } from '../../domain/metronome/bpmLimits';
+import { toBarFinerSubdivision } from '../../domain/music/barSubdivision';
+import { resolveEngineSubdivision } from '../../domain/metronome/PulseGridSettings';
+import type { SubdivisionKind } from '../../domain/valueObjects/Subdivision';
+import { getBarTempoBpm } from '../../domain/music/Bar';
 
 export function useSongEditor(songId: string) {
   const [editor, setEditor] = useState<SongEditorViewState>(() => createSongEditorViewState(null));
@@ -154,6 +160,24 @@ export function useSongEditor(songId: string) {
       applyAndSave((current) => setSegmentAccentPreset(current, segment, presetId)),
     setSegmentAccentPattern: (segment: TimelineSegment, pattern: readonly boolean[]) =>
       applyAndSave((current) => setSegmentAccentPattern(current, segment, pattern)),
+    setSegmentSubdivision: (segment: TimelineSegment, subdivision: SubdivisionKind) =>
+      applyAndSave((current) => {
+        let next = setSegmentSubdivision(current, segment, subdivision);
+        const finer = toBarFinerSubdivision(segment.meter.denominator, subdivision);
+        const engineKind = resolveEngineSubdivision(segment.meter.denominator, finer);
+        const firstBarId = segment.barIds[0];
+        const firstBar =
+          firstBarId === undefined
+            ? undefined
+            : current.sections.flatMap((section) => section.bars).find((bar) => bar.id === firstBarId);
+        const effectiveBpm =
+          (firstBar !== undefined ? getBarTempoBpm(firstBar) : undefined) ?? current.defaultBpm;
+        const clamped = clampBpmForSubdivision(effectiveBpm, engineKind);
+        if (clamped !== effectiveBpm) {
+          next = setSegmentBpmOverride(next, segment, clamped);
+        }
+        return next;
+      }),
     createSectionAtBar: (segment: TimelineSegment, name: string) =>
       applyAndSave((current) => createSectionAtBar(current, segment.startBarIndex, name)),
     removeSectionAtBar: (segment: TimelineSegment) =>

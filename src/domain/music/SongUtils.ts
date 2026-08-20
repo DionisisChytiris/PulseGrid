@@ -14,6 +14,7 @@ function cloneBar(bar: Bar): Bar {
     ...cloneBarTempoFields(bar),
     ...(bar.clickPattern === undefined ? {} : { clickPattern: cloneClickPattern(bar.clickPattern) }),
     ...(bar.segmentBreakAfter === true ? { segmentBreakAfter: true as const } : {}),
+    ...(bar.subdivision === undefined ? {} : { subdivision: bar.subdivision }),
   };
 }
 

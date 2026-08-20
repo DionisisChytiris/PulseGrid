@@ -6,6 +6,7 @@ struct TimelinePlaybackEvent {
   let bpm: Double
   let accent: Bool
   let subdivisionIndex: Int
+  let ticksPerBeat: Int
   let beatIndexInBar: Int
   let beatsPerMeasure: Int
   let barId: String

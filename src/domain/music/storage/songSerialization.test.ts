@@ -231,4 +231,23 @@ describe('storedToSong backward compatibility', () => {
     expect(song.name).toBe('Alpha');
     expect(song.sections[0]?.bars[0]?.meter.numerator).toBe(4);
   });
+
+  it('round-trips optional bar subdivision and defaults missing values to Quarter', () => {
+    const withSubdivision = validSong({
+      sections: [
+        {
+          id: 'sec-1',
+          name: 'Main',
+          loop: false,
+          bars: [validBar({ subdivision: 'triplet' })],
+        },
+      ],
+    }) as StoredSong;
+
+    const song = storedToSong(withSubdivision);
+    expect(song.sections[0]?.bars[0]?.subdivision).toBe('triplet');
+
+    const legacy = storedToSong(validSong() as StoredSong);
+    expect(legacy.sections[0]?.bars[0]?.subdivision).toBeUndefined();
+  });
 });

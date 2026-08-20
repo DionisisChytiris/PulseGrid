@@ -6,15 +6,20 @@ import {
   type SongAccentPattern,
 } from '../../domain/music/AccentPattern';
 import { cloneBarTempoFields, createBar, type Bar } from '../../domain/music/Bar';
+import {
+  normalizeBarSubdivisionForMeter,
+} from '../../domain/music/barSubdivision';
 import { cloneClickPattern } from '../../domain/music/ClickPattern';
 import {
   addBarToSong,
   updateBarBpm,
   updateBarMeter,
+  updateBarSubdivision,
 } from '../../domain/music/editor';
 import { cloneMeter, createMeter, metersEqual, type Meter } from '../../domain/music/Meter';
 import type { Song } from '../../domain/music/Song';
 import { generateEntityId } from '../../domain/music/storage/generateEntityId';
+import type { SubdivisionKind } from '../../domain/valueObjects/Subdivision';
 
 import { buildTimelineSegments } from './buildTimelineSegments';
 import type { TimelineSegment } from './types';
@@ -114,7 +119,7 @@ function setBarSegmentBreakAfter(bar: Bar, segmentBreakAfter: boolean): Bar {
   return rest;
 }
 
-/** Clone a bar with a new unique id — copies meter, accents, tempo, click pattern. */
+/** Clone a bar with a new unique id — copies meter, accents, tempo, click pattern, subdivision. */
 export function cloneBarWithNewId(bar: Bar): Bar {
   return createBar({
     id: generateEntityId('bar'),
@@ -125,6 +130,7 @@ export function cloneBarWithNewId(bar: Bar): Bar {
     ...(bar.clickPattern === undefined
       ? {}
       : { clickPattern: cloneClickPattern(bar.clickPattern) }),
+    ...(bar.subdivision === undefined ? {} : { subdivision: bar.subdivision }),
   });
 }
 
@@ -258,6 +264,20 @@ export function setSegmentBpmOverride(
   bpm: number | null,
 ): Song {
   return segment.barIds.reduce((current, barId) => updateBarBpm(current, barId, bpm), song);
+}
+
+/** Applies Quick Metronome subdivision to every bar in the segment (/2 and /4 only). */
+export function setSegmentSubdivision(
+  song: Song,
+  segment: TimelineSegment,
+  subdivision: SubdivisionKind,
+): Song {
+  const stored = normalizeBarSubdivisionForMeter(segment.meter.denominator, subdivision) ?? null;
+
+  return segment.barIds.reduce(
+    (current, barId) => updateBarSubdivision(current, barId, stored),
+    song,
+  );
 }
 
 function accentForPreset(presetId: string, beatCount: number): SongAccentPattern {

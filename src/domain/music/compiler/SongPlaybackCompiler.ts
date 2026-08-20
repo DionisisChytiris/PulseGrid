@@ -1,6 +1,11 @@
 import { resolveAccentFlags } from '../AccentPattern';
 import type { Bar } from '../Bar';
 import { getBarTempoBpm } from '../Bar';
+import { clampBpmForSubdivision } from '../../metronome/bpmLimits';
+import {
+  resolveBarEngineSubdivision,
+  resolveBarTicksPerPulse,
+} from '../barSubdivision';
 import type { Section } from '../Section';
 import type { Song } from '../Song';
 import { locateBarsInSong } from '../SongUtils';
@@ -59,31 +64,45 @@ export function resolveTempoAtPosition(
   return getBarTempoBpm(locatedBars[clampedIndex].bar) ?? defaultBpm;
 }
 
-/** Expands one bar instance into primary-beat ticks. */
+/**
+ * Expands one bar instance into pulse ticks.
+ * Uses the same resolveTicksPerPulse path as Quick Metronome for /2 and /4 subdivisions.
+ */
 export function expandBarToEvents(bar: Bar, context: BarCompileContext): PlaybackEvent[] {
   const beatCount = bar.meter.numerator;
   const accentFlags = resolveAccentFlags(bar.accentPattern, beatCount);
   const source: PlaybackEventSource = context.tempoChangedOnThisBar ? 'tempoEvent' : 'song';
+  const ticksPerPulse = resolveBarTicksPerPulse(bar);
+  const engineSubdivision = resolveBarEngineSubdivision(bar);
+  const bpm = clampBpmForSubdivision(context.bpm, engineSubdivision);
   const events: PlaybackEvent[] = [];
+  let tickOffset = 0;
 
   for (let beatIndexInBar = 0; beatIndexInBar < beatCount; beatIndexInBar += 1) {
-    const sequence = context.startingSequence + beatIndexInBar;
-    const globalTickIndex = context.startingGlobalTickIndex + beatIndexInBar;
+    const beatAccent = accentFlags[beatIndexInBar] ?? false;
 
-    events.push({
-      sequence,
-      barId: bar.id,
-      sectionId: context.sectionId,
-      meter: bar.meter,
-      bpm: context.bpm,
-      accent: accentFlags[beatIndexInBar] ?? false,
-      subdivisionIndex: 0,
-      globalTickIndex,
-      source,
-      repeatIndex: context.repeatIndex,
-      beatIndexInBar,
-      globalBarIndex: context.globalBarIndex,
-    });
+    for (let subdivisionIndex = 0; subdivisionIndex < ticksPerPulse; subdivisionIndex += 1) {
+      const sequence = context.startingSequence + tickOffset;
+      const globalTickIndex = context.startingGlobalTickIndex + tickOffset;
+
+      events.push({
+        sequence,
+        barId: bar.id,
+        sectionId: context.sectionId,
+        meter: bar.meter,
+        bpm,
+        // Primary pulse carries the beat accent; fills match Quick Metronome OFF subdiv accents.
+        accent: subdivisionIndex === 0 && beatAccent,
+        subdivisionIndex,
+        ticksPerBeat: ticksPerPulse,
+        globalTickIndex,
+        source,
+        repeatIndex: context.repeatIndex,
+        beatIndexInBar,
+        globalBarIndex: context.globalBarIndex,
+      });
+      tickOffset += 1;
+    }
   }
 
   return events;

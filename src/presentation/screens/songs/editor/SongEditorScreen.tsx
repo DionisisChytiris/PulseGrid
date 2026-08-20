@@ -71,6 +71,7 @@ export default function SongEditorScreen({ navigation, route }: Props) {
     setSegmentMeter,
     setSegmentBpmOverride,
     setSegmentAccentPattern,
+    setSegmentSubdivision,
     duplicateSegment,
     deleteSegment,
     createSectionAtBar,
@@ -307,6 +308,7 @@ export default function SongEditorScreen({ navigation, route }: Props) {
           onSegmentMeterChange={setSegmentMeter}
           onSegmentBpmOverrideChange={setSegmentBpmOverride}
           onSegmentAccentPatternChange={setSegmentAccentPattern}
+          onSegmentSubdivisionChange={setSegmentSubdivision}
           onSegmentDuplicate={duplicateSegment}
           onSegmentDelete={deleteSegment}
           onCreateSection={createSectionAtBar}
